@@ -7,8 +7,10 @@ each step reports where you stand rather than starting over.
 """
 from __future__ import annotations
 
+import contextlib
+import functools
+import io
 import os
-import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -87,17 +89,32 @@ def check_browser_profile(profile: Path) -> Check:
     )
 
 
-def check_chromium() -> Check:
+@functools.cache
+def _chromium_path() -> Path | None:
+    """Locate the browser binary.
+
+    Starting and stopping Playwright's driver just to read a path makes the
+    interpreter print asyncio teardown warnings at exit — which look like a
+    crash to somebody who has just installed the tool. So the result is cached
+    (init asks more than once) and stderr is swallowed for the duration.
+    """
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
-        return Check("browser", False, "playwright non installato",
-                     "reinstalla winnow")
+        return None
     try:
-        with sync_playwright() as pw:
-            path = Path(pw.chromium.executable_path)
-    except Exception as e:  # noqa: BLE001
-        return Check("browser", False, str(e)[:60], "esegui 'winnow init'")
+        with contextlib.redirect_stderr(io.StringIO()):
+            with sync_playwright() as pw:
+                return Path(pw.chromium.executable_path)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def check_chromium() -> Check:
+    path = _chromium_path()
+    if path is None:
+        return Check("browser", False, "playwright non disponibile",
+                     "reinstalla winnow")
     if not path.exists():
         return Check("browser", False, "Chromium non scaricato",
                      "esegui 'winnow init' (scarica ~150 MB)")
@@ -107,6 +124,7 @@ def check_chromium() -> Check:
 def install_chromium() -> bool:
     print("  scarico Chromium (~150 MB, una volta sola)...")
     r = subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"])
+    _chromium_path.cache_clear()
     return r.returncode == 0
 
 
