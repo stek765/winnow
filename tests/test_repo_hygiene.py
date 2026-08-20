@@ -73,4 +73,4 @@ def test_placeholder_ids_are_allowed():
     il controllo: un id di soli zeri non e' il dato di nessuno."""
     real_id = re.compile(r"/saved/[^/]+/(?!0+/)\d{15,}")
     assert not real_id.search("/YOUR_USERNAME/saved/example/000000000000000/")
-    assert real_id.search("/tizio/saved/github/2187308038720153/")
+    assert real_id.search("/tizio/saved/github/123456789012345/")

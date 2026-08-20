@@ -18,3 +18,7 @@ venv/
 
 # --- OS ---
 .DS_Store
+
+# Note per gli agenti AI: locali, non versionate
+CLAUDE.md
+AGENTS.md
