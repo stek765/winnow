@@ -7,9 +7,6 @@ each step reports where you stand rather than starting over.
 """
 from __future__ import annotations
 
-import contextlib
-import functools
-import io
 import os
 import subprocess
 import sys
@@ -89,33 +86,39 @@ def check_browser_profile(profile: Path) -> Check:
     )
 
 
-@functools.cache
-def _chromium_path() -> Path | None:
-    """Locate the browser binary.
+def browsers_root() -> Path:
+    """Where Playwright keeps downloaded browsers.
 
-    Starting and stopping Playwright's driver just to read a path makes the
-    interpreter print asyncio teardown warnings at exit — which look like a
-    crash to somebody who has just installed the tool. So the result is cached
-    (init asks more than once) and stderr is swallowed for the duration.
+    Read from disk rather than by starting Playwright's driver: starting and
+    stopping it just to read a path makes the interpreter print asyncio
+    teardown warnings *at exit*, long after any stderr redirect has ended.
+    To someone who just installed the tool those look like a crash.
     """
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        return None
-    try:
-        with contextlib.redirect_stderr(io.StringIO()):
-            with sync_playwright() as pw:
-                return Path(pw.chromium.executable_path)
-    except Exception:  # noqa: BLE001
-        return None
+    override = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
+    if override:
+        return Path(override)
+    home = Path(os.environ.get("HOME", "~")).expanduser()
+    if sys.platform == "darwin":
+        return home / "Library" / "Caches" / "ms-playwright"
+    if sys.platform.startswith("win"):
+        return home / "AppData" / "Local" / "ms-playwright"
+    return home / ".cache" / "ms-playwright"
+
+
+def chromium_installed(root: Path | None = None) -> bool:
+    root = root or browsers_root()
+    if not root.is_dir():
+        return False
+    return any(d.is_dir() for d in root.glob("chromium-*"))
 
 
 def check_chromium() -> Check:
-    path = _chromium_path()
-    if path is None:
-        return Check("browser", False, "playwright non disponibile",
+    try:
+        import playwright  # noqa: F401
+    except ImportError:
+        return Check("browser", False, "playwright non installato",
                      "reinstalla winnow")
-    if not path.exists():
+    if not chromium_installed():
         return Check("browser", False, "Chromium non scaricato",
                      "esegui 'winnow init' (scarica ~150 MB)")
     return Check("browser", True, "Chromium pronto")
@@ -124,7 +127,6 @@ def check_chromium() -> Check:
 def install_chromium() -> bool:
     print("  scarico Chromium (~150 MB, una volta sola)...")
     r = subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"])
-    _chromium_path.cache_clear()
     return r.returncode == 0
 
 

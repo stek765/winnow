@@ -51,3 +51,24 @@ def test_profile_with_cookies_counts_as_logged_in(tmp_path):
     d.mkdir(parents=True)
     (d / "Cookies").write_text("", encoding="utf-8")
     assert check_browser_profile(tmp_path / "prof").ok
+
+
+def test_browsers_root_honours_the_playwright_override(monkeypatch):
+    from pathlib import Path
+    from winnow.setup import browsers_root
+    monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", "/altrove")
+    assert browsers_root() == Path("/altrove")
+
+
+def test_chromium_installed_looks_for_a_chromium_directory(tmp_path):
+    from winnow.setup import chromium_installed
+    assert not chromium_installed(tmp_path)
+    (tmp_path / "firefox-1234").mkdir()
+    assert not chromium_installed(tmp_path), "firefox non e' chromium"
+    (tmp_path / "chromium-1234").mkdir()
+    assert chromium_installed(tmp_path)
+
+
+def test_chromium_installed_is_false_when_the_root_does_not_exist(tmp_path):
+    from winnow.setup import chromium_installed
+    assert not chromium_installed(tmp_path / "mai-creata")
