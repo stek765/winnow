@@ -188,20 +188,27 @@ winnow reset-halt   # restart after a halt, deliberately
 
 ### Scheduling it
 
-On macOS use **launchd**, not cron. On a laptop that sleeps, cron simply skips
-a missed run and never mentions it — a 3 a.m. job would quietly never fire.
-launchd catches up on wake.
+The scheduled job is just `winnow collect` — the key is read from
+`~/.config/winnow/env`, so it never appears in the schedule definition and no
+wrapper script is needed.
 
-`scripts/run-collect.sh` is the entry point (it sources your key file, so the
-key never appears in the schedule definition). Point a user agent at it:
+On macOS use **launchd**, not cron. On a laptop that sleeps, cron silently
+skips a missed run and never mentions it — a 3 a.m. job would quietly never
+fire. launchd catches up on wake.
 
 ```xml
 <!-- ~/Library/LaunchAgents/dev.winnow.collect.plist -->
 <key>ProgramArguments</key>
-<array><string>/path/to/winnow/scripts/run-collect.sh</string></array>
+<array>
+  <string>/Users/YOU/.local/bin/winnow</string>
+  <string>collect</string>
+</array>
 <key>StartCalendarInterval</key>
 <dict><key>Hour</key><integer>13</integer><key>Minute</key><integer>0</integer></dict>
-<key>StandardOutPath</key><string>/path/to/winnow/state/collect.log</string>
+<key>StandardOutPath</key>
+<string>/Users/YOU/.local/share/winnow/state/collect.log</string>
+<key>StandardErrorPath</key>
+<string>/Users/YOU/.local/share/winnow/state/collect.log</string>
 ```
 
 ```bash
@@ -210,11 +217,7 @@ launchctl start dev.winnow.collect     # run it once now
 ```
 
 Pick an hour the machine is usually awake and unlocked — the browser window
-needs a graphical session.
-
-> ⚠️ **Moving the project directory breaks two things**: the virtualenv (the
-> shebangs in `.venv/bin/` are absolute — recreate it) and the plist (absolute
-> paths — edit and reload).
+needs a graphical session. On Linux, a cron line does the same job.
 
 Read the findings weekly — the recap prompt lives in
 [`docs/recap-prompt.md`](docs/recap-prompt.md).

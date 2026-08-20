@@ -184,3 +184,27 @@ def run_init() -> int:
         print(f"    • {c.name}: {c.todo or c.detail}")
     print("\n  Poi rilancia 'winnow init' per ricontrollare.\n")
     return 1
+
+
+def load_env_file(env_file: Path) -> dict[str, str]:
+    """Parse KEY=value lines. Not a shell: no expansion, no execution.
+
+    This is what lets a scheduled job be a bare `winnow collect` — no wrapper
+    script sourcing a file, and no secret written into the schedule itself.
+    """
+    out: dict[str, str] = {}
+    if not env_file.exists():
+        return out
+    for line in env_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        out[key.strip()] = value.strip().strip('"').strip("'")
+    return out
+
+
+def apply_env_file(env_file: Path) -> None:
+    """Load the key file into the environment, without overriding what is set."""
+    for key, value in load_env_file(env_file).items():
+        os.environ.setdefault(key, value)

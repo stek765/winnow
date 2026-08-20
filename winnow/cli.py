@@ -86,6 +86,12 @@ def _cmd_reset_halt(args) -> int:
 def _cmd_collect(args) -> int:
     import anthropic
 
+    from winnow.setup import apply_env_file
+
+    # La chiave sta in un file con permessi 600, non nella definizione dello
+    # scheduler: cosi' il job programmato e' un semplice `winnow collect`.
+    apply_env_file(paths.env_file())
+
     from winnow.browser import SessionExpired, open_session
     from winnow.run import collect, make_http
 

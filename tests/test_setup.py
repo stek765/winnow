@@ -72,3 +72,27 @@ def test_chromium_installed_looks_for_a_chromium_directory(tmp_path):
 def test_chromium_installed_is_false_when_the_root_does_not_exist(tmp_path):
     from winnow.setup import chromium_installed
     assert not chromium_installed(tmp_path / "mai-creata")
+
+
+def test_load_env_file_parses_key_value_lines(tmp_path):
+    from winnow.setup import load_env_file
+    f = tmp_path / "env"
+    f.write_text("# commento\nANTHROPIC_API_KEY=sk-ant-finta\n\nGITHUB_TOKEN='abc'\n",
+                 encoding="utf-8")
+    assert load_env_file(f) == {"ANTHROPIC_API_KEY": "sk-ant-finta",
+                                "GITHUB_TOKEN": "abc"}
+
+
+def test_load_env_file_on_missing_file_is_empty(tmp_path):
+    from winnow.setup import load_env_file
+    assert load_env_file(tmp_path / "assente") == {}
+
+
+def test_apply_env_file_does_not_override_the_environment(tmp_path, monkeypatch):
+    from winnow.setup import apply_env_file
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "quella-vera")
+    f = tmp_path / "env"
+    f.write_text("ANTHROPIC_API_KEY=quella-del-file\n", encoding="utf-8")
+    apply_env_file(f)
+    import os
+    assert os.environ["ANTHROPIC_API_KEY"] == "quella-vera"
