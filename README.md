@@ -20,6 +20,63 @@ carries off the light chaff and the heavy grain falls back down.
 
 ---
 
+## The loop
+
+winnow runs on its own and hands you something to read once a week.
+
+```
+DAILY, unattended          winnow collect      ~2 min, a browser window opens
+                                               and closes by itself
+                              ↓
+                           findings/2026-08-20.json     facts, not opinions
+
+WEEKLY, with you           the recap           what to keep, and why
+```
+
+The daily half is a scheduled job — **launchd** on macOS, cron elsewhere. It
+opens a real browser because Instagram does not welcome headless ones, so you
+will see a window appear and vanish. Nothing asks you anything.
+
+The weekly half is you and a model reading those findings against your profile
+([`docs/recap-prompt.md`](docs/recap-prompt.md)). That is where the value lands.
+Nothing to install for it.
+
+## Is it working?
+
+One command tells you everything — whether it stopped, when it last ran, what
+it found, and what it has cost:
+
+```console
+$ winnow status
+stato        attivo
+spesa 7gg    USD 0.0553
+post visti   15
+ultimo giro  20/08 18:29 (0h fa) — 8 post, 36 entita', 11 verificate
+da leggere   1 file in findings/
+```
+
+It warns you when something is wrong rather than making you notice:
+
+| You see | It means |
+|---|---|
+| `ultimo giro ... ⚠️ piu' di 36h fa` | the machine was off, or the schedule is broken |
+| `⚠️ N post falliti` | some posts could not be read — details in the findings file |
+| a wall of text about `HALTED` | it stopped itself on spend and **will not restart** until you say so |
+
+Two more, when you want detail:
+
+```bash
+tail -20 state/collect.log     # what the last runs actually did
+ls findings/                   # one file per day, waiting to be read
+```
+
+**Worth an alias**, since the command lives in the project's virtualenv:
+
+```bash
+alias winnow='~/path/to/winnow/.venv/bin/winnow'
+```
+
+
 ## Why
 
 You save posts because something caught your eye. Then you never go back.
@@ -107,8 +164,38 @@ winnow status       # this week's spend, or why it stopped
 winnow reset-halt   # restart after a halt, deliberately
 ```
 
-Schedule `collect` nightly. Read the findings weekly — the recap prompt lives
-in [`docs/recap-prompt.md`](docs/recap-prompt.md).
+### Scheduling it
+
+On macOS use **launchd**, not cron. On a laptop that sleeps, cron simply skips
+a missed run and never mentions it — a 3 a.m. job would quietly never fire.
+launchd catches up on wake.
+
+`scripts/run-collect.sh` is the entry point (it sources your key file, so the
+key never appears in the schedule definition). Point a user agent at it:
+
+```xml
+<!-- ~/Library/LaunchAgents/dev.winnow.collect.plist -->
+<key>ProgramArguments</key>
+<array><string>/path/to/winnow/scripts/run-collect.sh</string></array>
+<key>StartCalendarInterval</key>
+<dict><key>Hour</key><integer>13</integer><key>Minute</key><integer>0</integer></dict>
+<key>StandardOutPath</key><string>/path/to/winnow/state/collect.log</string>
+```
+
+```bash
+launchctl load ~/Library/LaunchAgents/dev.winnow.collect.plist
+launchctl start dev.winnow.collect     # run it once now
+```
+
+Pick an hour the machine is usually awake and unlocked — the browser window
+needs a graphical session.
+
+> ⚠️ **Moving the project directory breaks two things**: the virtualenv (the
+> shebangs in `.venv/bin/` are absolute — recreate it) and the plist (absolute
+> paths — edit and reload).
+
+Read the findings weekly — the recap prompt lives in
+[`docs/recap-prompt.md`](docs/recap-prompt.md).
 
 ## What it costs
 
