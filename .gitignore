@@ -1,0 +1,20 @@
+# --- Dati personali e segreti: MAI versionati ---
+config.toml
+state/
+findings/
+profiles/*.md
+!profiles/esempio.md
+
+# Profilo browser Playwright (contiene la sessione Instagram loggata)
+browser-profile/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# --- OS ---
+.DS_Store

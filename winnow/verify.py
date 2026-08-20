@@ -1,0 +1,221 @@
+"""Check claims against their source. Never report unverified as verified."""
+from __future__ import annotations
+
+import re
+import shutil
+import subprocess
+from dataclasses import dataclass
+
+import httpx
+
+GITHUB_API = "https://api.github.com"
+HF_API = "https://huggingface.co"
+REPO_RE = re.compile(r"^([A-Za-z0-9][\w.-]*)/([\w.-]+?)(?:\.git)?$")
+
+
+@dataclass(frozen=True)
+class Verification:
+    checked: bool
+    exists: bool | None = None
+    stars: int | None = None
+    last_commit: str | None = None
+    archived: bool | None = None
+    license: str | None = None
+    description: str | None = None
+    url: str | None = None
+    note: str = ""
+
+
+def normalize_repo_name(text: str) -> str | None:
+    s = text.strip()
+    if not s:
+        return None
+    s = re.sub(r"^https?://", "", s)
+    s = re.sub(r"^(www\.)?github\.com/", "", s)
+    s = s.rstrip("/")
+    m = REPO_RE.match(s)
+    return f"{m.group(1)}/{m.group(2)}" if m else None
+
+
+def verify_repo(http: httpx.Client, owner_repo: str) -> Verification:
+    try:
+        r = http.get(
+            f"{GITHUB_API}/repos/{owner_repo}",
+            headers={"Accept": "application/vnd.github+json"},
+            timeout=15.0,
+        )
+    except httpx.HTTPError as e:
+        return Verification(checked=False, note=f"errore di rete: {e}")
+
+    if r.status_code == 404:
+        return Verification(checked=True, exists=False, note="repository inesistente")
+    if r.status_code != 200:
+        return Verification(
+            checked=False,
+            note=f"GitHub ha risposto {r.status_code} (rate limit?): non verificato",
+        )
+
+    d = r.json()
+    pushed = (d.get("pushed_at") or "")[:10] or None
+    return Verification(
+        checked=True,
+        exists=True,
+        stars=d.get("stargazers_count"),
+        last_commit=pushed,
+        archived=d.get("archived"),
+        license=(d.get("license") or {}).get("spdx_id"),
+        description=d.get("description"),
+        url=d.get("html_url"),
+    )
+
+
+def _slug(text: str) -> str:
+    """Comparable form of a name: 'Open Notebook' and 'open-notebook' match."""
+    return re.sub(r"[^a-z0-9]", "", text.lower())
+
+
+def _from_item(item: dict, note: str) -> Verification:
+    return Verification(
+        checked=True,
+        exists=True,
+        stars=item.get("stargazers_count"),
+        last_commit=(item.get("pushed_at") or "")[:10] or None,
+        archived=item.get("archived"),
+        license=(item.get("license") or {}).get("spdx_id"),
+        description=item.get("description"),
+        url=item.get("html_url"),
+        note=note,
+    )
+
+
+def search_repo(http: httpx.Client, name: str) -> Verification:
+    """Find a repository from a display name, e.g. 'Open Notebook'.
+
+    Slides print the product name, not the owner/name slug. Refusing to guess
+    the owner is correct, but on its own nothing ever gets verified — so we ask
+    GitHub instead of guessing.
+
+    Two rules keep this honest, both learned from real failures on 2026-08-20:
+      - search `in:name` only. Searching descriptions too matched 'AI Job
+        Search' to a repo called career-ops.
+      - require the repo name to actually equal the queried name. Sorting by
+        stars alone returns the most famous repo containing those words, which
+        is how 'No AI Slop' became a website builder with 9.6k stars.
+    Attaching real numbers to the wrong project is worse than not checking.
+    """
+    query = name.strip()
+    if not query:
+        return Verification(checked=False, note="nome vuoto")
+    try:
+        r = http.get(
+            f"{GITHUB_API}/search/repositories",
+            params={"q": f"{query} in:name", "sort": "stars",
+                    "order": "desc", "per_page": 10},
+            headers={"Accept": "application/vnd.github+json"},
+            timeout=20.0,
+        )
+    except httpx.HTTPError as e:
+        return Verification(checked=False, note=f"errore di rete: {e}")
+
+    if r.status_code != 200:
+        return Verification(
+            checked=False,
+            note=f"ricerca GitHub ha risposto {r.status_code} (rate limit?)",
+        )
+
+    items = r.json().get("items", [])
+    wanted = _slug(query)
+    exact = [i for i in items if _slug((i.get("name") or "")) == wanted]
+
+    if not exact:
+        near = ", ".join(i.get("full_name", "?") for i in items[:3])
+        return Verification(
+            checked=True, exists=False,
+            note=f"nessun repository si chiama esattamente {name!r}"
+                 + (f" | simili scartati: {near}" if near else ""),
+        )
+
+    top = exact[0]
+    note = f"corrispondenza esatta del nome per {name!r}"
+    if len(exact) > 1:
+        rivals = ", ".join(
+            f"{i.get('full_name')} (⭐{i.get('stargazers_count')}, "
+            f"{(i.get('pushed_at') or '')[:10]})"
+            for i in exact[1:3]
+        )
+        note += f" | ⚠️ omonimi: {rivals}"
+    return _from_item(top, note)
+
+
+def resolve_repo(http: httpx.Client, name: str) -> Verification:
+    """Verify a repo whether the slide gave a slug or just a display name."""
+    slug = normalize_repo_name(name)
+    if slug is not None:
+        return verify_repo(http, slug)
+    return search_repo(http, name)
+
+
+def verify_model(http: httpx.Client, name: str) -> Verification:
+    """Look a model up on HuggingFace.
+
+    Sorted by downloads, not by HuggingFace's default order: a plain search for
+    'Qwen3-32B' returns a random community conversion with zero downloads above
+    the official model. Download count is also the only cheap signal of whether
+    a hit is the canonical model or somebody's fine-tune, so it is reported.
+    """
+    try:
+        r = http.get(
+            f"{HF_API}/api/models",
+            params={"search": name, "limit": 5, "sort": "downloads",
+                    "direction": -1},
+            timeout=15.0,
+        )
+    except httpx.HTTPError as e:
+        return Verification(checked=False, note=f"errore di rete: {e}")
+
+    if r.status_code != 200:
+        return Verification(checked=False, note=f"HuggingFace ha risposto {r.status_code}")
+
+    hits = r.json()
+    if not hits:
+        return Verification(
+            checked=True,
+            exists=False,
+            note=f"nessun modello su HuggingFace corrisponde a {name!r}",
+        )
+
+    top = hits[0]
+    downloads = top.get("downloads") or 0
+    others = ", ".join(h.get("modelId", "?") for h in hits[1:3])
+    note = f"{downloads} download"
+    if downloads < 1000:
+        note += " — marginale, forse non e' il modello canonico"
+    if others:
+        note += f" | altri: {others}"
+
+    return Verification(
+        checked=True,
+        exists=True,
+        stars=top.get("likes"),
+        description=top.get("modelId"),
+        url=f"{HF_API}/{top.get('modelId')}",
+        note=note,
+    )
+
+
+def llmfit_available() -> bool:
+    return shutil.which("llmfit") is not None
+
+
+def hardware_note(name: str) -> str:
+    """Ask llmfit whether this model fits the local machine. Best effort."""
+    if not llmfit_available():
+        return ""
+    try:
+        out = subprocess.run(
+            ["llmfit", "fit", name, "--json"],
+            capture_output=True, text=True, timeout=30,
+        )
+    except (subprocess.SubprocessError, OSError) as e:
+        return f"llmfit non eseguibile: {e}"
+    return out.stdout.strip() if out.returncode == 0 else out.stderr.strip()[:200]

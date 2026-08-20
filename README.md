@@ -1,0 +1,143 @@
+<div align="center">
+
+# winnow
+
+**A filter for the posts you save. It doesn't summarize them — it throws them out.**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: pytest](https://img.shields.io/badge/tested%20with-pytest-0a9edc.svg)](https://docs.pytest.org/)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
+<img src="assets/winnower-millet.jpg" alt="Jean-François Millet, The Winnower (c. 1847-48)" width="360">
+
+***to winnow*** *(verb)* — to throw threshed grain into the air so the wind
+carries off the light chaff and the heavy grain falls back down.
+
+<sub>Jean-François Millet, <em>The Winnower</em>, c. 1847–48. National Gallery, London. Public domain.</sub>
+
+</div>
+
+---
+
+## Why
+
+You save posts because something caught your eye. Then you never go back.
+
+And when you do, two things have gone wrong:
+
+1. **Most of it is bait.** Not badly made — *deliberately* made to be saved and
+   never to pay off.
+2. **The useful part isn't in the text.** A post promises "9 repositories worth
+   bookmarking" and its caption names **none of them**. The names live inside
+   the eleven slides of the carousel, because the comments asking *"links
+   please?"* are the point. That is the business model, not an accident.
+
+So the tool has to open the slides, and it has to be suspicious.
+
+## How it works
+
+> **A post is not a source. It's a pointer.**
+
+When a slide says `open-notebook`, that name is **checkable**. GitHub knows the
+real star count, the last commit, whether it's archived. That costs almost
+nothing to ask, and it's the truth rather than the marketing.
+
+```
+read the slides  →  extract what they name  →  check it at the source  →  judge
+```
+
+A bait post that happens to contain a live repo with 37k stars **passes**.
+A beautifully made post listing repos dead for two years **gets thrown out**.
+The caption would never tell you which is which. The check does.
+
+## The thesis
+
+> **How well it filters depends on how well you've written down who you are.**
+
+winnow has two halves, and only one of them is code.
+
+| | **The collector** — this repo | **The judge** — you, plus a model |
+|---|---|---|
+| Does | navigates, reads slides, extracts, verifies | weighs findings against your life |
+| Is | general, works for anyone | yours, and worth nothing to anyone else |
+| Runs | nightly, unattended | when you want to read |
+| Reads | your saved folders | `profiles/yours.md` |
+
+The judge reads a plain markdown file you write: your goals, the decisions
+you've already made, **the things you already considered and rejected**. That
+last part is what makes it sharp. A generic tool says *"new job platform, looks
+interesting."* Yours says *"that's the fourth remote-freelance marketplace this
+month — you ruled that category out in August, and the reason still holds."*
+
+Without that file winnow is one more aggregator. With it, it's yours.
+
+Every content aggregator filters by **topic**. This one filters by **person**.
+
+## Install
+
+```bash
+pip install -e ".[dev]"
+playwright install chromium
+cp config.example.toml config.toml    # then fill it in
+export ANTHROPIC_API_KEY=...
+export GITHUB_TOKEN=...            # optional, but see below
+```
+
+`GITHUB_TOKEN` is optional. Without it, GitHub's search endpoint allows 10
+requests per minute and a run paces itself accordingly — a pass of 8 posts
+takes several minutes, which is fine for a nightly job. With a token it's 30,
+and the run is quicker.
+
+Sign in once, by hand, in a **dedicated browser profile** — not your everyday
+browser:
+
+```bash
+python scripts/login.py
+```
+
+Write your profile: copy `profiles/esempio.md` and make it honest. Vague goals
+produce a vague filter.
+
+## Use
+
+```bash
+winnow collect      # one pass -> findings/YYYY-MM-DD.json
+winnow status       # this week's spend, or why it stopped
+winnow reset-halt   # restart after a halt, deliberately
+```
+
+Schedule `collect` nightly. Read the findings weekly — the recap prompt lives
+in [`docs/recap-prompt.md`](docs/recap-prompt.md).
+
+## What it costs
+
+Reading slides means reading images, and images cost tokens. With the defaults
+(Claude Haiku, only posts you haven't seen before) expect roughly
+**$0.50 per week**.
+
+winnow keeps its own books and **stops permanently** if the weekly spend crosses
+the threshold in `config.toml`. Not to save money — because a bill twenty times
+the estimate isn't a price, it's a bug: a loop re-reading everything, a corrupt
+state file. The brake exists to catch the bug.
+
+> ⚠️ **Also set a hard spend limit on your API key**, in your provider's console.
+> The internal brake is policed by the same program that might contain the bug.
+> The external one isn't.
+
+## Privacy
+
+`config.toml`, `state/`, `findings/`, your profiles and the browser profile are
+all in `.gitignore`. No personal data lives in the source, and a test enforces
+it. Your saved posts never leave your machine except as slides sent to the
+extraction model.
+
+## Design notes
+
+The reasoning behind every decision — and the ones deliberately not reopened —
+is in [`docs/superpowers/specs/`](docs/superpowers/specs/). The build order is
+in [`docs/superpowers/plans/`](docs/superpowers/plans/).
+
+## License
+
+MIT — see [LICENSE](LICENSE).

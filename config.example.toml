@@ -1,0 +1,31 @@
+# Copy this file to config.toml and fill it in.
+# config.toml is gitignored: it never reaches GitHub.
+
+[instagram]
+username = "YOUR_USERNAME"
+# Dedicated browser profile directory. NOT your everyday browser.
+browser_profile = "browser-profile"
+
+[api]
+model = "claude-haiku-4-5"
+
+[limits]
+warn_eur_week = 3.0     # warn
+halt_eur_week = 10.0    # permanent halt
+posts_per_run = 8       # per pass, to keep a human rhythm
+max_slides = 15         # cap on slides per post
+eur_per_usd = 0.92      # fixed rate: a brake must not depend on the network
+
+# One section per saved folder.
+# Read the URL from the address bar with the folder open on Instagram.
+[[folders]]
+name = "github"
+url = "/YOUR_USERNAME/saved/github/000000000000000/"
+active = true
+kind = "repo"      # repo | news
+
+[[folders]]
+name = "must-rewatch"
+url = "/YOUR_USERNAME/saved/must-rewatch/000000000000000/"
+active = true
+kind = "news"
