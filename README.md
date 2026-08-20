@@ -2,7 +2,7 @@
 
 # winnow
 
-**A filter for the posts you save. It doesn't summarize them — it throws them out.**
+**You save a post on Instagram and forget it. winnow doesn't. Analytical tool to find, verify and resume what you need, aligned with your goals.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -11,125 +11,33 @@
 
 <img src="assets/winnower-millet.jpg" alt="Jean-François Millet, The Winnower (c. 1847-48)" width="360">
 
-***to winnow*** *(verb)* — to throw threshed grain into the air so the wind
-carries off the light chaff and the heavy grain falls back down.
-
 <sub>Jean-François Millet, <em>The Winnower</em>, c. 1847–48. National Gallery, London. Public domain.</sub>
 
 </div>
 
 ---
 
-## The loop
-
-winnow runs on its own and hands you something to read once a week.
-
-```
-DAILY, unattended          winnow collect      ~2 min, a browser window opens
-                                               and closes by itself
-                              ↓
-                           findings/2026-08-20.json     facts, not opinions
-
-WEEKLY, with you           the recap           what to keep, and why
-```
-
-The daily half is a scheduled job — **launchd** on macOS, cron elsewhere. It
-opens a real browser because Instagram does not welcome headless ones, so you
-will see a window appear and vanish. Nothing asks you anything.
-
-The weekly half is you and a model reading those findings against your profile
-([`docs/recap-prompt.md`](docs/recap-prompt.md)). That is where the value lands.
-Nothing to install for it.
-
-## Is it working?
-
-One command tells you everything — whether it stopped, when it last ran, what
-it found, and what it has cost:
-
-```console
-$ winnow status
-stato        attivo
-spesa 7gg    USD 0.0553
-post visti   15
-ultimo giro  20/08 18:29 (0h fa) — 8 post, 36 entita', 11 verificate
-da leggere   1 file in findings/
-```
-
-It warns you when something is wrong rather than making you notice:
-
-| You see | It means |
-|---|---|
-| `ultimo giro ... ⚠️ piu' di 36h fa` | the machine was off, or the schedule is broken |
-| `⚠️ N post falliti` | some posts could not be read — details in the findings file |
-| a wall of text about `HALTED` | it stopped itself on spend and **will not restart** until you say so |
-
-Two more, when you want detail:
-
-```bash
-tail -20 state/collect.log     # what the last runs actually did
-ls findings/                   # one file per day, waiting to be read
-```
-
-**Worth an alias**, since the command lives in the project's virtualenv:
-
-```bash
-alias winnow='~/path/to/winnow/.venv/bin/winnow'
-```
-
-
-## Why
-
-You save posts because something caught your eye. Then you never go back.
-
-And when you do, two things have gone wrong:
-
-1. **Most of it is bait.** Not badly made — *deliberately* made to be saved and
-   never to pay off.
-2. **The useful part isn't in the text.** A post promises "9 repositories worth
-   bookmarking" and its caption names **none of them**. The names live inside
-   the eleven slides of the carousel, because the comments asking *"links
-   please?"* are the point. That is the business model, not an accident.
-
-So the tool has to open the slides, and it has to be suspicious.
-
 ## How it works
 
+You save a post and forget it. Once a night winnow opens the ones you haven't
+seen, **clicks through every slide of the carousel**, and writes down what the
+post put on the table: a list gives up every entry, a piece of news gives up
+what was announced. Whatever has a name — a repo, a model — is then **checked at
+the source**: GitHub knows the real star count, the last commit, whether it's
+archived. What survives lands in a file. Once a week you read the recap.
+
+<p align="center"><img src="assets/winnow-demo.gif" alt="Six drawn scenes: a post is saved on Instagram, the saved folder fills up, winnow opens every slide of the carousel, pulls out the names, checks each one at the source with real star counts, and your profile decides which ones survive into the weekly recap." width="840"></p>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/diagrams/winnow-pipeline-dark.png">
+  <img src="assets/diagrams/winnow-pipeline.png" alt="A saved Instagram post is opened slide by slide, a vision model extracts the names it mentions, each name is checked against GitHub or Hugging Face, and only verified facts are written to the findings file. A spend brake can halt the run.">
+</picture>
+
 > **A post is not a source. It's a pointer.**
-
-When a slide says `open-notebook`, that name is **checkable**. GitHub knows the
-real star count, the last commit, whether it's archived. That costs almost
-nothing to ask, and it's the truth rather than the marketing.
-
-```
-read the slides  →  extract what they name  →  check it at the source  →  judge
-```
 
 A bait post that happens to contain a live repo with 37k stars **passes**.
 A beautifully made post listing repos dead for two years **gets thrown out**.
 The caption would never tell you which is which. The check does.
-
-## The thesis
-
-> **How well it filters depends on how well you've written down who you are.**
-
-winnow has two halves, and only one of them is code.
-
-| | **The collector** — this repo | **The judge** — you, plus a model |
-|---|---|---|
-| Does | navigates, reads slides, extracts, verifies | weighs findings against your life |
-| Is | general, works for anyone | yours, and worth nothing to anyone else |
-| Runs | nightly, unattended | when you want to read |
-| Reads | your saved folders | `profiles/yours.md` |
-
-The judge reads a plain markdown file you write: your goals, the decisions
-you've already made, **the things you already considered and rejected**. That
-last part is what makes it sharp. A generic tool says *"new job platform, looks
-interesting."* Yours says *"that's the fourth remote-freelance marketplace this
-month — you ruled that category out in August, and the reason still holds."*
-
-Without that file winnow is one more aggregator. With it, it's yours.
-
-Every content aggregator filters by **topic**. This one filters by **person**.
 
 ## Install
 
@@ -222,6 +130,95 @@ needs a graphical session. On Linux, a cron line does the same job.
 Read the findings weekly — the recap prompt lives in
 [`docs/recap-prompt.md`](docs/recap-prompt.md).
 
+---
+
+<sub>Everything below is the reasoning. The three sections above are all you need to run it.</sub>
+
+## Why
+
+You save posts because something caught your eye. Then you never go back.
+
+And when you do, two things have gone wrong:
+
+1. **Most of it is bait.** Not badly made — *deliberately* made to be saved and
+   never to pay off.
+2. **The useful part isn't in the text.** A post promises "9 repositories worth
+   bookmarking" and its caption names **none of them**. The names live inside
+   the eleven slides of the carousel, because the comments asking *"links
+   please?"* are the point. That is the business model, not an accident.
+
+So the tool has to open the slides, and it has to be suspicious.
+
+## The loop
+
+winnow runs on its own and hands you something to read once a week.
+
+The daily half is a scheduled job — **launchd** on macOS, cron elsewhere. It
+opens a real browser because Instagram does not welcome headless ones, so you
+will see a window appear and vanish, and nothing asks you anything. What it leaves behind is one file: `findings/2026-08-20.json`.
+
+The weekly half is you and a model reading those findings against your profile
+([`docs/recap-prompt.md`](docs/recap-prompt.md)). That is where the value lands.
+Nothing to install for it.
+
+## Is it working?
+
+One command tells you everything — whether it stopped, when it last ran, what
+it found, and what it has cost:
+
+```console
+$ winnow status
+stato        attivo
+spesa 7gg    USD 0.0553
+post visti   15
+ultimo giro  20/08 18:29 (0h fa) — 8 post, 36 entita', 11 verificate
+da leggere   1 file in findings/
+```
+
+It warns you when something is wrong rather than making you notice:
+
+| You see | It means |
+|---|---|
+| `ultimo giro ... ⚠️ piu' di 36h fa` | the machine was off, or the schedule is broken |
+| `⚠️ N post falliti` | some posts could not be read — details in the findings file |
+| a wall of text about `HALTED` | it stopped itself on spend and **will not restart** until you say so |
+
+Two more, when you want detail:
+
+```bash
+tail -20 state/collect.log     # what the last runs actually did
+ls findings/                   # one file per day, waiting to be read
+```
+
+**Worth an alias**, since the command lives in the project's virtualenv:
+
+```bash
+alias winnow='~/path/to/winnow/.venv/bin/winnow'
+```
+
+## The thesis
+
+> **How well it filters depends on how well you've written down who you are.**
+
+winnow has two halves, and only one of them is code. The collector navigates,
+reads slides, extracts and verifies; the judge weighs what it found against
+your life. Everything to the left of the dashed line is in this repo.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/diagrams/winnow-two-halves-dark.png">
+  <img src="assets/diagrams/winnow-two-halves.png" alt="A dashed boundary separates the collector — winnow collect, running nightly and writing verified facts to a findings file — from the judge: you and a model reading those facts against your own profile to produce the weekly recap.">
+</picture>
+
+The judge reads a plain markdown file you write: your goals, the decisions
+you've already made, **the things you already considered and rejected**. That
+last part is what makes it sharp. A generic tool says *"new job platform, looks
+interesting."* Yours says *"that's the fourth remote-freelance marketplace this
+month — you ruled that category out in August, and the reason still holds."*
+
+Without that file winnow is one more aggregator. With it, it's yours.
+
+Every content aggregator filters by **topic**. This one filters by **person**.
+
 ## What it costs
 
 Reading slides means reading images, and images cost tokens. With the defaults
@@ -249,6 +246,13 @@ extraction model.
 The reasoning behind every decision — and the ones deliberately not reopened —
 is in [`docs/superpowers/specs/`](docs/superpowers/specs/). The build order is
 in [`docs/superpowers/plans/`](docs/superpowers/plans/).
+
+Nothing above is a screenshot. The two diagrams are checked in as source —
+[`assets/diagrams/`](assets/diagrams/) holds the self-contained HTML each PNG
+was rendered from, light and dark — and the animation is drawn by
+[`assets/demo/build.py`](assets/demo/build.py), which emits one SVG per frame
+and assembles them with ffmpeg. The numbers it shows are the real ones from the
+run of 2026-08-20.
 
 ## License
 

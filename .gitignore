@@ -22,3 +22,6 @@ venv/
 # Note per gli agenti AI: locali, non versionate
 CLAUDE.md
 AGENTS.md
+# Artefatti di build della GIF: si rigenerano da assets/demo/build.py
+assets/demo/frames/
+assets/demo/frames.html
