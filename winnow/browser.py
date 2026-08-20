@@ -109,25 +109,49 @@ ADVANCE_TIMEOUT_S = 8.0   # attesa che la slide successiva sia davvero comparsa
 # La freccia "avanti" e' localizzata: aria-label segue la lingua dell'account.
 NEXT_LABELS = ("Avanti", "Next", "Suivant", "Siguiente", "Weiter", "Volgende")
 
-# La slide visibile e' l'immagine di AREA MASSIMA con x >= 0.
-# Filtrare per sola larghezza non basta: i post suggeriti in fondo alla pagina
-# sono larghi 311px e passerebbero. Le slide adiacenti hanno la stessa area
-# della visibile ma stanno a x negativo (precedente) o piu' a destra
-# (successiva), quindi fra quelle di area massima si prende la piu' a sinistra.
-VISIBLE_SLIDE_JS = """() => {
+# Il JS raccoglie i candidati, la scelta la fa pick_slide() in Python: cosi' la
+# regola e' testabile senza browser, ed e' la regola che sbagliava.
+PAGE_IMAGES_JS = """() => {
   const imgs = [...document.querySelectorAll('main img')].map(i => {
     const r = i.getBoundingClientRect();
     return {x: r.x, y: r.y, width: r.width, height: r.height,
             area: r.width * r.height, src: i.currentSrc || i.src};
   });
-  if (!imgs.length) return null;
-  const maxArea = Math.max(...imgs.map(o => o.area));
-  if (maxArea < 40000) return null;              // niente di abbastanza grande
-  const slides = imgs
-    .filter(o => o.area >= maxArea * 0.95 && o.x >= 0)
-    .sort((a, b) => a.x - b.x);
-  return slides.length ? slides[0] : null;
+  return {imgs: imgs, hasVideo: !!document.querySelector('main video')};
 }"""
+
+# Nel viewport 1440x900 una slide vera sta sopra i 200.000 px². La soglia
+# precedente era 40.000 e il 20/08/2026 ha fatto passare, sul post DcN9kKpqfDR,
+# una striscia 310x130 con lo screenshot di una chat presa altrove nella pagina:
+# 40.300 px², dentro per 300 pixel. Pagare per guardare l'immagine sbagliata e'
+# peggio che ammettere di non avere immagini.
+MIN_SLIDE_AREA = 90_000
+# Instagram accetta da 4:5 verticale (0.8) a 1.91:1 orizzontale. Fuori da questa
+# forma non e' il contenuto di un post: e' un banner, una barra, una copertina.
+MIN_SLIDE_RATIO = 0.5
+MAX_SLIDE_RATIO = 2.2
+
+
+def pick_slide(imgs: list[dict]) -> dict | None:
+    """The visible slide among every image on the page, or None.
+
+    Largest area wins, then leftmost: the adjacent slides of a carousel are
+    preloaded at the same size, the previous one at a negative x and the next
+    one further right. Anything too small or the wrong shape is not a slide.
+    """
+    plausible = [
+        o for o in imgs
+        if o["area"] >= MIN_SLIDE_AREA
+        and o["x"] >= 0
+        and o["height"] > 0
+        and MIN_SLIDE_RATIO <= o["width"] / o["height"] <= MAX_SLIDE_RATIO
+    ]
+    if not plausible:
+        return None
+    top = max(o["area"] for o in plausible)
+    return min((o for o in plausible if o["area"] >= top * 0.95),
+               key=lambda o: o["x"])
+
 
 DOTS_JS = """() => {
   let best = 1;
@@ -205,22 +229,32 @@ def _click_next(page) -> bool:
     return False
 
 
+def visible_slide(page) -> dict | None:
+    """The post's visible slide right now, or None if the page has no slide."""
+    return pick_slide(page.evaluate(PAGE_IMAGES_JS)["imgs"])
+
+
 def _wait_for_new_slide(page, previous_src: str) -> dict | None:
     """Wait until the visible slide actually changed. Returns its box, or None."""
     deadline = time.time() + ADVANCE_TIMEOUT_S
     while time.time() < deadline:
-        box = page.evaluate(VISIBLE_SLIDE_JS)
+        box = visible_slide(page)
         if box and box["src"] != previous_src:
             time.sleep(0.4)  # lascia finire il rendering
-            return page.evaluate(VISIBLE_SLIDE_JS)
+            return visible_slide(page)
         time.sleep(0.3)
     return None
 
 
 def capture_post(
     page, shortcode: str, out_dir: Path, max_slides: int
-) -> tuple[str, str, list[Path]]:
-    """Return (caption, account, screenshot paths) for one post."""
+) -> tuple[str, str, list[Path], bool]:
+    """Return (caption, account, screenshot paths, is_video).
+
+    `is_video` matters: a reel has no slide to read, so everything the post says
+    is in its caption. Saying so beats silently sending zero images and letting
+    the extractor assume the post was empty.
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
 
     page.goto(slide_url(shortcode, 1), wait_until="domcontentloaded")
@@ -230,8 +264,10 @@ def capture_post(
     caption, account = read_meta(page)
     total = min(count_slides(page), max_slides)
 
+    page_state = page.evaluate(PAGE_IMAGES_JS)
     shots: list[Path] = []
-    box = page.evaluate(VISIBLE_SLIDE_JS)
+    box = pick_slide(page_state["imgs"])
+    is_video = bool(page_state["hasVideo"]) and box is None
     for i in range(1, total + 1):
         if box is None:
             break
@@ -250,4 +286,4 @@ def capture_post(
             break
         box = _wait_for_new_slide(page, box["src"])
 
-    return caption, account, shots
+    return caption, account, shots, is_video
