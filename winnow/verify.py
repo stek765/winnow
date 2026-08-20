@@ -74,6 +74,20 @@ def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]", "", text.lower())
 
 
+def _model_matches(model_id: str, wanted: str) -> bool:
+    """Does this HuggingFace id really name the model we asked for?
+
+    An id is `owner/model`. A slide names either the bare model ('Qwen3-32B')
+    or the full id, so both forms count — but only as the whole thing, never as
+    a fragment of a longer name. 'Codex' must not match
+    'Opus4.7-GODs.Ghost.Codex-4B'.
+    """
+    if not model_id:
+        return False
+    bare = model_id.split("/")[-1]
+    return wanted in (_slug(model_id), _slug(bare))
+
+
 def _from_item(item: dict, note: str) -> Verification:
     return Verification(
         checked=True,
@@ -184,9 +198,23 @@ def verify_model(http: httpx.Client, name: str) -> Verification:
             note=f"nessun modello su HuggingFace corrisponde a {name!r}",
         )
 
-    top = hits[0]
+    # Same rule as search_repo: the name has to actually match. Searching
+    # 'Claude Code' on 2026-08-20 returned DavidAU/Qwen3.6-40B-Claude-4.6-Opus-
+    # Deckard-NEO-GGUF, and its 707 likes were reported as Claude Code's. A
+    # substring is not an identification.
+    wanted = _slug(name)
+    exact = [h for h in hits if _model_matches(h.get("modelId") or "", wanted)]
+    if not exact:
+        near = ", ".join(h.get("modelId", "?") for h in hits[:3])
+        return Verification(
+            checked=True, exists=False,
+            note=f"nessun modello si chiama esattamente {name!r}"
+                 + (f" | simili scartati: {near}" if near else ""),
+        )
+
+    top = exact[0]
     downloads = top.get("downloads") or 0
-    others = ", ".join(h.get("modelId", "?") for h in hits[1:3])
+    others = ", ".join(h.get("modelId", "?") for h in exact[1:3])
     note = f"{downloads} download"
     if downloads < 1000:
         note += " — marginale, forse non e' il modello canonico"

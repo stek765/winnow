@@ -35,3 +35,59 @@ def test_verify_model_network_failure_is_not_verified():
 def test_hardware_note_is_empty_when_llmfit_is_absent(monkeypatch):
     monkeypatch.setattr("winnow.verify.llmfit_available", lambda: False)
     assert hardware_note("Qwen3-32B") == ""
+
+
+def test_a_model_whose_name_does_not_match_is_not_a_hit():
+    """The failure this rule exists for, found on 2026-08-20: searching
+    'Claude Code' returned a random GGUF conversion with that word buried in
+    its name, and winnow reported its 707 likes as if they were Claude Code's.
+    Real numbers on the wrong project are worse than no check at all."""
+    def handler(request):
+        return httpx.Response(200, json=[{
+            "modelId": "DavidAU/Qwen3.6-40B-Claude-4.6-Opus-Deckard-NEO-GGUF",
+            "downloads": 384393, "likes": 707,
+        }])
+    v = verify_model(_client(handler), "Claude Code")
+    assert v.checked and v.exists is False
+    assert v.stars is None and v.url is None
+    assert "claude code" in v.note.lower()
+
+
+def test_the_discarded_near_misses_are_named_so_the_judge_can_see_them():
+    def handler(request):
+        return httpx.Response(200, json=[
+            {"modelId": "someone/Totally-Unrelated", "downloads": 10, "likes": 1},
+        ])
+    v = verify_model(_client(handler), "Codex")
+    assert "someone/Totally-Unrelated" in v.note
+
+
+def test_punctuation_and_case_do_not_stop_a_real_match():
+    def handler(request):
+        return httpx.Response(200, json=[{
+            "modelId": "deepseek-ai/DeepSeek-V4-Flash", "downloads": 5000,
+            "likes": 3571,
+        }])
+    v = verify_model(_client(handler), "deepseek v4 flash")
+    assert v.exists and v.stars == 3571
+    assert v.url == "https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash"
+
+
+def test_an_owner_qualified_name_matches_the_full_id():
+    def handler(request):
+        return httpx.Response(200, json=[{
+            "modelId": "Qwen/Qwen3-32B", "downloads": 900000, "likes": 1200,
+        }])
+    v = verify_model(_client(handler), "Qwen/Qwen3-32B")
+    assert v.exists
+
+
+def test_the_matching_model_wins_even_when_a_louder_one_is_listed_first():
+    def handler(request):
+        return httpx.Response(200, json=[
+            {"modelId": "bartowski/Qwen3-8B-GGUF", "downloads": 900000, "likes": 999},
+            {"modelId": "Qwen/Qwen3-8B", "downloads": 400000, "likes": 500},
+        ])
+    v = verify_model(_client(handler), "Qwen3-8B")
+    assert v.exists and v.stars == 500
+    assert v.description == "Qwen/Qwen3-8B"
