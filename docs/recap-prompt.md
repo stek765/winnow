@@ -27,6 +27,27 @@ Run this on Sunday:
 > 4. **Scarti** — una riga ciascuno, col motivo. Servono a farmi vedere cosa
 >    hai buttato, così posso correggerti.
 
+## Reading `shape` and the kinds
+
+Each post carries a `shape`, decided when it was read:
+
+| `shape` | What the post was | What to expect in it |
+|---|---|---|
+| `list` | an enumeration — tools, sites, repos, things to build | one entity per entry |
+| `news` | an announcement or a finding, often a talking-head video | the thing announced, plus anything it names |
+| `other` | neither | whatever was named |
+
+And each entity a `kind`. Three of them can be checked at a source (`repo`,
+`model`) or cannot (`platform`, `item`, `news`, `claim`) — the last three are
+**not failures of verification**, they are things no registry can answer for:
+
+- `item` — an entry of a list that is not a product: a thing to build, a
+  technique, a step. Judge it against the profile, never against a star count.
+- `news` — what a post announced. It goes in the 🌍 Apertura lane by nature:
+  ask whether it changes anything for the reader, not whether it is popular.
+- `slide: 0` means the entity came from the **caption**, not from a slide. On a
+  video that is the only place it could come from.
+
 ## Reading the verification block
 
 Each entity carries a `verification` object with three distinct outcomes.

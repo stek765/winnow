@@ -91,9 +91,11 @@ def test_one_broken_post_does_not_kill_the_whole_run(tmp_path, monkeypatch):
         limits=Limits(3.0, 10.0, 5, 15, 0.92), model="claude-haiku-4-5",
     )
     monkeypatch.setattr(run, "list_shortcodes", lambda page, url: ["AAA", "BBB", "CCC"])
-    monkeypatch.setattr(run, "capture_post", lambda *a, **k: ("cap", "acct", []))
+    monkeypatch.setattr(run, "capture_post",
+                        lambda *a, **k: ("cap", "acct", [], False))
 
-    def fake_extract(client, model, code, account, caption, shots):
+    def fake_extract(client, model, code, account, caption, shots,
+                     is_video=False):
         if code == "BBB":
             raise ValueError("risposta non JSON dal modello")
         return PostExtraction(code, account, caption, [], 0.001)
@@ -127,10 +129,58 @@ def test_a_failed_post_is_still_marked_seen(tmp_path, monkeypatch):
         limits=Limits(3.0, 10.0, 5, 15, 0.92), model="claude-haiku-4-5",
     )
     monkeypatch.setattr(run, "list_shortcodes", lambda page, url: ["BBB"])
-    monkeypatch.setattr(run, "capture_post", lambda *a, **k: ("cap", "acct", []))
+    monkeypatch.setattr(run, "capture_post",
+                        lambda *a, **k: ("cap", "acct", [], False))
     monkeypatch.setattr(run, "extract_post", lambda *a, **k: (_ for _ in ()).throw(ValueError("rotto")))
 
     http = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json={})))
     run.collect(cfg, tmp_path / "s", tmp_path / "f", tmp_path / "sh",
                 object(), http, _FakePage(), datetime(2026, 8, 20, 3, 0), search_delay=0)
     assert "BBB" in load_seen(tmp_path / "s" / "seen.json")
+
+
+def test_collect_reports_each_step_while_it_runs(tmp_path, monkeypatch):
+    """The events are what makes a paid, minutes-long run watchable. If this
+    wiring breaks, a run goes back to being silent until the very end."""
+    import winnow.run as run
+    from winnow.config import Config, Folder, Limits
+
+    monkeypatch.setattr(run, "list_shortcodes", lambda page, url: ["AAA", "BBB"])
+    monkeypatch.setattr(
+        run, "capture_post",
+        lambda page, code, shots, mx: ("caption", "acct", ["s1.png", "s2.png"], False),
+    )
+    monkeypatch.setattr(
+        run, "extract_post",
+        lambda client, model, code, account, caption, shots, is_video=False:
+        PostExtraction(
+            shortcode=code, account=account, caption=caption,
+            entities=[Entity("repo", "a/b", "", 1)], usd=0.004,
+        ),
+    )
+    monkeypatch.setattr(
+        run, "resolve_repo",
+        lambda http, name: Verification(checked=True, exists=True, stars=7),
+    )
+
+    cfg = Config(
+        username="u", folders=[Folder("Salvati", "https://x/", True, "saved")],
+        model="m", limits=Limits(warn_eur_week=1.0, halt_eur_week=10.0,
+                                 posts_per_run=10, max_slides=4, eur_per_usd=0.92),
+        browser_profile=tmp_path / "prof",
+    )
+    seen: list[tuple[str, dict]] = []
+    run.collect(cfg, tmp_path, tmp_path / "f", tmp_path / "s", None, None, None,
+                datetime(2026, 8, 20, 13, 0), search_delay=0,
+                on_event=lambda e, d: seen.append((e, d)))
+
+    kinds = [e for e, _ in seen]
+    assert kinds[0] == "folder"
+    assert kinds.count("post") == 2, "un evento per post, numerato"
+    assert "extracted" in kinds and "verified" in kinds
+    assert kinds[-1] == "written", "l'ultima riga e' il file scritto"
+
+    folder = dict(seen[0][1])
+    assert folder["found"] == 2 and folder["new"] == 2
+    written = dict(seen[-1][1])
+    assert written["entities"] == 2 and written["verified"] == 2

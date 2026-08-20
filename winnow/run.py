@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import date, datetime
 from pathlib import Path
@@ -35,6 +36,14 @@ def make_http() -> httpx.Client:
     return httpx.Client(headers=headers)
 
 
+NO_SOURCE = {
+    "platform": "prodotto o servizio: nessun registro pubblico da interrogare",
+    "item": "voce di un elenco, non un prodotto: niente da verificare",
+    "news": "notizia: da valutare col profilo, non con una fonte",
+    "claim": "asserzione senza artefatto nominato",
+}
+
+
 def enrich(
     http: httpx.Client,
     entity: Entity,
@@ -53,8 +62,11 @@ def enrich(
         if note:
             v = Verification(**{**asdict(v), "note": f"{v.note} | {note}"})
     else:
-        # platform e claim: nessuna fonte automatica. Il giudice li valuta a mano.
-        v = Verification(checked=False, note="nessuna fonte automatica per questo tipo")
+        # platform, item, news, claim: nessuna fonte da interrogare. Il giudice
+        # li valuta a mano, col profilo davanti. Dire *perche'* non e' verificato
+        # vale piu' di una riga uguale per tutti.
+        v = Verification(checked=False, note=NO_SOURCE.get(
+            entity.kind, "nessuna fonte automatica per questo tipo"))
 
     cache[key] = v
     if delay and entity.kind in ("repo", "model"):
@@ -80,6 +92,7 @@ def write_findings(
         "posts": [
             {
                 "shortcode": ex.shortcode,
+                "shape": ex.shape,
                 "account": ex.account,
                 "caption": ex.caption,
                 "url": f"{BASE_POST_URL}{ex.shortcode}/",
@@ -111,16 +124,26 @@ def collect(
     page,
     now: datetime,
     search_delay: float = SEARCH_DELAY_S,
+    on_event: Callable[[str, dict], None] | None = None,
 ) -> dict:
     spend_path = state_dir / "spend.json"
     seen_path = state_dir / "seen.json"
+
+    # A run waits minutes on GitHub's rate limit. Reporting as it goes is what
+    # separates "still working" from "hung" — see winnow/progress.py.
+    def say(event: str, **data) -> None:
+        if on_event:
+            on_event(event, data)
 
     status = check_brake(state_dir, spend_path, cfg.limits, now)  # may raise Halted
 
     seen = load_seen(seen_path)
     todo: list[tuple[str, str]] = []
     for folder in active_folders(cfg):
-        for code in filter_new(seen, list_shortcodes(page, folder.url)):
+        codes = list_shortcodes(page, folder.url)
+        new = filter_new(seen, codes)
+        say("folder", name=folder.name, found=len(codes), new=len(new))
+        for code in new:
             todo.append((code, folder.name))
     todo = todo[: cfg.limits.posts_per_run]
 
@@ -131,30 +154,42 @@ def collect(
 
     failed: list[dict] = []
 
-    for code, folder_name in todo:
+    for n, (code, folder_name) in enumerate(todo, start=1):
         # Un post storto non deve uccidere la nottata. Si registra, si segna
         # come visto (altrimenti lo si ripaga ogni notte) e si prosegue.
         try:
-            caption, account, shots = capture_post(
+            caption, account, shots, is_video = capture_post(
                 page, code, shots_dir, cfg.limits.max_slides
             )
-            ex = extract_post(client, cfg.model, code, account, caption, shots)
+            say("post", i=n, n=len(todo), account=account, slides=len(shots),
+                is_video=is_video)
+
+            ex = extract_post(client, cfg.model, code, account, caption, shots,
+                              is_video=is_video)
             extractions.append(ex)
             spend += ex.usd
             record_spend(spend_path, ex.usd, now)
+            say("extracted", names=[e.name for e in ex.entities], usd=ex.usd,
+                shape=ex.shape)
 
             for e in ex.entities:
-                verifications[(code, e.name)] = enrich(http, e, cache, search_delay)
+                v = enrich(http, e, cache, search_delay)
+                verifications[(code, e.name)] = v
+                say("verified", name=e.name, checked=v.checked, exists=v.exists,
+                    stars=v.stars, note=v.note)
         except Exception as exc:  # noqa: BLE001 - deliberatamente ampio
             failed.append({"shortcode": code, "folder": folder_name,
                            "error": f"{type(exc).__name__}: {exc}"[:300]})
+            say("failed", shortcode=code, error=type(exc).__name__)
         finally:
             mark_seen(seen_path, [code], folder_name, now.date().isoformat())
 
-    write_findings(
-        findings_path(findings_dir, now.date()), extractions, verifications,
-        spend, failed,
-    )
+    out_path = findings_path(findings_dir, now.date())
+    write_findings(out_path, extractions, verifications, spend, failed)
+    say("written", path=str(out_path),
+        entities=sum(len(e.entities) for e in extractions),
+        verified=sum(1 for v in verifications.values() if v.checked and v.exists),
+        usd=spend)
 
     return {
         "status": status,

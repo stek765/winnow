@@ -95,12 +95,22 @@ def _cmd_collect(args) -> int:
     from winnow.browser import SessionExpired, open_session
     from winnow.run import collect, make_http
 
+    from winnow.progress import line
+
+    def show(event: str, data: dict) -> None:
+        # flush: a run is mostly waiting, and a buffered line is a line you
+        # read after the thing it was announcing already finished.
+        text = line(event, data)
+        if text:
+            print(text, flush=True)
+
     cfg = load_config(args.config)
     try:
         with open_session(cfg.browser_profile) as page, make_http() as http:
             summary = collect(
                 cfg, args.state_dir, args.findings_dir, paths.shots_dir(),
                 anthropic.Anthropic(), http, page, datetime.now(),
+                on_event=show,
             )
     except Halted as e:
         print(f"ARRESTO: {e}", file=sys.stderr)
