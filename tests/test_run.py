@@ -1,5 +1,5 @@
 import json
-from datetime import date
+from datetime import date, datetime
 
 import httpx
 from winnow.extract import Entity, PostExtraction
@@ -71,3 +71,66 @@ def test_write_findings_produces_readable_json(tmp_path):
     assert data["posts"][0]["shortcode"] == "AAA"
     assert data["posts"][0]["entities"][0]["verification"]["stars"] == 5
     assert data["posts"][0]["url"].endswith("/p/AAA/")
+
+
+class _FakePage:
+    url = "https://www.instagram.com/"
+
+
+def test_one_broken_post_does_not_kill_the_whole_run(tmp_path, monkeypatch):
+    """Osservato dal vivo il 2026-08-20: un post illeggibile ha fatto abortire
+    il giro dopo aver speso e segnato dei post come visti, senza scrivere
+    nulla. Di notte nessuno se ne accorge."""
+    import winnow.run as run
+    from winnow.config import Config, Folder, Limits
+    from winnow.extract import PostExtraction
+
+    cfg = Config(
+        username="tizio", browser_profile=tmp_path / "prof",
+        folders=[Folder("github", "/tizio/saved/github/111/", True, "repo")],
+        limits=Limits(3.0, 10.0, 5, 15, 0.92), model="claude-haiku-4-5",
+    )
+    monkeypatch.setattr(run, "list_shortcodes", lambda page, url: ["AAA", "BBB", "CCC"])
+    monkeypatch.setattr(run, "capture_post", lambda *a, **k: ("cap", "acct", []))
+
+    def fake_extract(client, model, code, account, caption, shots):
+        if code == "BBB":
+            raise ValueError("risposta non JSON dal modello")
+        return PostExtraction(code, account, caption, [], 0.001)
+
+    monkeypatch.setattr(run, "extract_post", fake_extract)
+
+    http = httpx.Client(transport=httpx.MockTransport(
+        lambda r: httpx.Response(200, json={"items": []})))
+    summary = run.collect(
+        cfg, tmp_path / "state", tmp_path / "findings", tmp_path / "shots",
+        object(), http, _FakePage(), datetime(2026, 8, 20, 3, 0), search_delay=0,
+    )
+
+    assert summary["posts"] == 2, "gli altri due post devono essere processati"
+    assert summary["failed"] == 1
+    out = json.loads((tmp_path / "findings" / "2026-08-20.json").read_text())
+    assert [p["shortcode"] for p in out["posts"]] == ["AAA", "CCC"]
+    assert out["failed"][0]["shortcode"] == "BBB"
+    assert "JSON" in out["failed"][0]["error"]
+
+
+def test_a_failed_post_is_still_marked_seen(tmp_path, monkeypatch):
+    """Se non lo segnassimo, ogni notte riproverebbe e rispenderebbe."""
+    import winnow.run as run
+    from winnow.config import Config, Folder, Limits
+    from winnow.state import load_seen
+
+    cfg = Config(
+        username="tizio", browser_profile=tmp_path / "prof",
+        folders=[Folder("github", "/tizio/saved/github/111/", True, "repo")],
+        limits=Limits(3.0, 10.0, 5, 15, 0.92), model="claude-haiku-4-5",
+    )
+    monkeypatch.setattr(run, "list_shortcodes", lambda page, url: ["BBB"])
+    monkeypatch.setattr(run, "capture_post", lambda *a, **k: ("cap", "acct", []))
+    monkeypatch.setattr(run, "extract_post", lambda *a, **k: (_ for _ in ()).throw(ValueError("rotto")))
+
+    http = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json={})))
+    run.collect(cfg, tmp_path / "s", tmp_path / "f", tmp_path / "sh",
+                object(), http, _FakePage(), datetime(2026, 8, 20, 3, 0), search_delay=0)
+    assert "BBB" in load_seen(tmp_path / "s" / "seen.json")

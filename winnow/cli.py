@@ -58,10 +58,11 @@ def _cmd_collect(args) -> int:
         print(f"SESSIONE: {e}", file=sys.stderr)
         return 3
 
-    print(
-        f"{summary['posts']} post · {summary['entities']} entita' · "
-        f"USD {summary['spend_usd']}"
-    )
+    line = (f"{summary['posts']} post · {summary['entities']} entita' · "
+            f"USD {summary['spend_usd']}")
+    if summary["failed"]:
+        line += f" · {summary['failed']} falliti (vedi findings)"
+    print(line)
     if summary["status"] == "warn":
         print("ATTENZIONE: spesa settimanale oltre la soglia di avviso.",
               file=sys.stderr)

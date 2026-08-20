@@ -55,10 +55,28 @@ class PostExtraction:
     usd: float
 
 
+FENCED_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
+
+
+def _json_array(text: str) -> str:
+    """Pull the JSON array out of a model reply.
+
+    Models wrap it in a fence and sometimes explain themselves afterwards, so
+    neither 'strip the fences' nor 'the whole reply is JSON' survives contact.
+    Take the fenced block if there is one, otherwise the outermost [ ... ].
+    """
+    m = FENCED_RE.search(text)
+    if m:
+        return m.group(1).strip()
+    start, end = text.find("["), text.rfind("]")
+    if start != -1 and end > start:
+        return text[start:end + 1]
+    return text.strip()
+
+
 def parse_entities(text: str) -> list[Entity]:
-    cleaned = re.sub(r"^\s*```(?:json)?|```\s*$", "", text.strip(), flags=re.MULTILINE)
     try:
-        data = json.loads(cleaned)
+        data = json.loads(_json_array(text))
     except json.JSONDecodeError as e:
         raise ValueError(f"risposta non JSON dal modello: {text[:200]!r}") from e
     if not isinstance(data, list):

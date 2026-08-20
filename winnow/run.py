@@ -71,10 +71,12 @@ def write_findings(
     extractions: list[PostExtraction],
     verifications: dict[tuple[str, str], Verification],
     spend_usd: float,
+    failed: list[dict] | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "spend_usd": round(spend_usd, 6),
+        "failed": failed or [],
         "posts": [
             {
                 "shortcode": ex.shortcode,
@@ -127,27 +129,37 @@ def collect(
     cache: dict[tuple[str, str], Verification] = {}
     spend = 0.0
 
+    failed: list[dict] = []
+
     for code, folder_name in todo:
-        caption, account, shots = capture_post(
-            page, code, shots_dir, cfg.limits.max_slides
-        )
-        ex = extract_post(client, cfg.model, code, account, caption, shots)
-        extractions.append(ex)
-        spend += ex.usd
-        record_spend(spend_path, ex.usd, now)
+        # Un post storto non deve uccidere la nottata. Si registra, si segna
+        # come visto (altrimenti lo si ripaga ogni notte) e si prosegue.
+        try:
+            caption, account, shots = capture_post(
+                page, code, shots_dir, cfg.limits.max_slides
+            )
+            ex = extract_post(client, cfg.model, code, account, caption, shots)
+            extractions.append(ex)
+            spend += ex.usd
+            record_spend(spend_path, ex.usd, now)
 
-        for e in ex.entities:
-            verifications[(code, e.name)] = enrich(http, e, cache, search_delay)
-
-        mark_seen(seen_path, [code], folder_name, now.date().isoformat())
+            for e in ex.entities:
+                verifications[(code, e.name)] = enrich(http, e, cache, search_delay)
+        except Exception as exc:  # noqa: BLE001 - deliberatamente ampio
+            failed.append({"shortcode": code, "folder": folder_name,
+                           "error": f"{type(exc).__name__}: {exc}"[:300]})
+        finally:
+            mark_seen(seen_path, [code], folder_name, now.date().isoformat())
 
     write_findings(
-        findings_path(findings_dir, now.date()), extractions, verifications, spend
+        findings_path(findings_dir, now.date()), extractions, verifications,
+        spend, failed,
     )
 
     return {
         "status": status,
         "posts": len(extractions),
+        "failed": len(failed),
         "entities": sum(len(e.entities) for e in extractions),
         "spend_usd": round(spend, 4),
     }
