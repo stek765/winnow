@@ -5,6 +5,8 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from winnow import paths
+
 
 @dataclass(frozen=True)
 class Folder:
@@ -52,9 +54,13 @@ def load_config(path: Path) -> Config:
         if f.kind not in ("repo", "news"):
             raise ValueError(f"kind sconosciuto per la cartella {f.name!r}: {f.kind!r}")
 
+    instagram = raw["instagram"]
+    # Il profilo browser sta di default sotto la cartella dati: un comando
+    # installato globalmente non ha una directory propria in cui metterlo.
+    profile = instagram.get("browser_profile")
     return Config(
-        username=raw["instagram"]["username"],
-        browser_profile=Path(raw["instagram"]["browser_profile"]),
+        username=instagram["username"],
+        browser_profile=Path(profile) if profile else paths.browser_profile(),
         folders=folders,
         limits=limits,
         model=raw["api"]["model"],

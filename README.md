@@ -134,27 +134,49 @@ Every content aggregator filters by **topic**. This one filters by **person**.
 ## Install
 
 ```bash
-pip install -e ".[dev]"
-playwright install chromium
-cp config.example.toml config.toml    # then fill it in
-export ANTHROPIC_API_KEY=...
-export GITHUB_TOKEN=...            # optional, but see below
+pipx install git+https://github.com/stek765/winnow
+winnow init
 ```
 
-`GITHUB_TOKEN` is optional. Without it, GitHub's search endpoint allows 10
-requests per minute and a run paces itself accordingly — a pass of 8 posts
-takes several minutes, which is fine for a nightly job. With a token it's 30,
-and the run is quicker.
+`winnow init` does the rest: it creates the directories, writes a config file
+for you to fill in, downloads the browser, and walks you through signing in.
+Run it again any time — it reports where you stand instead of starting over.
 
-Sign in once, by hand, in a **dedicated browser profile** — not your everyday
-browser:
+```console
+$ winnow init
+----------------------------------------------------------
+  ✅ configurazione       ~/.config/winnow/config.toml
+  ❌ chiave API           assente
+  ✅ browser              Chromium pronto
+  ✅ accesso Instagram    ~/.local/share/winnow/browser-profile
 
-```bash
-python scripts/login.py
+  Manca ancora:
+    • chiave API: crea una chiave su console.anthropic.com ...
 ```
 
-Write your profile: copy `profiles/esempio.md` and make it honest. Vague goals
-produce a vague filter.
+Three things only you can do, and `init` will tell you when they are missing:
+
+1. **Fill in the config** — your username and the path of each saved folder you
+   want read. Open the folder on instagram.com and copy it from the address bar.
+2. **An API key** — from `console.anthropic.com`. Set a spend limit there while
+   you are at it; see [What it costs](#what-it-costs).
+3. **Sign in** — `winnow login` opens a dedicated browser profile, separate
+   from your everyday browser. winnow never types your password.
+
+### Where things live
+
+Nothing lives next to the code, so the command works from any directory:
+
+| | |
+|---|---|
+| `~/.config/winnow/` | `config.toml`, and `env` holding your API key (mode 600) |
+| `~/.local/share/winnow/` | state, findings, and the browser profile |
+
+`winnow where` prints them. Both honour `XDG_CONFIG_HOME` / `XDG_DATA_HOME`,
+or `WINNOW_CONFIG_DIR` / `WINNOW_DATA_DIR` if you want them somewhere else.
+
+Write your profile too: copy [`profiles/esempio.md`](profiles/esempio.md) and
+make it honest. Vague goals produce a vague filter.
 
 ## Use
 

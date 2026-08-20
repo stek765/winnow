@@ -8,17 +8,26 @@ from datetime import datetime
 from pathlib import Path
 
 from winnow.budget import HALT_FILE, Halted, is_halted, weekly_spend
+from winnow import paths
 from winnow.config import load_config
 from winnow.state import load_seen
 
 
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="winnow")
-    p.add_argument("--state-dir", default="state", type=Path)
-    p.add_argument("--findings-dir", default="findings", type=Path)
-    p.add_argument("--config", default="config.toml", type=Path)
-    p.add_argument("command", nargs="?", choices=["collect", "status", "reset-halt"])
+    p.add_argument("--state-dir", default=None, type=Path)
+    p.add_argument("--findings-dir", default=None, type=Path)
+    p.add_argument("--config", default=None, type=Path)
+    p.add_argument(
+        "command", nargs="?",
+        choices=["init", "login", "collect", "status", "reset-halt", "where"],
+    )
     return p
+
+
+def _cmd_init(args) -> int:
+    from winnow.setup import run_init
+    return run_init()
 
 
 def _cmd_status(args) -> int:
@@ -84,7 +93,7 @@ def _cmd_collect(args) -> int:
     try:
         with open_session(cfg.browser_profile) as page, make_http() as http:
             summary = collect(
-                cfg, args.state_dir, args.findings_dir, args.state_dir / "shots",
+                cfg, args.state_dir, args.findings_dir, paths.shots_dir(),
                 anthropic.Anthropic(), http, page, datetime.now(),
             )
     except Halted as e:
@@ -105,15 +114,43 @@ def _cmd_collect(args) -> int:
     return 0
 
 
+def _cmd_login(args) -> int:
+    """Sign in by hand, once. winnow never types your password."""
+    from winnow.setup import run_login
+    ok = run_login(paths.browser_profile())
+    print("  sessione salvata." if ok else "  ATTENZIONE: sembri ancora fuori.")
+    return 0 if ok else 1
+
+
+def _cmd_where(args) -> int:
+    print(f"config    {paths.config_file()}")
+    print(f"chiave    {paths.env_file()}")
+    print(f"stato     {paths.state_dir()}")
+    print(f"findings  {paths.findings_dir()}")
+    print(f"browser   {paths.browser_profile()}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.command is None:
         _parser().print_help()
         return 2
+    # I default vengono dai percorsi standard, non dalla directory corrente:
+    # winnow puo' essere lanciato da ovunque.
+    if args.config is None:
+        args.config = paths.config_file()
+    if args.state_dir is None:
+        args.state_dir = paths.state_dir()
+    if args.findings_dir is None:
+        args.findings_dir = paths.findings_dir()
     return {
         "status": _cmd_status,
         "reset-halt": _cmd_reset_halt,
         "collect": _cmd_collect,
+        "init": _cmd_init,
+        "where": _cmd_where,
+        "login": _cmd_login,
     }[args.command](args)
 
 

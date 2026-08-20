@@ -35,7 +35,8 @@ def test_no_real_folder_ids_in_source():
     Non basta vietare la stringa '/saved/': i test hanno bisogno di URL finti.
     Cio' che non deve mai comparire e' un identificatore vero.
     """
-    real_id = re.compile(r"/saved/[^/]+/\d{15,}")
+    # Un id fatto di soli zeri e' un segnaposto, non un dato di qualcuno.
+    real_id = re.compile(r"/saved/[^/]+/(?!0+/)\d{15,}")
     for py in _source_files():
         assert not real_id.search(py.read_text(encoding="utf-8")), \
             f"id di cartella reale trovato in {py}"
@@ -54,8 +55,22 @@ def test_the_real_username_never_appears_in_source():
             f"lo username di config.toml compare in {py}"
 
 
+# Una chiave vera e' lunga; 'sk-ant-...' in un messaggio di aiuto non lo e'.
+# Vietare il solo prefisso vieterebbe di spiegare all'utente cosa incollare.
+REAL_KEY = re.compile(r"sk-ant-[A-Za-z0-9]{4,}-[A-Za-z0-9_\-]{40,}")
+REAL_GH_TOKEN = re.compile(r"gh[pousr]_[A-Za-z0-9]{36,}")
+
+
 def test_no_api_keys_in_source():
     for py in _source_files():
         text = py.read_text(encoding="utf-8")
-        assert "sk-ant-" not in text, f"possibile chiave API in {py}"
-        assert "ghp_" not in text, f"possibile token GitHub in {py}"
+        assert not REAL_KEY.search(text), f"chiave API in {py}"
+        assert not REAL_GH_TOKEN.search(text), f"token GitHub in {py}"
+
+
+def test_placeholder_ids_are_allowed():
+    """Il template deve poter mostrare la forma di un URL senza far scattare
+    il controllo: un id di soli zeri non e' il dato di nessuno."""
+    real_id = re.compile(r"/saved/[^/]+/(?!0+/)\d{15,}")
+    assert not real_id.search("/YOUR_USERNAME/saved/example/000000000000000/")
+    assert real_id.search("/tizio/saved/github/2187308038720153/")
