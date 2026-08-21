@@ -218,12 +218,31 @@ whenever you like — re-running picks up where you left off.
 
 | | | |
 |---|---|---|
-| 1 | chiave API | opens console.anthropic.com, you paste the key back |
+| 1 | il modello | pick one from a menu, it opens the right console for the key |
 | 2 | browser | downloads Chromium, once |
 | 3 | accesso Instagram | opens a window, you sign in by hand |
 | 4 | cartelle salvate | reads them off your account, you pick which ones |
 | 5 | **il tuo profilo** | four questions, one line each |
 | 6 | raccolta giornaliera | launchd / systemd timer / cron |
+
+**Step 1 is a menu**, because the model is a choice and not a config key you
+should have to look up:
+
+```
+    1. Claude Haiku 4.5       il piu' economico, ~$0.005 a post — consigliato
+    2. Claude Sonnet 5        legge meglio le slide fitte, ~4x il costo
+    3. OpenAI GPT-4o mini     se hai gia' un account OpenAI
+    4. Il tuo modello         Ollama, LM Studio, qualsiasi cosa parli l'API OpenAI — gratis
+```
+
+Pick 1-3 and it opens that provider's key page and writes the key for you. Pick
+4 and it asks for an address (`http://localhost:11434/v1`) and a model name —
+anything that reads images and speaks the OpenAI API. **A local model costs
+nothing**, and the spend ledger correctly records zero.
+
+⚠️ A key with no credit on it is not a working key: load some before the first
+run. If the model turns out to be unreachable, the run **stops** and marks
+nothing as seen, so the queue is still there when you fix it.
 
 **Step 5 is the one that matters** — the rest is plumbing. So `init` asks
 instead of leaving you homework:

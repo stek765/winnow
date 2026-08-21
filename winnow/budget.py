@@ -17,6 +17,10 @@ PRICES: dict[str, tuple[float, float]] = {
     "claude-haiku-4-5": (1.00, 5.00),
     "claude-sonnet-5": (3.00, 15.00),
     "claude-opus-5": (5.00, 25.00),
+    # OpenAI, listino dichiarato dal fornitore. Da ricontrollare come gli altri:
+    # un prezzo vecchio non rompe niente, falsa solo il registro della spesa.
+    "gpt-4o-mini": (0.15, 0.60),
+    "gpt-4o": (2.50, 10.00),
 }
 
 

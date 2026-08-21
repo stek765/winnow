@@ -47,6 +47,34 @@ def make_http() -> httpx.Client:
     return httpx.Client(headers=headers)
 
 
+class Unusable(RuntimeError):
+    """The model cannot be reached at all: no key, no credit, wrong address.
+
+    Told apart from a broken post on purpose. Every failure used to mark its
+    post seen — right for a post nobody can parse, catastrophic for a key with
+    no credit on it: a run of fifty would burn the whole backlog without
+    reading a word, and nothing would ever be retried.
+    """
+
+
+# HTTP status codes that mean "stop", not "skip this one". 402 and 429 are
+# about the account, not the post; 401 and 403 about the key.
+FATAL_STATUS = (401, 402, 403, 429)
+
+
+def is_unusable(exc: Exception) -> bool:
+    status = getattr(exc, "status_code", None)
+    if status is None:
+        response = getattr(exc, "response", None)
+        status = getattr(response, "status_code", None)
+    if status in FATAL_STATUS:
+        return True
+    text = str(exc).lower()
+    return any(w in text for w in
+               ("credit balance", "insufficient_quota", "invalid api key",
+                "authentication", "api key"))
+
+
 NO_SOURCE = {
     "platform": "prodotto o servizio: nessun registro pubblico da interrogare",
     "item": "voce di un elenco, non un prodotto: niente da verificare",
@@ -130,7 +158,6 @@ def collect(
     state_dir: Path,
     findings_dir: Path,
     shots_dir: Path,
-    client,
     http: httpx.Client,
     page,
     now: datetime,
@@ -181,7 +208,7 @@ def collect(
             say("post", i=n, n=len(todo), account=account, slides=len(shots),
                 is_video=is_video)
 
-            ex = extract_post(client, cfg.model, code, account, caption, shots,
+            ex = extract_post(cfg, code, account, caption, shots,
                               is_video=is_video)
             extractions.append(ex)
             spend += ex.usd
@@ -195,10 +222,17 @@ def collect(
                 say("verified", name=e.name, checked=v.checked, exists=v.exists,
                     stars=v.stars, note=v.note)
         except Exception as exc:  # noqa: BLE001 - deliberatamente ampio
+            if is_unusable(exc):
+                # Non segnare visto, non proseguire: la coda resta intatta e
+                # il giro riparte da qui quando il problema e' risolto.
+                write_findings(findings_path(findings_dir, now.date()),
+                               extractions, verifications, spend, failed)
+                raise Unusable(str(exc)[:300]) from exc
             failed.append({"shortcode": code, "folder": folder_name,
                            "error": f"{type(exc).__name__}: {exc}"[:300]})
             say("failed", shortcode=code, error=type(exc).__name__)
-        finally:
+            mark_seen(seen_path, [code], folder_name, now.date().isoformat())
+        else:
             mark_seen(seen_path, [code], folder_name, now.date().isoformat())
 
     out_path = findings_path(findings_dir, now.date())

@@ -2,6 +2,7 @@ import json
 from datetime import date, datetime
 
 import httpx
+import pytest
 from winnow.extract import Entity, PostExtraction
 from winnow.run import enrich, findings_path, write_findings
 from winnow.verify import Verification
@@ -94,8 +95,7 @@ def test_one_broken_post_does_not_kill_the_whole_run(tmp_path, monkeypatch):
     monkeypatch.setattr(run, "capture_post",
                         lambda *a, **k: ("cap", "acct", [], False))
 
-    def fake_extract(client, model, code, account, caption, shots,
-                     is_video=False):
+    def fake_extract(cfg, code, account, caption, shots, is_video=False):
         if code == "BBB":
             raise ValueError("risposta non JSON dal modello")
         return PostExtraction(code, account, caption, [], 0.001)
@@ -106,7 +106,7 @@ def test_one_broken_post_does_not_kill_the_whole_run(tmp_path, monkeypatch):
         lambda r: httpx.Response(200, json={"items": []})))
     summary = run.collect(
         cfg, tmp_path / "state", tmp_path / "findings", tmp_path / "shots",
-        object(), http, _FakePage(), datetime(2026, 8, 20, 3, 0), search_delay=0,
+        http, _FakePage(), datetime(2026, 8, 20, 3, 0), search_delay=0,
     )
 
     assert summary["posts"] == 2, "gli altri due post devono essere processati"
@@ -135,7 +135,7 @@ def test_a_failed_post_is_still_marked_seen(tmp_path, monkeypatch):
 
     http = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json={})))
     run.collect(cfg, tmp_path / "s", tmp_path / "f", tmp_path / "sh",
-                object(), http, _FakePage(), datetime(2026, 8, 20, 3, 0), search_delay=0)
+                http, _FakePage(), datetime(2026, 8, 20, 3, 0), search_delay=0)
     assert "BBB" in load_seen(tmp_path / "s" / "seen.json")
 
 
@@ -152,7 +152,7 @@ def test_collect_reports_each_step_while_it_runs(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(
         run, "extract_post",
-        lambda client, model, code, account, caption, shots, is_video=False:
+        lambda cfg, code, account, caption, shots, is_video=False:
         PostExtraction(
             shortcode=code, account=account, caption=caption,
             entities=[Entity("repo", "a/b", "", 1)], usd=0.004,
@@ -170,7 +170,7 @@ def test_collect_reports_each_step_while_it_runs(tmp_path, monkeypatch):
         browser_profile=tmp_path / "prof",
     )
     seen: list[tuple[str, dict]] = []
-    run.collect(cfg, tmp_path, tmp_path / "f", tmp_path / "s", None, None, None,
+    run.collect(cfg, tmp_path, tmp_path / "f", tmp_path / "s", None, None,
                 datetime(2026, 8, 20, 13, 0), search_delay=0,
                 on_event=lambda e, d: seen.append((e, d)))
 
@@ -221,7 +221,7 @@ def test_a_full_run_does_not_list_the_folders_below(tmp_path, monkeypatch):
     monkeypatch.setattr(run, "capture_post",
                         lambda *a, **k: ("cap", "acct", [], False))
     monkeypatch.setattr(run, "extract_post",
-                        lambda client, model, code, *a, **k:
+                        lambda cfg, code, *a, **k:
                         PostExtraction(code, "acct", "cap", [], 0.001))
 
     cfg = Config(
@@ -235,7 +235,7 @@ def test_a_full_run_does_not_list_the_folders_below(tmp_path, monkeypatch):
 
     events: list[str] = []
     run.collect(cfg, tmp_path / "state", tmp_path / "findings", tmp_path / "shots",
-                object(), http, _FakePage(), datetime(2026, 8, 21), search_delay=0,
+                http, _FakePage(), datetime(2026, 8, 21), search_delay=0,
                 on_event=lambda e, d: events.append(f"{e}:{d.get('name', '')}"))
 
     assert listed == ["/tizio/saved/uno/111/"]     # la seconda non viene aperta
@@ -246,3 +246,55 @@ def test_a_skipped_folder_does_not_read_as_an_empty_one():
     """Silence would look like "nothing new there", which is a lie."""
     from winnow.progress import line
     assert "saltata" in line("folder_skipped", {"name": "must-rewatch"})
+
+
+# --- a broken key must not eat the backlog ---------------------------------
+
+def test_a_key_without_credit_stops_the_run_and_marks_nothing(tmp_path, monkeypatch):
+    """The whole point of the queue is that unread posts stay unread. Marking
+    them seen on an account-level failure burns a backlog in one go and never
+    retries it — with --posts 50, fifty posts gone without a word read."""
+    import winnow.run as run
+    from winnow.config import Config, Folder, Limits
+    from winnow.state import load_seen
+
+    class NoCredit(Exception):
+        status_code = 400
+
+        def __str__(self):
+            return "Your credit balance is too low to access the API"
+
+    monkeypatch.setattr(run, "list_shortcodes", lambda page, url, **kw: ["AAA", "BBB"])
+    monkeypatch.setattr(run, "capture_post",
+                        lambda *a, **k: ("cap", "acct", [], False))
+    monkeypatch.setattr(run, "extract_post",
+                        lambda *a, **k: (_ for _ in ()).throw(NoCredit()))
+
+    cfg = Config(
+        username="tizio", browser_profile=tmp_path / "prof",
+        folders=[Folder("github", "/tizio/saved/github/111/", True, "repo")],
+        limits=Limits(3.0, 10.0, 8, 15, 0.92), model="claude-haiku-4-5",
+    )
+    http = httpx.Client(transport=httpx.MockTransport(
+        lambda r: httpx.Response(200, json={"items": []})))
+
+    with pytest.raises(run.Unusable):
+        run.collect(cfg, tmp_path / "state", tmp_path / "findings",
+                    tmp_path / "shots", http, _FakePage(),
+                    datetime(2026, 8, 21), search_delay=0)
+
+    assert load_seen(tmp_path / "state" / "seen.json") == {}, \
+        "la coda deve restare intatta"
+
+
+@pytest.mark.parametrize("exc,fatal", [
+    (type("E", (Exception,), {"status_code": 401})(), True),
+    (type("E", (Exception,), {"status_code": 429})(), True),
+    (ValueError("Your credit balance is too low"), True),
+    (ValueError("invalid api key provided"), True),
+    (ValueError("risposta non JSON dal modello"), False),
+    (TimeoutError("slide non caricata"), False),
+])
+def test_only_account_level_failures_stop_everything(exc, fatal):
+    from winnow.run import is_unusable
+    assert is_unusable(exc) is fatal

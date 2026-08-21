@@ -150,8 +150,6 @@ def _cmd_reset_halt(args) -> int:
 
 
 def _cmd_collect(args) -> int:
-    import anthropic
-
     from winnow.setup import apply_env_file
 
     # La chiave sta in un file con permessi 600, non nella definizione dello
@@ -159,7 +157,7 @@ def _cmd_collect(args) -> int:
     apply_env_file(paths.env_file())
 
     from winnow.browser import SessionExpired, open_session
-    from winnow.run import collect, make_http
+    from winnow.run import Unusable, collect, make_http
 
     from winnow.progress import line
 
@@ -192,9 +190,16 @@ def _cmd_collect(args) -> int:
         with open_session(cfg.browser_profile) as page, make_http() as http:
             summary = collect(
                 cfg, args.state_dir, args.findings_dir, paths.shots_dir(),
-                anthropic.Anthropic(), http, page, datetime.now(),
+                http, page, datetime.now(),
                 search_delay=delay, on_event=show,
             )
+    except Unusable as e:
+        print(f"\nMODELLO IRRAGGIUNGIBILE: {e}", file=sys.stderr)
+        print("Il giro si e' fermato e i post NON sono stati segnati come "
+              "visti: riprova quando e' risolto.\n"
+              "Se e' la chiave: verifica che l'account abbia credito "
+              "(console.anthropic.com).", file=sys.stderr)
+        return 4
     except Halted as e:
         print(f"ARRESTO: {e}", file=sys.stderr)
         return 1

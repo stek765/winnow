@@ -84,10 +84,10 @@ def check_config(config_file: Path) -> Check:
     return Check("configurazione", True, str(config_file))
 
 
-def check_api_key(env_file: Path) -> Check:
-    if os.environ.get("ANTHROPIC_API_KEY"):
+def check_api_key(env_file: Path, name: str = "ANTHROPIC_API_KEY") -> Check:
+    if os.environ.get(name):
         return Check("chiave API", True, "presente nell'ambiente")
-    if env_file.exists() and "ANTHROPIC_API_KEY" in env_file.read_text(encoding="utf-8"):
+    if env_file.exists() and name in env_file.read_text(encoding="utf-8"):
         return Check("chiave API", True, str(env_file))
     return Check(
         "chiave API", False, "assente",
@@ -146,6 +146,35 @@ def chromium_installed(root: Path | None = None) -> bool:
     if not root.is_dir():
         return False
     return any(d.is_dir() for d in root.glob("chromium-*"))
+
+
+def api_ready(config_file: Path, env_file: Path) -> Check:
+    """Is there a model, and can we reach it?
+
+    Reads the provider out of config.toml rather than assuming Anthropic: with
+    a local model there is no key to look for, and reporting a missing one
+    would be a red cross next to a setup that works.
+    """
+    from winnow.providers import ANTHROPIC, KEY_ENV, needs_key
+
+    provider, model = ANTHROPIC, None
+    if config_file.exists():
+        import tomllib
+        try:
+            api = tomllib.loads(config_file.read_text(encoding="utf-8")).get("api", {})
+            provider, model = api.get("provider", ANTHROPIC), api.get("model")
+        except tomllib.TOMLDecodeError:
+            pass
+    if not model:
+        return Check("modello", False, "non scelto",
+                     "rilancia 'winnow init': te lo fa scegliere da un elenco")
+    if not needs_key(provider):
+        return Check("modello", True, f"{model} (in locale)")
+    key = check_api_key(env_file, KEY_ENV[provider])
+    if not key.ok:
+        return Check("modello", False, f"{model}: manca la chiave {KEY_ENV[provider]}",
+                     "rilancia 'winnow init' e incollala quando te la chiede")
+    return Check("modello", True, f"{model} ({provider})")
 
 
 def check_chromium() -> Check:
@@ -278,6 +307,102 @@ def configure_folders(config_file: Path, profile: Path) -> bool:
     return True
 
 
+def choose_model() -> object:
+    """Which model reads the slides. Asked, not assumed.
+
+    A menu instead of a config field because the alternative is a first-time
+    user editing a TOML key they have never seen, to a value they have to go
+    and look up.
+    """
+    from winnow.providers import CHOICES
+
+    print("  Chi legge le slide. Puoi cambiarlo dopo in config.toml.\n")
+    for i, c in enumerate(CHOICES, 1):
+        print(f"    {i}. {c.label:22} {c.hint}")
+    answer = ask("\n  Quale? [1] ") or "1"
+    try:
+        return CHOICES[int(answer) - 1]
+    except (ValueError, IndexError):
+        print("  non ho capito, tengo la 1.")
+        return CHOICES[0]
+
+
+def setup_model(config_file: Path, env_file: Path) -> None:
+    """The choice, its key, and the line in config.toml that records it."""
+    from winnow.providers import CONSOLE, KEY_ENV, LOCAL_BASE_URL, needs_key
+
+    choice = choose_model()
+    model, base_url = choice.model, None
+
+    if needs_key(choice.provider):
+        env = KEY_ENV[choice.provider]
+        if not check_api_key(env_file, env).ok:
+            print(f"\n  Serve una chiave {choice.provider}. Ti apro la pagina:")
+            print(f"  {CONSOLE[choice.provider]}")
+            print("  Creane una, mettici un limite di spesa, e ricordati che")
+            print("  senza credito caricato la chiave non funziona.\n")
+            open_url(CONSOLE[choice.provider])
+            key = ask("  Incolla la chiave qui (invio per saltare): ", secret=True)
+            if key:
+                write_key(env_file, env, key)
+    else:
+        print("\n  Un modello tuo, sul tuo computer. Deve saper leggere")
+        print("  immagini e parlare l'API OpenAI (Ollama, LM Studio, ...).")
+        base_url = ask(f"  Indirizzo [{LOCAL_BASE_URL}] ") or LOCAL_BASE_URL
+        model = ask("  Nome del modello (es. qwen2.5vl) ") or "qwen2.5vl"
+
+    write_api_choice(config_file, choice.provider, model, base_url)
+    print(f"  ✅ modello: {model} ({choice.provider})")
+
+
+def write_api_choice(config_file: Path, provider: str, model: str,
+                     base_url: str | None) -> None:
+    """Record the choice without disturbing anything else in the file."""
+    text = config_file.read_text(encoding="utf-8") if config_file.exists() else CONFIG_TEMPLATE
+    text = render_api_section(text, provider, model, base_url)
+    config_file.write_text(text, encoding="utf-8")
+    config_file.chmod(0o600)
+
+
+def render_api_section(text: str, provider: str, model: str,
+                       base_url: str | None) -> str:
+    """Replace the [api] block, keep the rest of the file byte for byte.
+
+    Rewriting the whole config from a template would throw away the folders and
+    the limits someone has tuned — the config is theirs, we only own one block.
+    """
+    lines = text.splitlines()
+    out, i = [], 0
+    while i < len(lines):
+        if lines[i].strip() == "[api]":
+            i += 1
+            while i < len(lines) and not lines[i].strip().startswith("["):
+                i += 1
+            continue
+        out.append(lines[i])
+        i += 1
+    block = ["[api]", f'provider = "{provider}"', f'model = "{model}"']
+    if base_url:
+        block.append(f'base_url = "{base_url}"')
+    # Subito dopo [instagram], dove stava prima: un file che cambia ordine a
+    # ogni init e' un file che non riconosci piu'.
+    for n, line in enumerate(out):
+        if line.strip().startswith("[") and line.strip() != "[instagram]" and n:
+            return "\n".join(out[:n] + block + [""] + out[n:]).rstrip() + "\n"
+    return "\n".join(out + [""] + block).rstrip() + "\n"
+
+
+def write_key(env_file: Path, name: str, key: str) -> None:
+    lines = [l for l in (env_file.read_text(encoding="utf-8").splitlines()
+                         if env_file.exists() else [])
+             if not l.startswith(f"{name}=")]
+    lines.append(f"{name}={key}")
+    env_file.parent.mkdir(parents=True, exist_ok=True)
+    env_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    env_file.chmod(0o600)
+    print(f"  ✅ chiave scritta in {env_file} (600)")
+
+
 KEY_URL = "https://console.anthropic.com/settings/keys"
 
 PROFILE_QUESTIONS = [
@@ -367,7 +492,7 @@ def ask_profile(profile_file: Path) -> bool:
     return True
 
 
-STEPS = ("chiave API", "browser", "accesso Instagram", "cartelle salvate",
+STEPS = ("il modello", "browser", "accesso Instagram", "cartelle salvate",
          "il tuo profilo", "raccolta giornaliera")
 
 
@@ -394,10 +519,10 @@ def run_init() -> int:
     config_file = paths.config_file()
 
     step(1, STEPS[0])
-    if check_api_key(env_file).ok:
-        print("  ✅ gia' a posto")
+    if api_ready(config_file, env_file).ok:
+        print(f"  ✅ gia' a posto ({api_ready(config_file, env_file).detail})")
     else:
-        ask_api_key(env_file)
+        setup_model(config_file, env_file)
 
     step(2, STEPS[1])
     if check_chromium().ok:
@@ -436,7 +561,7 @@ def run_init() -> int:
     offer_schedule()
 
     checks = [
-        check_api_key(env_file),
+        api_ready(config_file, env_file),
         check_chromium(),
         check_browser_profile(browser),
         check_config(config_file),

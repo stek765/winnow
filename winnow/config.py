@@ -32,6 +32,8 @@ class Config:
     folders: list[Folder]
     limits: Limits
     model: str
+    provider: str = "anthropic"
+    base_url: str | None = None
 
 
 def load_config(path: Path) -> Config:
@@ -64,6 +66,10 @@ def load_config(path: Path) -> Config:
         folders=folders,
         limits=limits,
         model=raw["api"]["model"],
+        # Assente in ogni config scritta prima che winnow parlasse con
+        # qualcun altro: quelle restano su Anthropic, che e' dove erano.
+        provider=raw["api"].get("provider", "anthropic"),
+        base_url=raw["api"].get("base_url"),
     )
 
 

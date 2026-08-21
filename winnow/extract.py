@@ -176,54 +176,33 @@ def _slide_index(raw) -> int:
         return 1
 
 
-def _image_block(path: Path) -> dict:
-    return {
-        "type": "image",
-        "source": {
-            "type": "base64",
-            "media_type": "image/png",
-            "data": base64.standard_b64encode(path.read_bytes()).decode("utf-8"),
-        },
-    }
-
-
 def extract_post(
-    client,
-    model: str,
+    cfg,
     shortcode: str,
     account: str,
     caption: str,
     slide_paths: list[Path],
     is_video: bool = False,
 ) -> PostExtraction:
-    template = VIDEO_TEMPLATE if (is_video and not slide_paths) else USER_TEMPLATE
-    content: list[dict] = [
-        {
-            "type": "text",
-            "text": template.format(
-                account=account, caption=caption, n=len(slide_paths)
-            ),
-        }
-    ]
-    content.extend(_image_block(p) for p in slide_paths)
+    """Read one post. Which model does the reading is `cfg`'s business."""
+    from winnow import providers
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=4000,
-        system=SYSTEM_PROMPT,
+    template = VIDEO_TEMPLATE if (is_video and not slide_paths) else USER_TEMPLATE
+    text = template.format(account=account, caption=caption, n=len(slide_paths))
+
+    reply, in_tokens, out_tokens = providers.complete(
+        cfg.provider, cfg.model, cfg.base_url, SYSTEM_PROMPT, text, slide_paths,
         # Extraction is not a creative task: the same post must yield the same
         # list twice. The default (1.0) made runs differ from each other.
         temperature=0.0,
-        messages=[{"role": "user", "content": content}],
     )
-    text = next((b.text for b in response.content if b.type == "text"), "[]")
-    shape, entities = parse_extraction(text)
+    shape, entities = parse_extraction(reply)
 
     return PostExtraction(
         shortcode=shortcode,
         account=account,
         caption=caption,
         entities=entities,
-        usd=cost_usd(model, response.usage.input_tokens, response.usage.output_tokens),
+        usd=providers.cost(cfg.provider, cfg.model, in_tokens, out_tokens),
         shape=shape,
     )
