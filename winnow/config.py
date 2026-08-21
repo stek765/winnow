@@ -76,8 +76,8 @@ def load_config(path: Path) -> Config:
 def override_posts(cfg: Config, posts: int) -> Config:
     """One run with a different cap, for clearing a backlog by hand.
 
-    `posts_per_run` is tuned for the nightly rhythm; someone who installs winnow
-    after two years of saving has hundreds of posts waiting, and eight a night
+    `posts_per_run` is tuned for the daily rhythm; someone who installs winnow
+    after two years of saving has hundreds of posts waiting, and eight a day
     means a month of drip-feed. The config on disk is not touched.
     """
     if posts < 1:

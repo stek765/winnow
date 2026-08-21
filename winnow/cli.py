@@ -27,7 +27,7 @@ alla settimana te li fa filtrare dal tuo profilo.
 
   winnow init          configura tutto: chiave, browser, accesso, cartelle
                        salvate, profilo e raccolta giornaliera
-  winnow collect       un giro adesso, invece di aspettare stanotte
+  winnow collect       un giro adesso, invece di aspettare il prossimo
   winnow status        e' vivo? cosa ha trovato? quanto e' costato?
   winnow recap         la settimana + il tuo profilo negli appunti,
                        pronti da incollare a un modello

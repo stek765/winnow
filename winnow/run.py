@@ -200,7 +200,7 @@ def collect(
 
     for n, (code, folder_name) in enumerate(todo, start=1):
         # Un post storto non deve uccidere la nottata. Si registra, si segna
-        # come visto (altrimenti lo si ripaga ogni notte) e si prosegue.
+        # come visto (altrimenti lo si ripaga a ogni giro) e si prosegue.
         try:
             caption, account, shots, is_video = capture_post(
                 page, code, shots_dir, cfg.limits.max_slides

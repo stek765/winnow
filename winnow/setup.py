@@ -681,7 +681,7 @@ def run_init() -> int:
 
     print("\n  Tutto pronto. Il primo giro, con l'arretrato che hai salvato:\n")
     print("      winnow collect --posts 20\n")
-    print("  Poi ogni notte da solo, e a fine settimana:  winnow recap\n")
+    print("  Poi ogni giorno da solo, e a fine settimana:  winnow recap\n")
     return 0
 
 

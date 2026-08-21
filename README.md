@@ -21,7 +21,7 @@
 ## How it works
 
 1. **You save a post** and forget it.
-2. **Every night** winnow opens the new ones, reads **every slide of the
+2. **Once a day** winnow opens the new ones, reads **every slide of the
    carousel**, and checks each name it finds at the source — stars, last
    commit, archived or not. Facts only: it decides nothing.
 3. **Once a week** `winnow recap` puts those facts next to **your profile**,
@@ -65,7 +65,7 @@ Five. Everything else `init` does for you.
 | | |
 |---|---|
 | `winnow init` | set up, or fix whatever is missing |
-| `winnow collect` | one pass now, instead of waiting for tonight |
+| `winnow collect` | one pass now, instead of waiting for the next run |
 | `winnow status` | is it alive, what did it find, what has it cost |
 | `winnow recap` | the week + your profile, ready to paste into a model |
 | `winnow reset-halt` | restart after the spend brake stopped it |
@@ -91,14 +91,14 @@ da leggere   1 file in findings/  →  winnow recap
 `status` speaks up on its own when the last run is over 36h old, when posts
 failed, or when the brake stopped it.
 
-`winnow schedule --at 09:00 | --off`, `winnow login` and `winnow where` are
+`winnow schedule --at 20:00 | --off`, `winnow login` and `winnow where` are
 still there for when you want them directly.
 
 ## Once a week
 
 <table>
 <tr>
-<td width="50%"><img src="assets/diagrams/winnow-half-tool.png" alt="A post saved on Instagram becomes, every night, the weekly recap: kept, thrown out, why — one minute to read."></td>
+<td width="50%"><img src="assets/diagrams/winnow-half-tool.png" alt="A post saved on Instagram becomes, once a day, the weekly recap: kept, thrown out, why — one minute to read."></td>
 <td width="50%"><img src="assets/diagrams/winnow-half-you.png" alt="A file called profile.md — what you want, what you already decided, what you ruled out — turns the week into a filtered list. Two things, both verified alive with tens of thousands of stars: a self-hosted notes app is kept because it matches what you want, another crypto bot is thrown out because it falls under what you ruled out. Both real, both alive: your file decided."></td>
 </tr>
 <tr>
@@ -106,7 +106,7 @@ still there for when you want them directly.
 
 **winnow's half — automatic.**
 
-`you save` → `winnow collect` (nightly) → `findings/`
+`you save` → `winnow collect` (once a day) → `findings/`
 
 </td>
 <td valign="top">
@@ -136,12 +136,12 @@ picks by content. Everything it skips, it skips mechanically:
 | **8 per run** | `posts_per_run`, newest saved first |
 
 Folders are read **in config order**, and the cap applies to the whole queue:
-a folder with a big backlog can starve the ones below it for a few nights.
+a folder with a big backlog can starve the ones below it for a few days.
 Reorder the `[[folders]]` blocks to change who goes first.
 
 ### The first run, when you already have hundreds saved
 
-Eight a night means a month of drip-feed, so clear the backlog deliberately:
+Eight a day means a month of drip-feed, so clear the backlog deliberately:
 
 ```bash
 winnow collect --posts 50
@@ -155,7 +155,7 @@ winnow waits 7s between checks. Give it a token and it waits 2s instead:
 echo 'GITHUB_TOKEN=ghp_...' >> ~/.config/winnow/env    # any token, no scopes
 ```
 
-That turns two hours of backlog into about forty minutes. The nightly run keeps
+That turns two hours of backlog into about forty minutes. The daily run keeps
 its own cap either way.
 
 ## What it costs
@@ -284,9 +284,10 @@ Three things stay yours, because no code can do them: **creating the API key**
 password, and the session lives in a browser profile of its own — and **writing
 the profile**, which is the whole point of the tool.
 
-Scheduling picks itself: launchd on macOS, a systemd timer or cron on Linux.
-Pick an hour the machine is awake and unlocked — collecting opens a browser
-window, and that needs a graphical session.
+Scheduling picks itself: launchd on macOS, a systemd timer or cron on Linux. The
+default is **13:00, not 3am**, and deliberately: collecting opens a browser
+window, so it needs the machine awake, unlocked and with a graphical session.
+Pick an hour that is true for you — `winnow schedule --at 20:00`.
 
 ## More
 

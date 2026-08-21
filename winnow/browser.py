@@ -38,7 +38,7 @@ def looks_logged_out(page_url: str, page_text: str) -> bool:
 
 
 def human_pause(low: float = 1.5, high: float = 4.0) -> None:
-    """Irregular waits. 30 posts in four minutes every night gets noticed."""
+    """Irregular waits. 30 posts in four minutes, every day, gets noticed."""
     time.sleep(random.uniform(low, high))
 
 
