@@ -14,6 +14,9 @@ line is for you; everything below is for the model.
 > Below you have my profile and this week's findings: collected facts, already
 > checked at the source. The judging is yours.
 >
+> **Write the recap in the language my profile is written in** — that is the
+> language I think in, and this is for me to read, not to publish.
+>
 > Apply a two-lane rule:
 > - 🎯 **Hook** — it touches something I already have open. Low bar: it only
 >   has to be true and alive.

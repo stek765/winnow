@@ -163,3 +163,13 @@ def test_find_secrets_reports_the_line_number():
     from winnow.recap import find_secrets
     hits = find_secrets("prima\nseconda\nk = sk-ant-api03-BBBBBBBBBBBBBBBBBBBB")
     assert hits and hits[0].startswith("riga 3:")
+
+
+def test_the_prompt_pins_the_output_language_to_the_profile():
+    """Prompt in English, profile in Italian, and nothing saying which language
+    to answer in: the model guessed, and could guess differently next week.
+    Tying it to the profile is what makes it right for everyone, not just for
+    whoever wrote the tool."""
+    from winnow.recap import package_file, prompt_body
+    body = prompt_body(package_file("recap-prompt.md"))
+    assert "language my profile is written in" in body
