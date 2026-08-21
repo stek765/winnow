@@ -158,3 +158,14 @@ def test_search_repo_flags_homonyms():
     v = search_repo(_client(handler), "OpenSEO")
     assert v.exists and v.stars == 900
     assert "omonimi" in v.note and "2016" in v.note
+
+
+def test_http_note_names_the_real_failure():
+    """A token expires a year after it is made; "(rate limit?)" on a 401 sends
+    the reader hunting for a limit that is not there."""
+    from winnow.verify import http_note
+    assert "token" in http_note(401) and "GITHUB_TOKEN" in http_note(401)
+    assert "rate limit" in http_note(403)
+    assert "rate limit" in http_note(429)
+    assert "500" in http_note(500)
+    assert http_note(500, "HuggingFace").startswith("HuggingFace")

@@ -31,6 +31,9 @@ def line(event: str, data: dict) -> str:
         return (f"  cartella   {data['name']} · {data['found']} post, "
                 f"{data['new']} nuovi")
 
+    if event == "folder_skipped":
+        return f"  cartella   {data['name']} · saltata, il giro e' gia' pieno"
+
     if event == "post":
         return (f"\n  {data['i']}/{data['n']}  @{data['account']} · "
                 f"{data['slides']} slide")

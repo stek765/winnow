@@ -116,7 +116,7 @@ def _merge(into: list[str], page) -> None:
             into.append(code)
 
 
-def list_shortcodes(page, folder_url: str) -> list[str]:
+def list_shortcodes(page, folder_url: str, enough=None) -> list[str]:
     """List the posts in a saved folder — the whole folder, not the first screen.
 
     The grid is lazy-loaded, so we wait for the links themselves rather than for
@@ -141,6 +141,8 @@ def list_shortcodes(page, folder_url: str) -> list[str]:
         _merge(codes, page)
         before = len(codes)
         if before >= MAX_POSTS_PER_FOLDER:
+            break
+        if enough is not None and enough(codes):
             break
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         deadline = time.time() + SCROLL_WAIT_S

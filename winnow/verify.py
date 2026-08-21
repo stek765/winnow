@@ -37,6 +37,21 @@ def normalize_repo_name(text: str) -> str | None:
     return f"{m.group(1)}/{m.group(2)}" if m else None
 
 
+def http_note(status: int, what: str = "GitHub") -> str:
+    """Say which failure it was.
+
+    Every non-200 used to read "(rate limit?)". A token expires a year after you
+    create it, and a year later that note sends you hunting for a rate limit
+    that is not there. The outcome stays the same — not checked, never a
+    fabricated verification — but the reason has to be true.
+    """
+    if status == 401:
+        return f"{what}: token non valido o scaduto (controlla GITHUB_TOKEN)"
+    if status in (403, 429):
+        return f"{what}: rate limit raggiunto, riprova piu' tardi"
+    return f"{what} ha risposto {status}: non verificato"
+
+
 def verify_repo(http: httpx.Client, owner_repo: str) -> Verification:
     try:
         r = http.get(
@@ -50,10 +65,7 @@ def verify_repo(http: httpx.Client, owner_repo: str) -> Verification:
     if r.status_code == 404:
         return Verification(checked=True, exists=False, note="repository inesistente")
     if r.status_code != 200:
-        return Verification(
-            checked=False,
-            note=f"GitHub ha risposto {r.status_code} (rate limit?): non verificato",
-        )
+        return Verification(checked=False, note=http_note(r.status_code))
 
     d = r.json()
     pushed = (d.get("pushed_at") or "")[:10] or None
@@ -134,7 +146,7 @@ def search_repo(http: httpx.Client, name: str) -> Verification:
     if r.status_code != 200:
         return Verification(
             checked=False,
-            note=f"ricerca GitHub ha risposto {r.status_code} (rate limit?)",
+            note=http_note(r.status_code, "ricerca GitHub"),
         )
 
     items = r.json().get("items", [])
@@ -188,7 +200,7 @@ def verify_model(http: httpx.Client, name: str) -> Verification:
         return Verification(checked=False, note=f"errore di rete: {e}")
 
     if r.status_code != 200:
-        return Verification(checked=False, note=f"HuggingFace ha risposto {r.status_code}")
+        return Verification(checked=False, note=http_note(r.status_code, "HuggingFace"))
 
     hits = r.json()
     if not hits:

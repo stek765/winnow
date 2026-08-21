@@ -90,7 +90,7 @@ def test_one_broken_post_does_not_kill_the_whole_run(tmp_path, monkeypatch):
         folders=[Folder("github", "/tizio/saved/github/111/", True, "repo")],
         limits=Limits(3.0, 10.0, 5, 15, 0.92), model="claude-haiku-4-5",
     )
-    monkeypatch.setattr(run, "list_shortcodes", lambda page, url: ["AAA", "BBB", "CCC"])
+    monkeypatch.setattr(run, "list_shortcodes", lambda page, url, **kw: ["AAA", "BBB", "CCC"])
     monkeypatch.setattr(run, "capture_post",
                         lambda *a, **k: ("cap", "acct", [], False))
 
@@ -128,7 +128,7 @@ def test_a_failed_post_is_still_marked_seen(tmp_path, monkeypatch):
         folders=[Folder("github", "/tizio/saved/github/111/", True, "repo")],
         limits=Limits(3.0, 10.0, 5, 15, 0.92), model="claude-haiku-4-5",
     )
-    monkeypatch.setattr(run, "list_shortcodes", lambda page, url: ["BBB"])
+    monkeypatch.setattr(run, "list_shortcodes", lambda page, url, **kw: ["BBB"])
     monkeypatch.setattr(run, "capture_post",
                         lambda *a, **k: ("cap", "acct", [], False))
     monkeypatch.setattr(run, "extract_post", lambda *a, **k: (_ for _ in ()).throw(ValueError("rotto")))
@@ -145,7 +145,7 @@ def test_collect_reports_each_step_while_it_runs(tmp_path, monkeypatch):
     import winnow.run as run
     from winnow.config import Config, Folder, Limits
 
-    monkeypatch.setattr(run, "list_shortcodes", lambda page, url: ["AAA", "BBB"])
+    monkeypatch.setattr(run, "list_shortcodes", lambda page, url, **kw: ["AAA", "BBB"])
     monkeypatch.setattr(
         run, "capture_post",
         lambda page, code, shots, mx: ("caption", "acct", ["s1.png", "s2.png"], False),
@@ -202,3 +202,47 @@ def test_has_github_token_reads_the_environment():
     assert has_github_token({"GITHUB_TOKEN": "ghp_x"})
     assert not has_github_token({})
     assert not has_github_token({"GITHUB_TOKEN": ""})
+
+
+def test_a_full_run_does_not_list_the_folders_below(tmp_path, monkeypatch):
+    """Listing a folder means scrolling it. Once the run is full there is
+    nothing to gain, and a minute of scrolling a real account to lose."""
+    import winnow.run as run
+    from winnow.config import Config, Folder, Limits
+    from winnow.extract import PostExtraction
+
+    listed: list[str] = []
+
+    def fake_list(page, url, **kw):
+        listed.append(url)
+        return ["AAA", "BBB", "CCC"]
+
+    monkeypatch.setattr(run, "list_shortcodes", fake_list)
+    monkeypatch.setattr(run, "capture_post",
+                        lambda *a, **k: ("cap", "acct", [], False))
+    monkeypatch.setattr(run, "extract_post",
+                        lambda client, model, code, *a, **k:
+                        PostExtraction(code, "acct", "cap", [], 0.001))
+
+    cfg = Config(
+        username="tizio", browser_profile=tmp_path / "prof",
+        folders=[Folder("uno", "/tizio/saved/uno/111/", True, "repo"),
+                 Folder("due", "/tizio/saved/due/222/", True, "repo")],
+        limits=Limits(3.0, 10.0, 2, 15, 0.92), model="claude-haiku-4-5",
+    )
+    http = httpx.Client(transport=httpx.MockTransport(
+        lambda r: httpx.Response(200, json={"items": []})))
+
+    events: list[str] = []
+    run.collect(cfg, tmp_path / "state", tmp_path / "findings", tmp_path / "shots",
+                object(), http, _FakePage(), datetime(2026, 8, 21), search_delay=0,
+                on_event=lambda e, d: events.append(f"{e}:{d.get('name', '')}"))
+
+    assert listed == ["/tizio/saved/uno/111/"]     # la seconda non viene aperta
+    assert "folder_skipped:due" in events          # ma viene detto
+
+
+def test_a_skipped_folder_does_not_read_as_an_empty_one():
+    """Silence would look like "nothing new there", which is a lie."""
+    from winnow.progress import line
+    assert "saltata" in line("folder_skipped", {"name": "must-rewatch"})

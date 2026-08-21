@@ -151,12 +151,18 @@ def collect(
     seen = load_seen(seen_path)
     todo: list[tuple[str, str]] = []
     for folder in active_folders(cfg):
-        codes = list_shortcodes(page, folder.url)
+        missing = cfg.limits.posts_per_run - len(todo)
+        if missing <= 0:
+            # Listing it would cost a minute of scrolling to then drop every
+            # post on the floor. Say so: silence here reads as "empty folder".
+            say("folder_skipped", name=folder.name)
+            continue
+        codes = list_shortcodes(
+            page, folder.url,
+            enough=lambda cs, n=missing: len(filter_new(seen, cs)) >= n)
         new = filter_new(seen, codes)
         say("folder", name=folder.name, found=len(codes), new=len(new))
-        for code in new:
-            todo.append((code, folder.name))
-    todo = todo[: cfg.limits.posts_per_run]
+        todo.extend((code, folder.name) for code in new[:missing])
 
     extractions: list[PostExtraction] = []
     verifications: dict[tuple[str, str], Verification] = {}
