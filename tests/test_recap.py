@@ -173,3 +173,14 @@ def test_the_prompt_pins_the_output_language_to_the_profile():
     from winnow.recap import package_file, prompt_body
     body = prompt_body(package_file("recap-prompt.md"))
     assert "language my profile is written in" in body
+
+
+def test_the_bundle_carries_its_own_instructions():
+    """`winnow recap` claims section 1 is the prompt, so section 1 has to be
+    the prompt: otherwise the message is telling the user not to write
+    something nobody wrote."""
+    from winnow.recap import build_bundle
+    out = build_bundle("APPLY THE TWO-LANE RULE", "PROFILE", [])
+    assert "## 1. What to do" in out
+    assert out.index("## 1. What to do") < out.index("APPLY THE TWO-LANE RULE")
+    assert out.index("APPLY THE TWO-LANE RULE") < out.index("## 2. My profile")

@@ -204,11 +204,22 @@ def run_recap(days: int = DAYS, now: datetime | None = None,
     print(f"  {len(files)} {day} · {posts} posts · ~{len(bundle) // 4000}k tokens")
     print(f"  {out}")
 
+    # "Paste it into a model" told nobody anything. Say what to press, and say
+    # that the instructions are already inside — otherwise the reader starts
+    # writing a prompt that has been written for them.
     if copy_to_clipboard(bundle):
-        print("\n  ✅ on your clipboard. Paste it into a model and ask for "
-              "the recap.")
+        print("\n  ✅ On your clipboard: the instructions, your profile and "
+              "the week, in one piece.\n")
+        print("  Next:  paste it into a model (Claude, ChatGPT, ...) and send.")
     else:
-        print(f"\n  Copy the contents of {out} and paste them into a model.")
+        print(f"\n  Copy the whole of {out} and paste it into a model.\n")
+        print("  Next:  paste and send.")
+    print("         You do not write a prompt — section 1 of the file is the "
+          "prompt.")
+    if len(bundle) > 300_000:
+        print(f"         ⚠️  ~{len(bundle) // 4000}k tokens: it needs a large "
+              "context window.")
+        print("             `winnow recap --days 1` makes a smaller one.")
 
     # Opened, not just written: a path printed in a terminal is a path you look
     # at tomorrow. The clipboard already holds the text, so this is for reading
