@@ -85,13 +85,19 @@ def test_search_repo_finds_by_display_name():
     assert v.checked and v.exists and v.stars == 37109
 
 
-def test_search_repo_reports_absence_when_no_results():
+def test_search_finding_nothing_is_not_proof_of_absence():
+    """Osservato dal vivo il 2026-08-21: `text-generation-webui` e
+    `Open Interpreter`, entrambi vivi e con decine di migliaia di stelle,
+    dichiarati inesistenti. Erano stati rinominati, quindi spariti
+    dall'indice sotto il vecchio nome. 'non l'ho trovato' non e' 'non c'e''."""
     from winnow.verify import search_repo
 
     def handler(request):
         return httpx.Response(200, json={"items": []})
-    v = search_repo(_client(handler), "coso che non esiste")
-    assert v.checked and not v.exists
+    v = search_repo(_client(handler), "coso rinominato")
+    assert v.checked is False
+    assert v.exists is None, "None e' 'non lo so', False sarebbe una bugia"
+    assert "rinominato" in v.note
 
 
 def test_search_repo_rate_limit_is_not_absence():
@@ -139,8 +145,8 @@ def test_search_repo_rejects_a_famous_repo_whose_name_does_not_match():
              "stargazers_count": 66316, "description": "AI job search system"},
         ]})
     v = search_repo(_client(handler), "AI Job Search")
-    assert v.checked and v.exists is False
-    assert "career-ops" in v.note
+    assert v.checked is False, "rifiutato, non dichiarato assente"
+    assert "career-ops" in v.note, "e va detto cosa e' stato scartato"
 
 
 def test_search_repo_flags_homonyms():
@@ -169,3 +175,23 @@ def test_http_note_names_the_real_failure():
     assert "rate limit" in http_note(429)
     assert "500" in http_note(500)
     assert http_note(500, "HuggingFace").startswith("HuggingFace")
+
+
+def test_a_renamed_repo_is_followed_to_its_new_name():
+    """GitHub answers 301 for a moved repository and httpx does not follow it
+    by default: oobabooga/text-generation-webui came back as "GitHub ha
+    risposto 301: non verificato" — 40k stars reported as unknown."""
+    from winnow.verify import verify_repo
+
+    def handler(request):
+        if request.url.path == "/repos/vecchio/nome":
+            return httpx.Response(
+                301, headers={"Location": "https://api.github.com/repos/nuovo/nome"})
+        return httpx.Response(200, json={
+            "stargazers_count": 40000, "pushed_at": "2026-08-01T00:00:00Z",
+            "archived": False, "license": {"spdx_id": "AGPL-3.0"},
+            "description": "moved", "html_url": "https://github.com/nuovo/nome"})
+
+    v = verify_repo(_client(handler), "vecchio/nome")
+    assert v.checked and v.exists and v.stars == 40000
+    assert v.url.endswith("nuovo/nome")

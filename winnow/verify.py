@@ -58,6 +58,12 @@ def verify_repo(http: httpx.Client, owner_repo: str) -> Verification:
             f"{GITHUB_API}/repos/{owner_repo}",
             headers={"Accept": "application/vnd.github+json"},
             timeout=15.0,
+            # A renamed or transferred repository answers 301 with the new
+            # location, and httpx does not follow redirects on its own. Left
+            # unfollowed, `oobabooga/text-generation-webui` came back as
+            # "GitHub ha risposto 301: non verificato" — a live 40k-star
+            # project reported as unknown.
+            follow_redirects=True,
         )
     except httpx.HTTPError as e:
         return Verification(checked=False, note=f"errore di rete: {e}")
@@ -155,9 +161,15 @@ def search_repo(http: httpx.Client, name: str) -> Verification:
 
     if not exact:
         near = ", ".join(i.get("full_name", "?") for i in items[:3])
+        # NOT exists=False. Search failing to find a name is weaker than the
+        # thing being absent: a renamed repository disappears from the index
+        # under its old name, which is how `text-generation-webui` and
+        # `Open Interpreter` — both alive, both moved — were declared
+        # non-existent. `checked=False` says what actually happened.
         return Verification(
-            checked=True, exists=False,
-            note=f"nessun repository si chiama esattamente {name!r}"
+            checked=False,
+            note=f"la ricerca non trova un repository chiamato {name!r} "
+                 "(puo' essere stato rinominato, o non essere un repository)"
                  + (f" | simili scartati: {near}" if near else ""),
         )
 
