@@ -173,3 +173,47 @@ def test_ask_survives_the_end_of_input(monkeypatch):
     import winnow.setup as setup
     monkeypatch.setattr("builtins.input", lambda *_: (_ for _ in ()).throw(EOFError))
     assert setup.ask("domanda? ") == ""
+
+
+# --- winnow config: editing must not reset what it does not touch ----------
+
+def test_editing_folders_keeps_tuned_limits_and_the_model(tmp_path):
+    """`render_config` rebuilds from the template, which is right for a first
+    setup and wrong as an editor: it would silently put posts_per_run back to 8
+    and the provider back to Anthropic."""
+    from winnow.config import load_config
+    from winnow.setup import render_folders_section
+
+    f = tmp_path / "config.toml"
+    f.write_text('''[instagram]
+username = "vecchio"
+
+[api]
+provider = "local"
+model = "qwen2.5vl"
+base_url = "http://localhost:11434/v1"
+
+[limits]
+warn_eur_week = 3.0
+halt_eur_week = 10.0
+posts_per_run = 42
+max_slides = 15
+eur_per_usd = 0.92
+
+[[folders]]
+name = "vecchia"
+url = "/vecchio/saved/vecchia/1/"
+active = true
+kind = "repo"
+''', encoding="utf-8")
+
+    f.write_text(render_folders_section(
+        f.read_text(encoding="utf-8"), "nuovo",
+        [("nuova", "/nuovo/saved/nuova/2/", True, "news")]), encoding="utf-8")
+
+    cfg = load_config(f)
+    assert [x.name for x in cfg.folders] == ["nuova"], "le cartelle cambiano"
+    assert cfg.username == "nuovo"
+    assert cfg.limits.posts_per_run == 42, "il limite messo a mano sopravvive"
+    assert cfg.provider == "local" and cfg.base_url.endswith("/v1")
+    assert cfg.model == "qwen2.5vl"

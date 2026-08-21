@@ -60,14 +60,15 @@ you four questions, and does the rest itself. → [**the six steps**](#info)
 
 ## Commands
 
-Five. Everything else `init` does for you.
+Six. Everything else `init` does for you.
 
 | | |
 |---|---|
 | `winnow init` | set up, or fix whatever is missing |
 | `winnow collect` | one pass now, instead of waiting for the next run |
 | `winnow status` | is it alive, what did it find, what has it cost |
-| `winnow recap` | the week + your profile, ready to paste into a model |
+| `winnow recap` | the week + your profile, on your clipboard and open on screen |
+| `winnow config` | change folders, model, posts per run, hour, profile |
 | `winnow reset-halt` | restart after the spend brake stopped it |
 
 

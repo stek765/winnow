@@ -12,9 +12,11 @@ what stops people going back to their saved posts in the first place.
 """
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import subprocess
+import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -158,7 +160,8 @@ def ask_confirm(prompt: str) -> bool:
     return ask(prompt).lower() in ("s", "si", "y", "yes")
 
 
-def run_recap(days: int = DAYS, now: datetime | None = None) -> int:
+def run_recap(days: int = DAYS, now: datetime | None = None,
+              open_file: bool = True) -> int:
     now = now or datetime.now()
     profile_path = paths.profile_file()
     if not profile_path.exists():
@@ -197,9 +200,20 @@ def run_recap(days: int = DAYS, now: datetime | None = None) -> int:
     out.write_text(bundle, encoding="utf-8")
 
     giorni = "giorno" if len(files) == 1 else "giorni"
-    print(f"  {len(files)} {giorni} di findings + il tuo profilo → {out}")
+    posts = sum(len(json.loads(f.read_text(encoding="utf-8")).get("posts", []))
+                for f in files)
+    print(f"  {len(files)} {giorni} · {posts} post · ~{len(bundle) // 4000}k token")
+    print(f"  {out}")
+
     if copy_to_clipboard(bundle):
-        print("  ✅ copiato negli appunti: incollalo a un modello e chiedi il recap.")
+        print("\n  ✅ negli appunti. Incollalo a un modello e chiedi il recap.")
     else:
-        print("  incollalo a un modello e chiedi il recap.")
+        print(f"\n  Copia il contenuto di {out} e incollalo a un modello.")
+
+    # Opened, not just written: a path printed in a terminal is a path you look
+    # at tomorrow. The clipboard already holds the text, so this is for reading
+    # it — and for the case where the clipboard has been overwritten since.
+    if open_file and sys.stdout.isatty():
+        from winnow.setup import open_in_editor
+        open_in_editor(out)
     return 0

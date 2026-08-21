@@ -231,6 +231,35 @@ def render_config(username: str, folders: list[tuple[str, str, bool, str]]) -> s
     return body
 
 
+def render_folders_section(text: str, username: str,
+                           folders: list[tuple[str, str, bool, str]]) -> str:
+    """Replace the folder blocks, keep everything else byte for byte.
+
+    `render_config` rebuilds the file from the template, which is right for a
+    first setup and wrong as an editor: it would silently reset `posts_per_run`,
+    the spend limits and the model choice back to their defaults.
+    """
+    lines, out, i = text.splitlines(), [], 0
+    while i < len(lines):
+        stripped = lines[i].strip()
+        if stripped == "[[folders]]":
+            i += 1
+            while i < len(lines) and not lines[i].strip().startswith("["):
+                i += 1
+            continue
+        if stripped.startswith("username =") and username:
+            out.append(f'username = "{username}"')
+            i += 1
+            continue
+        out.append(lines[i])
+        i += 1
+    body = "\n".join(out).rstrip() + "\n"
+    for name, url, active, kind in folders:
+        body += (f'\n[[folders]]\nname = "{name}"\nurl = "{url}"\n'
+                 f'active = {str(active).lower()}\nkind = "{kind}"\n')
+    return body
+
+
 def parse_selection(text: str, count: int) -> set[int]:
     """'1,3-5' -> {1,3,4,5}. Out-of-range numbers are dropped, not fatal."""
     picked: set[int] = set()
@@ -277,9 +306,8 @@ def ask_api_key(env_file: Path) -> bool:
 def configure_folders(config_file: Path, profile: Path) -> bool:
     """Read the account's saved folders and write the config from them.
 
-    Only ever called when there is no usable config: an existing one may hold
-    edited limits and hand-tuned kinds, and regenerating it would silently
-    throw them away.
+    Safe to call on an existing config: only the folder blocks are replaced,
+    so tuned limits and the model choice survive.
     """
     from winnow.browser import list_saved_folders, open_session
 
@@ -312,7 +340,13 @@ def configure_folders(config_file: Path, profile: Path) -> bool:
         (name, url, i in picked, "repo" if i in repos else "news")
         for i, (name, url) in enumerate(found, 1)
     ]
-    config_file.write_text(render_config(username, folders), encoding="utf-8")
+    if config_file.exists() and "YOUR_USERNAME" not in config_file.read_text(
+            encoding="utf-8"):
+        text = render_folders_section(
+            config_file.read_text(encoding="utf-8"), username, folders)
+    else:
+        text = render_config(username, folders)
+    config_file.write_text(text, encoding="utf-8")
     config_file.chmod(0o600)
     print(f"  ✅ {len(picked)} cartelle attive in {config_file}")
     return True
@@ -737,3 +771,95 @@ def apply_env_file(env_file: Path) -> None:
     """Load the key file into the environment, without overriding what is set."""
     for key, value in load_env_file(env_file).items():
         os.environ.setdefault(key, value)
+
+
+# --- winnow config ---------------------------------------------------------
+
+CONFIG_ACTIONS = ("cartelle", "modello", "post per giro", "orario",
+                  "profilo", "apri il file")
+
+
+def set_posts_per_run(config_file: Path) -> None:
+    """The one limit worth changing often: how many posts a run reads."""
+    import tomllib
+
+    current = 8
+    try:
+        current = tomllib.loads(
+            config_file.read_text(encoding="utf-8"))["limits"]["posts_per_run"]
+    except (OSError, KeyError, tomllib.TOMLDecodeError):
+        pass
+
+    print(f"\n  Adesso ne legge {current} per giro. Piu' alto = piu' veloce a")
+    print("  smaltire l'arretrato, ma il giro dura piu' a lungo.")
+    raw = ask(f"  Quanti? [{current}] ")
+    if not raw:
+        return
+    try:
+        value = int(raw)
+        if value < 1:
+            raise ValueError
+    except ValueError:
+        print("  serve un numero maggiore di zero. Lascio com'era.")
+        return
+
+    text = config_file.read_text(encoding="utf-8")
+    out = []
+    for line in text.splitlines():
+        if line.strip().startswith("posts_per_run"):
+            out.append(f"posts_per_run = {value}       # per giro")
+        else:
+            out.append(line)
+    config_file.write_text("\n".join(out) + "\n", encoding="utf-8")
+    print(f"  ✅ {value} post per giro")
+
+
+def run_config() -> int:
+    """`winnow config` — change the handful of things worth changing.
+
+    One command, not one per setting: each entry simply re-enters the step of
+    `winnow init` that already knows how to ask. The last entry opens the file
+    for anything this menu deliberately does not cover.
+    """
+    config_file, profile_file = paths.config_file(), paths.profile_file()
+    if not config_file.exists():
+        print(f"  non c'e' ancora niente da modificare: esegui 'winnow init'.")
+        return 1
+
+    print("  Cosa vuoi cambiare?\n")
+    for i, label in enumerate(CONFIG_ACTIONS, 1):
+        print(f"    {i}. {label}")
+    raw = ask("\n  Quale? [invio per uscire] ")
+    if not raw:
+        return 0
+    try:
+        action = CONFIG_ACTIONS[int(raw) - 1]
+    except (ValueError, IndexError):
+        print("  non ho capito.")
+        return 1
+
+    if action == "cartelle":
+        browser = paths.browser_profile()
+        if not check_browser_profile(browser).ok:
+            print("  serve prima l'accesso: 'winnow login'.")
+            return 1
+        configure_folders(config_file, browser)
+    elif action == "modello":
+        setup_model(config_file, paths.env_file())
+    elif action == "post per giro":
+        set_posts_per_run(config_file)
+    elif action == "orario":
+        from winnow.schedule import DEFAULT_TIME, install, backend, parse_time
+        raw = ask(f"\n  A che ora? [{DEFAULT_TIME}] ") or DEFAULT_TIME
+        try:
+            hour, minute = parse_time(raw)
+        except ValueError as e:
+            print(f"  {e}")
+            return 1
+        install(hour, minute, backend())
+    elif action == "profilo":
+        ask_profile(profile_file)
+    else:
+        print(f"  apro {config_file}")
+        open_in_editor(config_file)
+    return 0

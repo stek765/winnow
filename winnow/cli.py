@@ -1,4 +1,4 @@
-"""winnow collect | status | recap | schedule | reset-halt"""
+"""winnow collect | status | recap | config | schedule | reset-halt"""
 from __future__ import annotations
 
 import argparse
@@ -31,6 +31,7 @@ alla settimana te li fa filtrare dal tuo profilo.
   winnow status        e' vivo? cosa ha trovato? quanto e' costato?
   winnow recap         la settimana + il tuo profilo negli appunti,
                        pronti da incollare a un modello
+  winnow config        cambia cartelle, modello, post per giro, orario, profilo
   winnow reset-halt    riparte dopo l'arresto per spesa
 
 meno usati:
@@ -53,8 +54,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--config", default=None, type=Path, help=argparse.SUPPRESS)
     p.add_argument(
         "command", nargs="?",
-        choices=["init", "login", "collect", "status", "recap", "schedule",
-                 "reset-halt", "where"],
+        choices=["init", "login", "collect", "status", "recap", "config",
+                 "schedule", "reset-halt", "where"],
         metavar="COMANDO",
     )
     p.add_argument("--version", action="version",
@@ -62,6 +63,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--posts", type=int, default=None,
                    help="quanti post in questo giro (di default quelli di "
                         "config.toml); serve a smaltire l'arretrato")
+    p.add_argument("--no-open", action="store_true",
+                   help="non aprire il file del recap alla fine")
     p.add_argument("--days", type=int, default=7,
                    help="quanti giorni di findings mettere nel recap")
     p.add_argument("--at", default=None,
@@ -80,7 +83,12 @@ def _cmd_init(args) -> int:
 
 def _cmd_recap(args) -> int:
     from winnow.recap import run_recap
-    return run_recap(args.days)
+    return run_recap(args.days, open_file=not args.no_open)
+
+
+def _cmd_config(args) -> int:
+    from winnow.setup import run_config
+    return run_config()
 
 
 def _cmd_schedule(args) -> int:
@@ -263,6 +271,7 @@ def _dispatch(args) -> int:
         "reset-halt": _cmd_reset_halt,
         "collect": _cmd_collect,
         "recap": _cmd_recap,
+        "config": _cmd_config,
         "schedule": _cmd_schedule,
         "init": _cmd_init,
         "where": _cmd_where,
