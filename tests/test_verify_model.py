@@ -22,7 +22,7 @@ def test_hf_finding_nothing_is_not_proof_of_absence():
         return httpx.Response(200, json=[])
     v = verify_model(_client(handler), "Qwen 27B uncensored")
     assert v.checked is False
-    assert "proprietario" in v.note
+    assert "proprietary" in v.note
 
 
 def test_verify_model_network_failure_is_not_verified():

@@ -76,10 +76,10 @@ def is_unusable(exc: Exception) -> bool:
 
 
 NO_SOURCE = {
-    "platform": "prodotto o servizio: nessun registro pubblico da interrogare",
-    "item": "voce di un elenco, non un prodotto: niente da verificare",
-    "news": "notizia: da valutare col profilo, non con una fonte",
-    "claim": "asserzione senza artefatto nominato",
+    "platform": "product or service: no public registry to ask",
+    "item": "an entry of a list, not a product: nothing to check",
+    "news": "news: to be weighed against the profile, not against a source",
+    "claim": "a claim with no artefact named",
 }
 
 
@@ -101,11 +101,11 @@ def enrich(
         if note:
             v = Verification(**{**asdict(v), "note": f"{v.note} | {note}"})
     else:
-        # platform, item, news, claim: nessuna fonte da interrogare. Il giudice
-        # li valuta a mano, col profilo davanti. Dire *perche'* non e' verificato
-        # vale piu' di una riga uguale per tutti.
+        # platform, item, news, claim: no source to ask. The judge weighs
+        # them by hand, with the profile in front of it. Saying *why* it is
+        # unverified is worth more than one line for all of them.
         v = Verification(checked=False, note=NO_SOURCE.get(
-            entity.kind, "nessuna fonte automatica per questo tipo"))
+            entity.kind, "no automatic source for this kind"))
 
     cache[key] = v
     if delay and entity.kind in ("repo", "model"):
@@ -232,8 +232,8 @@ def collect(
     failed: list[dict] = []
 
     for n, (code, folder_name) in enumerate(todo, start=1):
-        # Un post storto non deve uccidere la nottata. Si registra, si segna
-        # come visto (altrimenti lo si ripaga a ogni giro) e si prosegue.
+        # One bad post must not kill the run. Record it, mark it seen (or it
+        # gets paid for again every run) and carry on.
         try:
             caption, account, shots, is_video = capture_post(
                 page, code, shots_dir, cfg.limits.max_slides
@@ -256,8 +256,8 @@ def collect(
                     stars=v.stars, note=v.note)
         except Exception as exc:  # noqa: BLE001 - deliberatamente ampio
             if is_unusable(exc):
-                # Non segnare visto, non proseguire: la coda resta intatta e
-                # il giro riparte da qui quando il problema e' risolto.
+                # Do not mark seen, do not carry on: the queue stays intact
+                # and the run resumes here once the problem is fixed.
                 write_findings(findings_path(findings_dir, now.date()),
                                extractions, verifications, spend, failed)
                 raise Unusable(str(exc)[:300]) from exc

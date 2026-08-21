@@ -81,12 +81,12 @@ Six. Everything else `init` does for you.
 
 ```console
 $ winnow status                               (Example)
-stato        attivo
-spesa 7gg    USD 0.0553
-programmato  ogni giorno alle 13:00 (launchd)
-post visti   15
-ultimo giro  20/08 18:29 (0h fa) — 8 post, 36 entita', 11 verificate
-da leggere   1 file in findings/  →  winnow recap
+state        active
+spend 7d     USD 0.5796
+scheduled    every day at 13:00 (launchd)
+posts seen   141
+last run     21/08 16:19 (0h ago) — 126 posts, 351 entities, 122 verified
+to read      2 file(s) in findings/  →  winnow recap
 ```
 
 `status` speaks up on its own when the last run is over 36h old, when posts
@@ -219,21 +219,21 @@ whenever you like — re-running picks up where you left off.
 
 | | | |
 |---|---|---|
-| 1 | il modello | pick one from a menu, it opens the right console for the key |
+| 1 | the model | pick one from a menu, it opens the right console for the key |
 | 2 | browser | downloads Chromium, once |
-| 3 | accesso Instagram | opens a window, you sign in by hand |
-| 4 | cartelle salvate | reads them off your account, you pick which ones |
-| 5 | **il tuo profilo** | four questions, one line each |
-| 6 | raccolta giornaliera | launchd / systemd timer / cron |
+| 3 | Instagram login | opens a window, you sign in by hand |
+| 4 | saved folders | reads them off your account, you pick which ones |
+| 5 | **your profile** | four questions, one line each |
+| 6 | daily run | launchd / systemd timer / cron |
 
 **Step 1 is a menu**, because the model is a choice and not a config key you
 should have to look up:
 
 ```
-    1. Claude Haiku 4.5       il piu' economico, ~$0.005 a post — consigliato
-    2. Claude Sonnet 5        legge meglio le slide fitte, ~4x il costo
-    3. OpenAI GPT-4o mini     se hai gia' un account OpenAI
-    4. Il tuo modello         Ollama, LM Studio, qualsiasi cosa parli l'API OpenAI — gratis
+    1. Claude Haiku 4.5       cheapest, ~$0.005 a post — recommended
+    2. Claude Sonnet 5        reads dense slides better, ~4x the cost
+    3. OpenAI GPT-4o mini     if you already have an OpenAI account
+    4. Your own model         Ollama, LM Studio, anything speaking the OpenAI API — free
 ```
 
 Pick 1-3 and it opens that provider's key page and writes the key for you. Pick
@@ -250,10 +250,10 @@ nothing as seen, so the queue is still there when you fix it.
 the work — `init` offers it:
 
 ```
-    1. rispondi a quattro domande (2 minuti)
-    2. collega ~/.claude/CLAUDE.md  (123 KB)
-    3. collega un file che hai gia' (percorso)
-    4. salto, lo scrivo dopo
+    1. answer four questions (2 minutes)
+    2. link ~/.claude/CLAUDE.md  (123 KB)
+    3. link a file you already have (path)
+    4. skip, I will write it later
 ```
 
 Linking writes `@/path/to/file` into `profile.md` — a **reference, not a copy**,
@@ -270,10 +270,10 @@ nothing.
 instead of leaving you homework:
 
 ```
-  Chi sei, in due righe?
-  Cosa stai cercando di ottenere nei prossimi due o tre anni?
-  Che decisioni hai aperte adesso?
-  Cosa hai gia' escluso, e perche'?   ← la piu' importante
+  Who are you, in two lines?
+  What are you trying to get to in the next two or three years?
+  What decisions do you have open right now?
+  What have you already ruled out, and why?   ← the one that matters
 ```
 
 An empty line skips a question. But a vague profile is a vague filter, and that

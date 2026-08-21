@@ -63,8 +63,8 @@ def open_session(profile_dir: Path):
 def _guard_session(page) -> None:
     if looks_logged_out(page.url, page.inner_text("body")):
         raise SessionExpired(
-            "Sessione Instagram scaduta. Esegui 'winnow login' e accedi a "
-            "mano, poi rilancia. Non ritento da solo."
+            "Instagram session expired. Run 'winnow login', sign in by hand, "
+            "then try again. I do not retry on my own."
         )
 
 
@@ -273,7 +273,7 @@ DOTS_JS = """() => {
 
 def slide_url(shortcode: str, index: int) -> str:
     if index < 1:
-        raise ValueError(f"l'indice della slide parte da 1, ricevuto {index}")
+        raise ValueError(f"slide index starts at 1, got {index}")
     if index == 1:
         return f"{BASE}/p/{shortcode}/"
     return f"{BASE}/p/{shortcode}/?img_index={index}"
@@ -342,7 +342,7 @@ def _wait_for_new_slide(page, previous_src: str) -> dict | None:
     while time.time() < deadline:
         box = visible_slide(page)
         if box and box["src"] != previous_src:
-            time.sleep(0.4)  # lascia finire il rendering
+            time.sleep(0.4)  # let the rendering finish
             return visible_slide(page)
         time.sleep(0.3)
     return None

@@ -39,8 +39,7 @@ class Config:
 def load_config(path: Path) -> Config:
     if not path.exists():
         raise FileNotFoundError(
-            f"{path} non trovato. Copia config.example.toml in config.toml "
-            "e riempilo."
+            f"{path} not found. Run 'winnow init' to create it."
         )
     raw = tomllib.loads(path.read_text(encoding="utf-8"))
 
@@ -81,7 +80,7 @@ def override_posts(cfg: Config, posts: int) -> Config:
     means a month of drip-feed. The config on disk is not touched.
     """
     if posts < 1:
-        raise ValueError("--posts vuole un numero maggiore di zero")
+        raise ValueError("--posts needs a number above zero")
     return replace(cfg, limits=replace(cfg.limits, posts_per_run=posts))
 
 

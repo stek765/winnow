@@ -12,7 +12,7 @@ from winnow.config import Limits
 
 HALT_FILE = "HALTED"
 
-# usd per 1M tokens: (input, output). Fissati 2026-08-20.
+# usd per 1M tokens: (input, output). Fixed on 2026-08-20.
 PRICES: dict[str, tuple[float, float]] = {
     "claude-haiku-4-5": (1.00, 5.00),
     "claude-sonnet-5": (3.00, 15.00),
@@ -55,13 +55,13 @@ def is_halted(state_dir: Path) -> bool:
 def write_halt(state_dir: Path, reason: str, spend_eur: float, when: datetime) -> None:
     state_dir.mkdir(parents=True, exist_ok=True)
     (state_dir / HALT_FILE).write_text(
-        f"winnow si e' fermato il {when.date()} ({when:%H:%M}).\n\n"
-        f"Motivo: {reason}\n"
-        f"Spesa registrata negli ultimi 7 giorni: EUR {spend_eur:.2f}\n\n"
-        "La spesa attesa e' di circa 0,50 USD a settimana. Una cifra molto piu'\n"
-        "alta non e' 'un po' caro': e' un difetto. Controlla seen.json e i log\n"
-        "prima di ripartire.\n\n"
-        "Per ripartire, cancella questo file a mano. Il programma non lo tocca.\n",
+        f"winnow stopped itself on {when.date()} ({when:%H:%M}).\n\n"
+        f"Reason: {reason}\n"
+        f"Spend recorded over the last 7 days: EUR {spend_eur:.2f}\n\n"
+        "The expected spend is around USD 0.50 a week. A figure far above that\n"
+        "is not 'a bit expensive': it is a bug. Check seen.json and the logs\n"
+        "before starting again.\n\n"
+        "To restart, delete this file by hand. The program never touches it.\n",
         encoding="utf-8",
     )
 
@@ -72,8 +72,8 @@ def check_brake(
     """Return 'ok' or 'warn'. Raise Halted if the run must not proceed."""
     if is_halted(state_dir):
         raise Halted(
-            f"{state_dir / HALT_FILE} esiste. Leggilo e cancellalo a mano "
-            "per ripartire."
+            f"{state_dir / HALT_FILE} exists. Read it and delete it by hand "
+            "to start again."
         )
 
     spend_eur = weekly_spend(spend_path, now) * limits.eur_per_usd
@@ -81,13 +81,13 @@ def check_brake(
     if spend_eur >= limits.halt_eur_week:
         write_halt(
             state_dir,
-            f"spesa settimanale oltre la soglia di EUR {limits.halt_eur_week:.2f}",
+            f"weekly spend above the EUR {limits.halt_eur_week:.2f} threshold",
             spend_eur,
             now,
         )
         raise Halted(
-            f"Spesa settimanale EUR {spend_eur:.2f} oltre la soglia "
-            f"EUR {limits.halt_eur_week:.2f}. Arresto definitivo."
+            f"Weekly spend EUR {spend_eur:.2f} is above the "
+            f"EUR {limits.halt_eur_week:.2f} threshold. Permanent halt."
         )
 
     return "warn" if spend_eur >= limits.warn_eur_week else "ok"

@@ -12,7 +12,7 @@ def test_untouched_template_counts_as_not_configured(tmp_path):
     p = tmp_path / "config.toml"
     p.write_text(CONFIG_TEMPLATE, encoding="utf-8")
     c = check_config(p)
-    assert not c.ok and "compilare" in c.detail
+    assert not c.ok and "to be filled in" in c.detail
 
 
 def test_filled_config_is_ok(tmp_path):

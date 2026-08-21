@@ -245,7 +245,7 @@ def test_a_full_run_does_not_list_the_folders_below(tmp_path, monkeypatch):
 def test_a_skipped_folder_does_not_read_as_an_empty_one():
     """Silence would look like "nothing new there", which is a lie."""
     from winnow.progress import line
-    assert "saltata" in line("folder_skipped", {"name": "must-rewatch"})
+    assert "skipped" in line("folder_skipped", {"name": "must-rewatch"})
 
 
 # --- a broken key must not eat the backlog ---------------------------------

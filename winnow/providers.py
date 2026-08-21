@@ -46,13 +46,13 @@ class Choice:
 # and this one is made by someone who just wants the tool to work.
 CHOICES: list[Choice] = [
     Choice("Claude Haiku 4.5", ANTHROPIC, "claude-haiku-4-5",
-           "il piu' economico, ~$0.005 a post — consigliato"),
+           "cheapest, ~$0.005 a post — recommended"),
     Choice("Claude Sonnet 5", ANTHROPIC, "claude-sonnet-5",
-           "legge meglio le slide fitte, ~4x il costo"),
+           "reads dense slides better, ~4x the cost"),
     Choice("OpenAI GPT-4o mini", OPENAI, "gpt-4o-mini",
-           "se hai gia' un account OpenAI"),
-    Choice("Il tuo modello", LOCAL, "",
-           "Ollama, LM Studio, qualsiasi cosa parli l'API OpenAI — gratis"),
+           "if you already have an OpenAI account"),
+    Choice("Your own model", LOCAL, "",
+           "Ollama, LM Studio, anything speaking the OpenAI API — free"),
 ]
 
 
@@ -93,8 +93,8 @@ def _anthropic(model: str, system: str, text: str, images: list[Path],
         # Truncated JSON parses as "malformed", which sends the reader looking
         # for a prompt bug. Say what actually happened. Measured 2026-08-21: a
         # 13-slide list post ran past 4000 output tokens mid-entity.
-        raise Truncated(f"risposta troncata a {max_tokens} token: il post ha "
-                        "troppe voci. Alza max_tokens.")
+        raise Truncated(f"reply truncated at {max_tokens} tokens: the post has "
+                        "too many entries. Raise max_tokens.")
     return reply, r.usage.input_tokens, r.usage.output_tokens
 
 
@@ -118,8 +118,8 @@ def read_openai_reply(data: dict) -> tuple[str, int, int]:
     a local one often does, and a missing count is zero, not a crash."""
     choice = (data.get("choices") or [{}])[0]
     if choice.get("finish_reason") == "length":
-        raise Truncated("risposta troncata: il post ha troppe voci. "
-                        "Alza max_tokens.")
+        raise Truncated("reply truncated: the post has too many entries. "
+                        "Raise max_tokens.")
     text = choice.get("message", {}).get("content") or ""
     usage = data.get("usage") or {}
     return text, int(usage.get("prompt_tokens") or 0), int(
@@ -153,4 +153,4 @@ def complete(provider: str, model: str, base_url: str | None, system: str,
     if provider == LOCAL:
         return _openai_compatible(base_url or LOCAL_BASE_URL, None, model,
                                   system, text, images, max_tokens, temperature)
-    raise ValueError(f"fornitore sconosciuto: {provider!r}")
+    raise ValueError(f"unknown provider: {provider!r}")

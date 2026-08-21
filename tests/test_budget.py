@@ -65,8 +65,8 @@ def test_halt_file_survives_and_blocks_every_later_run(tmp_path):
 
 
 def test_halt_file_explains_itself(tmp_path):
-    write_halt(tmp_path, "superata soglia settimanale", 11.04, NOW)
+    write_halt(tmp_path, "weekly threshold exceeded", 11.04, NOW)
     text = (tmp_path / "HALTED").read_text(encoding="utf-8")
     assert "11.04" in text
     assert "2026-08-20" in text
-    assert "cancella questo file" in text.lower()
+    assert "delete this file by hand" in text.lower()

@@ -163,7 +163,7 @@ def test_search_repo_flags_homonyms():
         ]})
     v = search_repo(_client(handler), "OpenSEO")
     assert v.exists and v.stars == 900
-    assert "omonimi" in v.note and "2016" in v.note
+    assert "same name" in v.note and "2016" in v.note
 
 
 def test_http_note_names_the_real_failure():

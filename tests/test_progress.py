@@ -18,7 +18,7 @@ def test_extraction_lists_the_names_it_actually_found():
 
 def test_extraction_says_so_when_a_post_named_nothing():
     out = line("extracted", {"names": [], "usd": 0.0}).lower()
-    assert "nessun" in out
+    assert "no concrete name" in out
 
 
 def test_a_verified_repo_shows_its_real_numbers():
@@ -50,3 +50,9 @@ def test_the_last_line_is_the_one_you_would_screenshot():
 
 def test_an_unknown_event_is_ignored_rather_than_crashing_a_paid_run():
     assert line("something-new", {}) == ""
+
+
+def test_one_slide_is_not_one_slides():
+    """Small, but it is the line printed most often in a run."""
+    assert "1 slide" in line("post", {"i": 1, "n": 8, "account": "x", "slides": 1})
+    assert "2 slides" in line("post", {"i": 1, "n": 8, "account": "x", "slides": 2})

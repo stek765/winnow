@@ -50,7 +50,7 @@ def test_active_folders_skips_inactive(tmp_path):
 def test_missing_config_raises_clear_error(tmp_path):
     with pytest.raises(FileNotFoundError) as e:
         load_config(tmp_path / "assente.toml")
-    assert "config.example.toml" in str(e.value)
+    assert "winnow init" in str(e.value)
 
 
 def test_halt_threshold_must_exceed_warn(tmp_path):

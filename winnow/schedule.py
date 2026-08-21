@@ -29,9 +29,9 @@ def parse_time(text: str) -> tuple[int, int]:
     try:
         hour, minute = int(hh), int(mm or 0)
     except ValueError:
-        raise ValueError(f"orario non valido: {text!r} (usa HH:MM)") from None
+        raise ValueError(f"invalid time: {text!r} (use HH:MM)") from None
     if not (0 <= hour <= 23 and 0 <= minute <= 59):
-        raise ValueError(f"orario non valido: {text!r} (usa HH:MM)")
+        raise ValueError(f"invalid time: {text!r} (use HH:MM)")
     return hour, minute
 
 
@@ -91,14 +91,14 @@ def plist_text(exe: Path, log: Path, hour: int, minute: int) -> str:
 
 def systemd_units(exe: Path, hour: int, minute: int) -> tuple[str, str]:
     service = f"""[Unit]
-Description=winnow — raccolta giornaliera
+Description=winnow — daily collection
 
 [Service]
 Type=oneshot
 ExecStart={exe} collect
 """
     timer = f"""[Unit]
-Description=winnow — raccolta giornaliera
+Description=winnow — daily collection
 
 [Timer]
 OnCalendar=*-*-* {hour:02d}:{minute:02d}:00
@@ -133,7 +133,7 @@ class Scheduled:
     how: str = ""
 
     def __str__(self) -> str:
-        return f"ogni giorno alle {self.when} ({self.how})" if self.active else "no"
+        return f"every day at {self.when} ({self.how})" if self.active else "no"
 
 
 def _time_from_plist(text: str) -> str:
@@ -195,11 +195,11 @@ def install(hour: int, minute: int, which: str | None = None) -> int:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(plist_text(exe, log, hour, minute), encoding="utf-8")
         target = f"gui/{os.getuid()}"
-        _run(["launchctl", "bootout", target, str(path)])           # se c'era
+        _run(["launchctl", "bootout", target, str(path)])           # if present
         if not _run(["launchctl", "bootstrap", target, str(path)]):
-            # launchctl bootstrap non esiste prima di macOS 10.11.
+            # launchctl bootstrap does not exist before macOS 10.11.
             _run(["launchctl", "load", str(path)])
-        print(f"  ✅ programmato ogni giorno alle {hour:02d}:{minute:02d} (launchd)")
+        print(f"  ✅ scheduled every day at {hour:02d}:{minute:02d} (launchd)")
         print(f"     {path}")
 
     elif which == "systemd":
@@ -210,29 +210,29 @@ def install(hour: int, minute: int, which: str | None = None) -> int:
         (d / "winnow.timer").write_text(timer, encoding="utf-8")
         _run(["systemctl", "--user", "daemon-reload"])
         if not _run(["systemctl", "--user", "enable", "--now", "winnow.timer"]):
-            print("  ⚠️  timer scritto ma non attivato: prova a mano con")
+            print("  ⚠️  timer written but not enabled: try it by hand with")
             print("     systemctl --user enable --now winnow.timer")
             return 1
-        print(f"  ✅ programmato ogni giorno alle {hour:02d}:{minute:02d} (systemd)")
+        print(f"  ✅ scheduled every day at {hour:02d}:{minute:02d} (systemd)")
         print(f"     {d}/winnow.timer")
 
     elif which == "cron":
         lines = [l for l in _crontab_lines() if LABEL not in l]
         lines.append(cron_line(exe, log, hour, minute))
         if not _write_crontab(lines):
-            print("  ❌ non sono riuscito a scrivere il crontab.")
+            print("  ❌ could not write the crontab.")
             return 1
-        print(f"  ✅ programmato ogni giorno alle {hour:02d}:{minute:02d} (cron)")
-        print("  ⚠️  cron salta in silenzio le corse perse mentre la macchina "
-              "dorme.")
+        print(f"  ✅ scheduled every day at {hour:02d}:{minute:02d} (cron)")
+        print("  ⚠️  cron silently skips the runs it missed while the "
+              "machine slept.")
 
     else:
-        print("  ❌ programmazione automatica non disponibile su questo sistema.")
-        print(f"     Esegui a mano, ogni giorno: {exe} collect")
+        print("  ❌ automatic scheduling is not available on this system.")
+        print(f"     Run it by hand, once a day: {exe} collect")
         return 1
 
-    print("\n  Scegli un orario in cui il computer e' acceso e sbloccato: la\n"
-          "  raccolta apre una finestra del browser e serve una sessione grafica.")
+    print("\n  Pick an hour when the machine is awake and unlocked: collecting\n"
+          "  opens a browser window, and that needs a graphical session.")
     return 0
 
 
@@ -241,7 +241,7 @@ def remove(which: str | None = None) -> int:
     if which == "launchd":
         path = plist_path()
         if not path.exists():
-            print("  non era programmato.")
+            print("  it was not scheduled.")
             return 0
         _run(["launchctl", "bootout", f"gui/{os.getuid()}", str(path)])
         _run(["launchctl", "unload", str(path)])
@@ -249,7 +249,7 @@ def remove(which: str | None = None) -> int:
     elif which == "systemd":
         d = systemd_dir()
         if not (d / "winnow.timer").exists():
-            print("  non era programmato.")
+            print("  it was not scheduled.")
             return 0
         _run(["systemctl", "--user", "disable", "--now", "winnow.timer"])
         (d / "winnow.timer").unlink()
@@ -259,13 +259,13 @@ def remove(which: str | None = None) -> int:
         lines = _crontab_lines()
         kept = [l for l in lines if LABEL not in l]
         if len(kept) == len(lines):
-            print("  non era programmato.")
+            print("  it was not scheduled.")
             return 0
         _write_crontab(kept)
     else:
-        print("  niente da rimuovere.")
+        print("  nothing to remove.")
         return 0
-    print("  rimosso. winnow non partira' piu' da solo.")
+    print("  removed. winnow will not start on its own any more.")
     return 0
 
 
@@ -277,19 +277,19 @@ def run_schedule(at: str | None, off: bool, assume_yes: bool = False) -> int:
 
     now = current(which)
     if now.active and at is None:
-        print(f"  gia' programmato: {now}")
-        print("  cambia orario con 'winnow schedule --at HH:MM', "
-              "togli con 'winnow schedule --off'")
+        print(f"  already scheduled: {now}")
+        print("  change the hour with 'winnow schedule --at HH:MM', "
+              "remove it with 'winnow schedule --off'")
         return 0
 
     hour, minute = parse_time(at or DEFAULT_TIME)
     if not assume_yes and sys.stdin.isatty():
         where = {"launchd": plist_path(), "systemd": systemd_dir() / "winnow.timer",
                  "cron": Path("crontab")}.get(which, Path("-"))
-        print(f"  winnow verra' eseguito ogni giorno alle {hour:02d}:{minute:02d}.")
-        print(f"  Scrivo in {where} ({which}).")
+        print(f"  winnow will run every day at {hour:02d}:{minute:02d}.")
+        print(f"  Writing to {where} ({which}).")
         from winnow.setup import ask
-        if ask("  Procedo? [S/n] ").lower() not in ("", "s", "si", "y", "yes"):
-            print("  annullato.")
+        if ask("  Go ahead? [Y/n] ").lower() not in ("", "y", "yes", "s", "si"):
+            print("  cancelled.")
             return 1
     return install(hour, minute, which)

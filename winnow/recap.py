@@ -89,8 +89,8 @@ def resolve_includes(text: str, base: Path | None = None
             body = path.read_text(encoding="utf-8")
         except OSError:
             missing.append(str(path))
-            return (f"> ⚠️ il profilo puntava a `{path}`, che non si riesce a "
-                    f"leggere: quel pezzo di contesto MANCA.")
+            return (f"> ⚠️ the profile pointed at `{path}`, which cannot be "
+                    f"read: that piece of context is MISSING.")
         return f"<!-- da {path} -->\n{body.strip()}"
 
     return INCLUDE_RE.sub(swap, text), missing
@@ -157,7 +157,7 @@ def copy_to_clipboard(text: str) -> str | None:
 
 def ask_confirm(prompt: str) -> bool:
     from winnow.setup import ask
-    return ask(prompt).lower() in ("s", "si", "y", "yes")
+    return ask(prompt).lower() in ("y", "yes", "s", "si")
 
 
 def run_recap(days: int = DAYS, now: datetime | None = None,
@@ -165,32 +165,31 @@ def run_recap(days: int = DAYS, now: datetime | None = None,
     now = now or datetime.now()
     profile_path = paths.profile_file()
     if not profile_path.exists():
-        print(f"  ❌ manca il profilo: {profile_path}")
-        print("     esegui 'winnow init', te lo crea da compilare.")
+        print(f"  ❌ no profile: {profile_path}")
+        print("     run 'winnow init', it creates one to fill in.")
         return 1
 
     files = week_files(paths.findings_dir(), now.date(), days)
     if not files:
-        giorni = "giorno" if days == 1 else "giorni"
-        print(f"  nessun findings negli ultimi {days} {giorni}. "
-              "Prova 'winnow status'.")
+        day = "day" if days == 1 else "days"
+        print(f"  no findings in the last {days} {day}. Try 'winnow status'.")
         return 1
 
     profile, missing = resolve_includes(
         profile_path.read_text(encoding="utf-8"), profile_path.parent)
     for path in missing:
-        print(f"  ⚠️  il profilo punta a {path}, che non si legge: "
-              "quel contesto non c'e' nel recap.")
+        print(f"  ⚠️  the profile points at {path}, which cannot be read: "
+              "that context is not in the recap.")
 
     leaks = find_secrets(profile)
     if leaks:
-        print("\n  ⚠️  ATTENZIONE: nel profilo (o in un file che include) c'e'")
-        print("      qualcosa che sembra una credenziale, e il recap finisce")
-        print("      negli appunti e poi in una chat:\n")
+        print("\n  ⚠️  WARNING: the profile (or a file it includes) holds")
+        print("      something that looks like a credential, and the recap")
+        print("      goes to your clipboard and then into a chat:\n")
         for hint in leaks[:5]:
             print(f"        {hint}")
-        print("\n      Togliela dal file, o punta a un file che non la contiene.")
-        if ask_confirm("  Continuo comunque? [s/N] ") is False:
+        print("\n      Remove it, or point at a file that does not hold it.")
+        if ask_confirm("  Carry on anyway? [y/N] ") is False:
             return 1
 
     bundle = build_bundle(prompt_body(package_file("recap-prompt.md")),
@@ -199,16 +198,17 @@ def run_recap(days: int = DAYS, now: datetime | None = None,
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(bundle, encoding="utf-8")
 
-    giorni = "giorno" if len(files) == 1 else "giorni"
+    day = "day" if len(files) == 1 else "days"
     posts = sum(len(json.loads(f.read_text(encoding="utf-8")).get("posts", []))
                 for f in files)
-    print(f"  {len(files)} {giorni} · {posts} post · ~{len(bundle) // 4000}k token")
+    print(f"  {len(files)} {day} · {posts} posts · ~{len(bundle) // 4000}k tokens")
     print(f"  {out}")
 
     if copy_to_clipboard(bundle):
-        print("\n  ✅ negli appunti. Incollalo a un modello e chiedi il recap.")
+        print("\n  ✅ on your clipboard. Paste it into a model and ask for "
+              "the recap.")
     else:
-        print(f"\n  Copia il contenuto di {out} e incollalo a un modello.")
+        print(f"\n  Copy the contents of {out} and paste them into a model.")
 
     # Opened, not just written: a path printed in a terminal is a path you look
     # at tomorrow. The clipboard already holds the text, so this is for reading

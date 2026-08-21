@@ -12,8 +12,9 @@ def load_seen(path: Path) -> dict[str, dict]:
         return json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
         raise ValueError(
-            f"{path.name} e' corrotto ({e}). Non lo sovrascrivo da solo: "
-            "riprocessare tutto costerebbe. Controllalo o cancellalo a mano."
+            f"{path.name} is corrupt ({e}). I will not overwrite it on my "
+            "own: reprocessing everything would cost money. Check it or "
+            "delete it by hand."
         ) from e
 
 

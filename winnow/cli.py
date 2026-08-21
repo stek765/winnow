@@ -22,22 +22,22 @@ def _version() -> str:
 
 
 USAGE = """\
-winnow — legge i post che salvi, verifica quello che nominano, e una volta
-alla settimana te li fa filtrare dal tuo profilo.
+winnow — reads the posts you save, checks what they name, and once a week hands
+them to your profile to be filtered.
 
-  winnow init          configura tutto: chiave, browser, accesso, cartelle
-                       salvate, profilo e raccolta giornaliera
-  winnow collect       un giro adesso, invece di aspettare il prossimo
-  winnow status        e' vivo? cosa ha trovato? quanto e' costato?
-  winnow recap         la settimana + il tuo profilo negli appunti,
-                       pronti da incollare a un modello
-  winnow config        cambia cartelle, modello, post per giro, orario, profilo
-  winnow reset-halt    riparte dopo l'arresto per spesa
+  winnow init          set everything up: model, browser, login, saved
+                       folders, profile, daily run
+  winnow collect       one pass now, instead of waiting for the next
+  winnow status        is it alive? what did it find? what has it cost?
+  winnow recap         the week + your profile on your clipboard, ready to
+                       paste into a model
+  winnow config        change folders, model, posts per run, hour, profile
+  winnow reset-halt    restart after the spend brake stopped it
 
-meno usati:
-  winnow schedule      programma la raccolta   --at HH:MM   --off
-  winnow login         rientra quando la sessione Instagram scade
-  winnow where         stampa tutti i percorsi che usa
+less used:
+  winnow schedule      schedule the daily run   --at HH:MM   --off
+  winnow login         sign in again when the Instagram session expires
+  winnow where         print every path it uses
 """
 
 
@@ -56,23 +56,23 @@ def _parser() -> argparse.ArgumentParser:
         "command", nargs="?",
         choices=["init", "login", "collect", "status", "recap", "config",
                  "schedule", "reset-halt", "where"],
-        metavar="COMANDO",
+        metavar="COMMAND",
     )
     p.add_argument("--version", action="version",
                    version=f"winnow {_version()}")
     p.add_argument("--posts", type=int, default=None,
-                   help="quanti post in questo giro (di default quelli di "
-                        "config.toml); serve a smaltire l'arretrato")
+                   help="how many posts this run (default: config.toml); "
+                        "for clearing a backlog")
     p.add_argument("--no-open", action="store_true",
-                   help="non aprire il file del recap alla fine")
+                   help="do not open the recap file at the end")
     p.add_argument("--days", type=int, default=7,
-                   help="quanti giorni di findings mettere nel recap")
+                   help="how many days of findings to put in the recap")
     p.add_argument("--at", default=None,
-                   help="orario della raccolta giornaliera, HH:MM")
+                   help="hour of the daily run, HH:MM")
     p.add_argument("--off", action="store_true",
-                   help="rimuove la raccolta giornaliera")
+                   help="remove the daily run")
     p.add_argument("-y", "--yes", action="store_true",
-                   help="non chiedere conferma")
+                   help="do not ask for confirmation")
     return p
 
 
@@ -108,18 +108,18 @@ def _cmd_status(args) -> int:
         return 1
 
     spent = weekly_spend(args.state_dir / "spend.json", datetime.now())
-    print(f"stato        attivo")
-    print(f"spesa 7gg    USD {spent:.4f}")
+    print("state        active")
+    print(f"spend 7d     USD {spent:.4f}")
 
     from winnow.schedule import current
-    print(f"programmato  {current()}")
+    print(f"scheduled    {current()}")
 
     seen = load_seen(args.state_dir / "seen.json")
-    print(f"post visti   {len(seen)}")
+    print(f"posts seen   {len(seen)}")
 
     files = sorted(args.findings_dir.glob("*.json")) if args.findings_dir.exists() else []
     if not files:
-        print("ultimo giro  mai eseguito")
+        print("last run     never")
         return 0
 
     last = files[-1]
@@ -133,16 +133,17 @@ def _cmd_status(args) -> int:
     )
     ago = datetime.now() - when
     hours = int(ago.total_seconds() // 3600)
-    when_txt = f"{when:%d/%m %H:%M} ({hours}h fa)" if hours < 48 else f"{when:%d/%m %H:%M}"
+    when_txt = f"{when:%d/%m %H:%M} ({hours}h ago)" if hours < 48 else f"{when:%d/%m %H:%M}"
 
-    print(f"ultimo giro  {when_txt} — {len(posts)} post, {entities} entita', "
-          f"{verified} verificate")
+    print(f"last run     {when_txt} — {len(posts)} posts, {entities} entities, "
+          f"{verified} verified")
     if data.get("failed"):
-        print(f"             ⚠️  {len(data['failed'])} post falliti")
+        print(f"             ⚠️  {len(data['failed'])} posts failed")
     if hours > 36:
-        print("             ⚠️  piu' di 36h fa: il Mac era spento, o l'agent non parte")
+        print("             ⚠️  over 36h ago: the machine was off, or the "
+              "schedule is broken")
 
-    print(f"da leggere   {len(files)} file in {args.findings_dir}/"
+    print(f"to read      {len(files)} file(s) in {args.findings_dir}/"
           "  →  winnow recap")
     return 0
 
@@ -151,9 +152,9 @@ def _cmd_reset_halt(args) -> int:
     f = args.state_dir / HALT_FILE
     if f.exists():
         f.unlink()
-        print(f"{HALT_FILE} rimosso. winnow puo' ripartire.")
+        print(f"{HALT_FILE} removed. winnow can run again.")
     else:
-        print("non era fermo.")
+        print("it was not halted.")
     return 0
 
 
@@ -189,10 +190,10 @@ def _cmd_collect(args) -> int:
     token = has_github_token()
     delay = search_delay(token)
     if args.posts is not None:
-        print(f"  {args.posts} post a questo giro · stima ~"
+        print(f"  {args.posts} posts this run · est. ~"
               f"${args.posts * 0.005:.2f} · GITHUB_TOKEN "
-              f"{'presente' if token else 'assente'} ({delay:.0f}s fra le "
-              f"verifiche)", flush=True)
+              f"{'present' if token else 'absent'} ({delay:.0f}s between "
+              f"checks)", flush=True)
 
     try:
         with open_session(cfg.browser_profile) as page, make_http() as http:
@@ -202,26 +203,26 @@ def _cmd_collect(args) -> int:
                 search_delay=delay, on_event=show,
             )
     except Unusable as e:
-        print(f"\nMODELLO IRRAGGIUNGIBILE: {e}", file=sys.stderr)
-        print("Il giro si e' fermato e i post NON sono stati segnati come "
-              "visti: riprova quando e' risolto.\n"
-              "Se e' la chiave: verifica che l'account abbia credito "
+        print(f"\nMODEL UNREACHABLE: {e}", file=sys.stderr)
+        print("The run stopped and the posts were NOT marked as seen: try "
+              "again once it is fixed.\n"
+              "If it is the key: check the account has credit "
               "(console.anthropic.com).", file=sys.stderr)
         return 4
     except Halted as e:
-        print(f"ARRESTO: {e}", file=sys.stderr)
+        print(f"HALTED: {e}", file=sys.stderr)
         return 1
     except SessionExpired as e:
-        print(f"SESSIONE: {e}", file=sys.stderr)
+        print(f"SESSION: {e}", file=sys.stderr)
         return 3
 
-    line = (f"{summary['posts']} post · {summary['entities']} entita' · "
+    line = (f"{summary['posts']} posts · {summary['entities']} entities · "
             f"USD {summary['spend_usd']}")
     if summary["failed"]:
-        line += f" · {summary['failed']} falliti (vedi findings)"
+        line += f" · {summary['failed']} failed (see findings)"
     print(line)
     if summary["status"] == "warn":
-        print("ATTENZIONE: spesa settimanale oltre la soglia di avviso.",
+        print("WARNING: weekly spend above the warning threshold.",
               file=sys.stderr)
     return 0
 
@@ -230,15 +231,15 @@ def _cmd_login(args) -> int:
     """Sign in by hand, once. winnow never types your password."""
     from winnow.setup import run_login
     ok = run_login(paths.browser_profile())
-    print("  sessione salvata." if ok else "  ATTENZIONE: sembri ancora fuori.")
+    print("  session saved." if ok else "  WARNING: you still look logged out.")
     return 0 if ok else 1
 
 
 def _cmd_where(args) -> int:
     print(f"config    {paths.config_file()}")
-    print(f"profilo   {paths.profile_file()}")
-    print(f"chiave    {paths.env_file()}")
-    print(f"stato     {paths.state_dir()}")
+    print(f"profile   {paths.profile_file()}")
+    print(f"key       {paths.env_file()}")
+    print(f"state     {paths.state_dir()}")
     print(f"findings  {paths.findings_dir()}")
     print(f"recap     {paths.recap_dir()}")
     print(f"browser   {paths.browser_profile()}")
@@ -261,7 +262,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return _dispatch(args)
     except KeyboardInterrupt:
-        print("\ninterrotto.", file=sys.stderr)
+        print("\ninterrupted.", file=sys.stderr)
         return 130
 
 

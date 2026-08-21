@@ -46,10 +46,10 @@ def http_note(status: int, what: str = "GitHub") -> str:
     fabricated verification — but the reason has to be true.
     """
     if status == 401:
-        return f"{what}: token non valido o scaduto (controlla GITHUB_TOKEN)"
+        return f"{what}: invalid or expired token (check GITHUB_TOKEN)"
     if status in (403, 429):
-        return f"{what}: rate limit raggiunto, riprova piu' tardi"
-    return f"{what} ha risposto {status}: non verificato"
+        return f"{what}: rate limit reached, try again later"
+    return f"{what} answered {status}: not checked"
 
 
 def verify_repo(http: httpx.Client, owner_repo: str) -> Verification:
@@ -66,10 +66,10 @@ def verify_repo(http: httpx.Client, owner_repo: str) -> Verification:
             follow_redirects=True,
         )
     except httpx.HTTPError as e:
-        return Verification(checked=False, note=f"errore di rete: {e}")
+        return Verification(checked=False, note=f"network error: {e}")
 
     if r.status_code == 404:
-        return Verification(checked=True, exists=False, note="repository inesistente")
+        return Verification(checked=True, exists=False, note="repository does not exist")
     if r.status_code != 200:
         return Verification(checked=False, note=http_note(r.status_code))
 
@@ -137,7 +137,7 @@ def search_repo(http: httpx.Client, name: str) -> Verification:
     """
     query = name.strip()
     if not query:
-        return Verification(checked=False, note="nome vuoto")
+        return Verification(checked=False, note="empty name")
     try:
         r = http.get(
             f"{GITHUB_API}/search/repositories",
@@ -147,12 +147,12 @@ def search_repo(http: httpx.Client, name: str) -> Verification:
             timeout=20.0,
         )
     except httpx.HTTPError as e:
-        return Verification(checked=False, note=f"errore di rete: {e}")
+        return Verification(checked=False, note=f"network error: {e}")
 
     if r.status_code != 200:
         return Verification(
             checked=False,
-            note=http_note(r.status_code, "ricerca GitHub"),
+            note=http_note(r.status_code, "GitHub search"),
         )
 
     items = r.json().get("items", [])
@@ -168,20 +168,20 @@ def search_repo(http: httpx.Client, name: str) -> Verification:
         # non-existent. `checked=False` says what actually happened.
         return Verification(
             checked=False,
-            note=f"la ricerca non trova un repository chiamato {name!r} "
-                 "(puo' essere stato rinominato, o non essere un repository)"
-                 + (f" | simili scartati: {near}" if near else ""),
+            note=f"search finds no repository called {name!r} (it may have "
+                 "been renamed, or may not be a repository)"
+                 + (f" | near misses discarded: {near}" if near else ""),
         )
 
     top = exact[0]
-    note = f"corrispondenza esatta del nome per {name!r}"
+    note = f"exact name match for {name!r}"
     if len(exact) > 1:
         rivals = ", ".join(
             f"{i.get('full_name')} (⭐{i.get('stargazers_count')}, "
             f"{(i.get('pushed_at') or '')[:10]})"
             for i in exact[1:3]
         )
-        note += f" | ⚠️ omonimi: {rivals}"
+        note += f" | ⚠️ same name: {rivals}"
     return _from_item(top, note)
 
 
@@ -209,7 +209,7 @@ def verify_model(http: httpx.Client, name: str) -> Verification:
             timeout=15.0,
         )
     except httpx.HTTPError as e:
-        return Verification(checked=False, note=f"errore di rete: {e}")
+        return Verification(checked=False, note=f"network error: {e}")
 
     if r.status_code != 200:
         return Verification(checked=False, note=http_note(r.status_code, "HuggingFace"))
@@ -221,8 +221,8 @@ def verify_model(http: httpx.Client, name: str) -> Verification:
         # fonte" is a false statement about the most used model on earth.
         return Verification(
             checked=False,
-            note=f"HuggingFace non ha {name!r}: puo' essere un modello "
-                 "proprietario, o chiamarsi diversamente",
+            note=f"HuggingFace does not have {name!r}: it may be a "
+                 "proprietary model, or be named differently",
         )
 
     # Same rule as search_repo: the name has to actually match. Searching
@@ -238,19 +238,19 @@ def verify_model(http: httpx.Client, name: str) -> Verification:
         # the name in them, which says nothing about the model itself.
         return Verification(
             checked=False,
-            note=f"su HuggingFace nessun modello si chiama esattamente "
-                 f"{name!r} (proprietario, o nome diverso)"
-                 + (f" | simili scartati: {near}" if near else ""),
+            note=f"no model on HuggingFace is called exactly {name!r} "
+                 "(proprietary, or a different name)"
+                 + (f" | near misses discarded: {near}" if near else ""),
         )
 
     top = exact[0]
     downloads = top.get("downloads") or 0
     others = ", ".join(h.get("modelId", "?") for h in exact[1:3])
-    note = f"{downloads} download"
+    note = f"{downloads} downloads"
     if downloads < 1000:
-        note += " — marginale, forse non e' il modello canonico"
+        note += " — marginal, possibly not the canonical model"
     if others:
-        note += f" | altri: {others}"
+        note += f" | others: {others}"
 
     return Verification(
         checked=True,

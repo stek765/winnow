@@ -103,7 +103,7 @@ def test_a_missing_include_is_reported_not_swallowed(tmp_path):
     from winnow.recap import resolve_includes
     text, missing = resolve_includes(f"@{tmp_path / 'gone.md'}")
     assert missing == [str(tmp_path / "gone.md")]
-    assert "MANCA" in text
+    assert "MISSING" in text
 
 
 def test_relative_includes_resolve_next_to_the_profile(tmp_path):

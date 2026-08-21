@@ -15,7 +15,7 @@ MAX_NAMES = 4
 
 def _names(names: list[str]) -> str:
     if not names:
-        return "nessun nome concreto"
+        return "no concrete name"
     shown = ", ".join(names[:MAX_NAMES])
     rest = len(names) - MAX_NAMES
     return f"{shown} (+{rest})" if rest > 0 else shown
@@ -28,37 +28,38 @@ def line(event: str, data: dict) -> str:
     not die because a newer caller emitted something this function never saw.
     """
     if event == "folder":
-        return (f"  cartella   {data['name']} · {data['found']} post, "
-                f"{data['new']} nuovi")
+        return (f"  folder     {data['name']} · {data['found']} posts, "
+                f"{data['new']} new")
 
     if event == "folder_skipped":
-        return f"  cartella   {data['name']} · saltata, il giro e' gia' pieno"
+        return f"  folder     {data['name']} · skipped, the run is already full"
 
     if event == "post":
+        n = data["slides"]
         return (f"\n  {data['i']}/{data['n']}  @{data['account']} · "
-                f"{data['slides']} slide")
+                f"{n} slide{'' if n == 1 else 's'}")
 
     if event == "extracted":
-        shape = {"list": "elenco", "news": "notizia"}.get(data.get("shape"), "")
+        shape = {"list": "list", "news": "news"}.get(data.get("shape"), "")
         tag = f"[{shape}] " if shape else ""
-        return f"    estratto   {tag}{_names(data['names'])}"
+        return f"    read       {tag}{_names(data['names'])}"
 
     if event == "verified":
         name = data["name"]
         if not data.get("checked"):
             # Never a tick and never a cross: nobody asked a source.
-            return f"    ?          {name} — {data.get('note') or 'non verificabile'}"
+            return f"    ?          {name} — {data.get('note') or 'not checkable'}"
         if not data.get("exists"):
-            return f"    ✗          {name} — non esiste alla fonte"
+            return f"    ✗          {name} — absent at the source"
         stars = data.get("stars")
-        tail = f"{stars} ★" if stars is not None else "trovato"
+        tail = f"{stars} ★" if stars is not None else "found"
         return f"    ✓          {name} — {tail}"
 
     if event == "written":
-        return (f"\n  scritto    {data['path']} · {data['entities']} entita', "
-                f"{data['verified']} verificate · USD {data['usd']:.4f}")
+        return (f"\n  written    {data['path']} · {data['entities']} entities, "
+                f"{data['verified']} verified · USD {data['usd']:.4f}")
 
     if event == "halted":
-        return f"  ARRESTO    {data.get('reason', '')}"
+        return f"  HALTED     {data.get('reason', '')}"
 
     return ""
