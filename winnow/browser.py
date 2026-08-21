@@ -63,8 +63,8 @@ def open_session(profile_dir: Path):
 def _guard_session(page) -> None:
     if looks_logged_out(page.url, page.inner_text("body")):
         raise SessionExpired(
-            "Sessione Instagram scaduta. Apri il profilo browser dedicato, "
-            "accedi a mano, poi rilancia. Non ritento da solo."
+            "Sessione Instagram scaduta. Esegui 'winnow login' e accedi a "
+            "mano, poi rilancia. Non ritento da solo."
         )
 
 
@@ -93,6 +93,45 @@ def list_shortcodes(page, folder_url: str) -> list[str]:
         "a[href]", "els => els.map(e => e.getAttribute('href'))"
     )
     return parse_shortcodes([h for h in hrefs if h])
+
+
+SAVED_RE = re.compile(r"^/[^/]+/saved/([^/]+)/(\d+)/?$")
+
+
+def parse_saved_folders(hrefs: list[str]) -> list[tuple[str, str]]:
+    """Saved-folder links -> [(name, url)], in page order, deduplicated.
+
+    Instagram's own "All posts" pseudo-folder has no id and no name of its
+    own; it never matches, which is what we want — winnow reads folders you
+    made on purpose.
+    """
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for href in hrefs:
+        href = (href or "").split("?")[0]
+        m = SAVED_RE.match(href)
+        if not m or href in seen:
+            continue
+        seen.add(href)
+        url = href if href.endswith("/") else href + "/"
+        out.append((m.group(1), url))
+    return out
+
+
+def list_saved_folders(page, username: str) -> list[tuple[str, str]]:
+    """Read the account's saved folders, so nobody has to copy URLs by hand."""
+    page.goto(f"{BASE}/{username}/saved/", wait_until="domcontentloaded")
+    _guard_session(page)
+    try:
+        page.wait_for_selector("a[href*='/saved/']", timeout=GRID_TIMEOUT_MS)
+    except Exception:
+        _guard_session(page)
+        return []
+    human_pause(1.0, 2.0)
+    hrefs = page.eval_on_selector_all(
+        "a[href]", "els => els.map(e => e.getAttribute('href'))"
+    )
+    return parse_saved_folders([h for h in hrefs if h])
 
 
 # --- Selettori verificati contro il DOM reale il 2026-08-20 ---

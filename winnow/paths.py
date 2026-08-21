@@ -36,6 +36,16 @@ def env_file() -> Path:
     return config_dir() / "env"
 
 
+def profile_file() -> Path:
+    """The profile the judge reads. Next to config.toml because it is the
+    other half of the configuration — the half no code can write for you."""
+    return config_dir() / "profile.md"
+
+
+def recap_dir() -> Path:
+    return data_dir() / "recap"
+
+
 def state_dir() -> Path:
     return data_dir() / "state"
 
@@ -57,5 +67,5 @@ def ensure_dirs() -> None:
     config_dir().mkdir(parents=True, exist_ok=True)
     # Config holds the API key and the username: keep it to the owner.
     config_dir().chmod(0o700)
-    for d in (data_dir(), state_dir(), findings_dir(), shots_dir()):
+    for d in (data_dir(), state_dir(), findings_dir(), shots_dir(), recap_dir()):
         d.mkdir(parents=True, exist_ok=True)

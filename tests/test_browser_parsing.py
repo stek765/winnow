@@ -44,3 +44,19 @@ def test_looks_logged_out_is_false_on_a_real_page():
         "https://www.instagram.com/tizio/saved/github/111/",
         "Solo tu puoi vedere gli elementi che hai salvato",
     )
+
+
+def test_parse_saved_folders_takes_named_folders_only():
+    """Instagram's own 'All posts' has no id: it must not become a folder."""
+    from winnow.browser import parse_saved_folders
+    hrefs = [
+        "/someone/saved/github/111/",
+        "/someone/saved/all-posts/",          # pseudo-folder
+        "/someone/saved/github/111/",   # duplicate link
+        "/someone/saved/gym/222/?next=1",
+        "/explore/", "/p/ABCdefGHIjk/", None,
+    ]
+    assert parse_saved_folders(hrefs) == [
+        ("github", "/someone/saved/github/111/"),
+        ("gym", "/someone/saved/gym/222/"),
+    ]

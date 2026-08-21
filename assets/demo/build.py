@@ -461,17 +461,15 @@ window.frameCount=fs.length;setFrame(0);
 </script>"""
 
 
-def main() -> int:
-    here = Path(__file__).parent
-    shots = here / "frames"
+def render_gif(frames: list[str], out: Path, work: Path) -> None:
+    """Frames -> PNGs -> GIF. Shared by every explainer built from this file."""
+    shots = work / "frames"
     shots.mkdir(exist_ok=True)
     for old in shots.glob("*.png"):
         old.unlink()
 
-    frames = build_frames()
-    page_html = HTML % (PAPER, "".join(
-        f'<div class="f">{s}</div>' for s in frames))
-    page = here / "frames.html"
+    page_html = HTML % (PAPER, "".join(f'<div class="f">{s}</div>' for s in frames))
+    page = work / "frames.html"
     page.write_text(page_html, encoding="utf-8")
     print(f"{len(frames)} frames -> {page}")
 
@@ -489,8 +487,7 @@ def main() -> int:
         b.close()
     print(f"rendered {n} png")
 
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else here / "winnow-demo.gif"
-    pal = here / "palette.png"
+    pal = work / "palette.png"
     vf = f"fps={FPS},scale={W}:-1:flags=lanczos"
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(FPS),
                     "-i", str(shots / "%04d.png"), "-vf",
@@ -502,6 +499,12 @@ def main() -> int:
                     "-loop", "0", str(out)], check=True)
     pal.unlink(missing_ok=True)
     print(f"{out}  {out.stat().st_size / 1e6:.2f} MB")
+
+
+def main() -> int:
+    here = Path(__file__).parent
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else here / "winnow-demo.gif"
+    render_gif(build_frames(), out, here)
     return 0
 
 

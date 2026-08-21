@@ -1,4 +1,4 @@
-"""winnow collect | status | reset-halt"""
+"""winnow collect | status | recap | schedule | reset-halt"""
 from __future__ import annotations
 
 import argparse
@@ -13,21 +13,70 @@ from winnow.config import load_config
 from winnow.state import load_seen
 
 
+USAGE = """\
+winnow — legge i post che salvi, verifica quello che nominano, e una volta
+alla settimana te li fa filtrare dal tuo profilo.
+
+  winnow init          configura tutto: chiave, browser, accesso, cartelle
+                       salvate, profilo e raccolta giornaliera
+  winnow collect       un giro adesso, invece di aspettare stanotte
+  winnow status        e' vivo? cosa ha trovato? quanto e' costato?
+  winnow recap         la settimana + il tuo profilo negli appunti,
+                       pronti da incollare a un modello
+  winnow reset-halt    riparte dopo l'arresto per spesa
+
+meno usati:
+  winnow schedule      programma la raccolta   --at HH:MM   --off
+  winnow login         rientra quando la sessione Instagram scade
+  winnow where         stampa tutti i percorsi che usa
+"""
+
+
 def _parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="winnow")
-    p.add_argument("--state-dir", default=None, type=Path)
-    p.add_argument("--findings-dir", default=None, type=Path)
-    p.add_argument("--config", default=None, type=Path)
+    # RawDescription: the command list is aligned by hand, and argparse would
+    # reflow it into a paragraph.
+    p = argparse.ArgumentParser(
+        prog="winnow", usage=argparse.SUPPRESS, description=USAGE,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--state-dir", default=None, type=Path,
+                   help=argparse.SUPPRESS)
+    p.add_argument("--findings-dir", default=None, type=Path,
+                   help=argparse.SUPPRESS)
+    p.add_argument("--config", default=None, type=Path, help=argparse.SUPPRESS)
     p.add_argument(
         "command", nargs="?",
-        choices=["init", "login", "collect", "status", "reset-halt", "where"],
+        choices=["init", "login", "collect", "status", "recap", "schedule",
+                 "reset-halt", "where"],
+        metavar="COMANDO",
     )
+    p.add_argument("--days", type=int, default=7,
+                   help="quanti giorni di findings mettere nel recap")
+    p.add_argument("--at", default=None,
+                   help="orario della raccolta giornaliera, HH:MM")
+    p.add_argument("--off", action="store_true",
+                   help="rimuove la raccolta giornaliera")
+    p.add_argument("-y", "--yes", action="store_true",
+                   help="non chiedere conferma")
     return p
 
 
 def _cmd_init(args) -> int:
     from winnow.setup import run_init
     return run_init()
+
+
+def _cmd_recap(args) -> int:
+    from winnow.recap import run_recap
+    return run_recap(args.days)
+
+
+def _cmd_schedule(args) -> int:
+    from winnow.schedule import run_schedule
+    try:
+        return run_schedule(args.at, args.off, args.yes)
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        return 2
 
 
 def _cmd_status(args) -> int:
@@ -40,6 +89,9 @@ def _cmd_status(args) -> int:
     spent = weekly_spend(args.state_dir / "spend.json", datetime.now())
     print(f"stato        attivo")
     print(f"spesa 7gg    USD {spent:.4f}")
+
+    from winnow.schedule import current
+    print(f"programmato  {current()}")
 
     seen = load_seen(args.state_dir / "seen.json")
     print(f"post visti   {len(seen)}")
@@ -69,7 +121,8 @@ def _cmd_status(args) -> int:
     if hours > 36:
         print("             ⚠️  piu' di 36h fa: il Mac era spento, o l'agent non parte")
 
-    print(f"da leggere   {len(files)} file in {args.findings_dir}/")
+    print(f"da leggere   {len(files)} file in {args.findings_dir}/"
+          "  →  winnow recap")
     return 0
 
 
@@ -140,9 +193,11 @@ def _cmd_login(args) -> int:
 
 def _cmd_where(args) -> int:
     print(f"config    {paths.config_file()}")
+    print(f"profilo   {paths.profile_file()}")
     print(f"chiave    {paths.env_file()}")
     print(f"stato     {paths.state_dir()}")
     print(f"findings  {paths.findings_dir()}")
+    print(f"recap     {paths.recap_dir()}")
     print(f"browser   {paths.browser_profile()}")
     return 0
 
@@ -164,6 +219,8 @@ def main(argv: list[str] | None = None) -> int:
         "status": _cmd_status,
         "reset-halt": _cmd_reset_halt,
         "collect": _cmd_collect,
+        "recap": _cmd_recap,
+        "schedule": _cmd_schedule,
         "init": _cmd_init,
         "where": _cmd_where,
         "login": _cmd_login,

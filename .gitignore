@@ -2,8 +2,6 @@
 config.toml
 state/
 findings/
-profiles/*.md
-!profiles/esempio.md
 
 # Profilo browser Playwright (contiene la sessione Instagram loggata)
 browser-profile/
@@ -25,3 +23,8 @@ AGENTS.md
 # Artefatti di build della GIF: si rigenerano da assets/demo/build.py
 assets/demo/frames/
 assets/demo/frames.html
+
+# Artefatti di build del pacchetto
+build/
+dist/
+*.egg-info/

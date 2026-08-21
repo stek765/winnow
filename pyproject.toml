@@ -1,6 +1,6 @@
 [project]
 name = "winnow"
-version = "0.1.0"
+version = "1.0.0"
 description = "Filter your saved social posts against who you actually are"
 requires-python = ">=3.11"
 dependencies = [
@@ -21,3 +21,8 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["winnow*"]
+
+# The recap prompt and the starter profile ship with the package: `winnow
+# recap` must work from an installed copy, with no repo checkout in sight.
+[tool.setuptools.package-data]
+winnow = ["*.md"]

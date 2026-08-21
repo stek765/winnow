@@ -1,12 +1,18 @@
 # The judge — how to produce the weekly recap
 
-The judge is not code. It is a prompt, run in a session that has your profile
-in context. Swap the model and nothing in the collector changes.
+The judge is not code. It is a prompt plus the profile you wrote. Swap the
+model and nothing in the collector changes.
 
-Run this on Sunday:
+`winnow recap` bundles everything below this line together with your profile
+and the week's findings, and copies it to the clipboard. Everything above the
+line is for you; everything below is for the model.
 
-> Leggi i file in `findings/` dell'ultima settimana e il mio profilo in
-> `profiles/<mio>.md`.
+## The prompt
+
+<!-- PROMPT -->
+
+> Qui sotto trovi il mio profilo e i findings dell'ultima settimana: i fatti
+> raccolti, gia' verificati alla fonte. Il giudizio tocca a te.
 >
 > Applica il criterio a due corsie:
 > - 🎯 **Aggancio** — tocca qualcosa che ho già aperto. Soglia bassa: basta che

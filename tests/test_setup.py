@@ -37,7 +37,7 @@ def test_missing_api_key_explains_how_to_create_it(tmp_path, monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     c = check_api_key(tmp_path / "env")
     assert not c.ok
-    assert "console.anthropic.com" in c.todo and "umask" in c.todo
+    assert "console.anthropic.com" in c.todo and "winnow init" in c.todo
 
 
 def test_empty_browser_dir_is_not_a_session(tmp_path):
@@ -96,3 +96,45 @@ def test_apply_env_file_does_not_override_the_environment(tmp_path, monkeypatch)
     apply_env_file(f)
     import os
     assert os.environ["ANTHROPIC_API_KEY"] == "quella-vera"
+
+
+# --- winnow init writes the config from what it found -----------------------
+
+def test_render_config_is_loadable(tmp_path):
+    """Whatever init writes must survive load_config — a config that parses
+    only in someone's head is the same as no config."""
+    from winnow.config import load_config
+    from winnow.setup import render_config
+
+    f = tmp_path / "config.toml"
+    f.write_text(render_config("someone", [
+        ("github", "/someone/saved/github/1/", True, "repo"),
+        ("gym", "/someone/saved/gym/2/", False, "news"),
+    ]), encoding="utf-8")
+    cfg = load_config(f)
+    assert cfg.username == "someone"
+    assert [(x.name, x.active, x.kind) for x in cfg.folders] == [
+        ("github", True, "repo"), ("gym", False, "news")]
+
+
+def test_render_config_keeps_folders_you_did_not_pick(tmp_path):
+    """Turning one on later should be flipping a flag, not hunting a URL."""
+    from winnow.setup import render_config
+    text = render_config("someone", [("gym", "/someone/saved/gym/2/", False, "news")])
+    assert "/someone/saved/gym/2/" in text and "active = false" in text
+
+
+import pytest
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("1,3-5", {1, 3, 4, 5}),
+    ("2 4", {2, 4}),
+    ("", set()),
+    ("99", set()),          # out of range: dropped, not fatal
+    ("abc", set()),
+    ("5-3", {3, 4, 5}),     # backwards range still means the same range
+])
+def test_parse_selection(text, expected):
+    from winnow.setup import parse_selection
+    assert parse_selection(text, 6) == expected
