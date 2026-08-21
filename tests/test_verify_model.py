@@ -17,12 +17,12 @@ def test_verify_model_finds_an_existing_model():
     assert v.description and "Qwen/Qwen3-32B" in v.description
 
 
-def test_verify_model_reports_absence_when_no_results():
+def test_hf_finding_nothing_is_not_proof_of_absence():
     def handler(request):
         return httpx.Response(200, json=[])
     v = verify_model(_client(handler), "Qwen 27B uncensored")
-    assert v.checked and not v.exists
-    assert "nessun modello" in v.note.lower()
+    assert v.checked is False
+    assert "proprietario" in v.note
 
 
 def test_verify_model_network_failure_is_not_verified():
@@ -48,8 +48,8 @@ def test_a_model_whose_name_does_not_match_is_not_a_hit():
             "downloads": 384393, "likes": 707,
         }])
     v = verify_model(_client(handler), "Claude Code")
-    assert v.checked and v.exists is False
-    assert v.stars is None and v.url is None
+    assert v.checked is False, "scartato, non dichiarato inesistente"
+    assert v.stars is None and v.url is None, "i 707 like non sono suoi"
     assert "claude code" in v.note.lower()
 
 
@@ -91,3 +91,30 @@ def test_the_matching_model_wins_even_when_a_louder_one_is_listed_first():
     v = verify_model(_client(handler), "Qwen3-8B")
     assert v.exists and v.stars == 500
     assert v.description == "Qwen/Qwen3-8B"
+
+
+def test_a_proprietary_model_is_unknown_not_absent():
+    """Osservato dal vivo il 2026-08-21: `✗ Claude — non esiste alla fonte`.
+    HuggingFace ospita pesi aperti; Claude, GPT e Gemini non ci sono e non ci
+    saranno mai. Dire "non esiste" del modello piu' usato al mondo e' falso."""
+    def handler(request):
+        return httpx.Response(200, json=[])
+    v = verify_model(_client(handler), "Claude")
+    assert v.checked is False
+    assert v.exists is not False
+
+
+def test_llmfit_failure_does_not_leak_its_usage_screen():
+    """`llmfit fit Claude` stampa l'help, e quell'help finiva incollato nei
+    findings e poi nel contesto del giudice, dove sembra un guasto di winnow."""
+    from winnow.verify import hardware_note
+    import winnow.verify as verify
+
+    class Done:
+        returncode = 2
+        stdout = ""
+        stderr = "error: unexpected argument 'Claude'\n\nUsage: llmfit fit [OPTIONS]"
+
+    verify.llmfit_available = lambda: True
+    verify.subprocess.run = lambda *a, **k: Done()
+    assert hardware_note("Claude") == ""

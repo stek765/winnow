@@ -216,10 +216,13 @@ def verify_model(http: httpx.Client, name: str) -> Verification:
 
     hits = r.json()
     if not hits:
+        # NOT exists=False. HuggingFace hosts open weights; Claude, GPT and
+        # Gemini are not there and never will be, and "Claude — non esiste alla
+        # fonte" is a false statement about the most used model on earth.
         return Verification(
-            checked=True,
-            exists=False,
-            note=f"nessun modello su HuggingFace corrisponde a {name!r}",
+            checked=False,
+            note=f"HuggingFace non ha {name!r}: puo' essere un modello "
+                 "proprietario, o chiamarsi diversamente",
         )
 
     # Same rule as search_repo: the name has to actually match. Searching
@@ -230,9 +233,13 @@ def verify_model(http: httpx.Client, name: str) -> Verification:
     exact = [h for h in hits if _model_matches(h.get("modelId") or "", wanted)]
     if not exact:
         near = ", ".join(h.get("modelId", "?") for h in hits[:3])
+        # Same correction as search_repo: refusing a bad match is right,
+        # calling it absence is a lie. The hits are community fine-tunes with
+        # the name in them, which says nothing about the model itself.
         return Verification(
-            checked=True, exists=False,
-            note=f"nessun modello si chiama esattamente {name!r}"
+            checked=False,
+            note=f"su HuggingFace nessun modello si chiama esattamente "
+                 f"{name!r} (proprietario, o nome diverso)"
                  + (f" | simili scartati: {near}" if near else ""),
         )
 
@@ -260,7 +267,13 @@ def llmfit_available() -> bool:
 
 
 def hardware_note(name: str) -> str:
-    """Ask llmfit whether this model fits the local machine. Best effort."""
+    """Ask llmfit whether this model fits the local machine. Best effort.
+
+    A failure returns "" rather than the tool's own error text: `llmfit fit
+    Claude` printed its usage screen, and that ended up pasted into the
+    findings and then into the judge's context, where it reads like a fault in
+    winnow.
+    """
     if not llmfit_available():
         return ""
     try:
@@ -268,6 +281,6 @@ def hardware_note(name: str) -> str:
             ["llmfit", "fit", name, "--json"],
             capture_output=True, text=True, timeout=30,
         )
-    except (subprocess.SubprocessError, OSError) as e:
-        return f"llmfit non eseguibile: {e}"
-    return out.stdout.strip() if out.returncode == 0 else out.stderr.strip()[:200]
+    except (subprocess.SubprocessError, OSError):
+        return ""
+    return out.stdout.strip() if out.returncode == 0 else ""
