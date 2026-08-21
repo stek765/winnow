@@ -20,10 +20,21 @@ from winnow.verify import (
     Verification, hardware_note, resolve_repo, verify_model,
 )
 
-# GitHub's search endpoint allows 10 requests/minute unauthenticated (30 with a
-# token). A run of 8 posts produces ~70 lookups, so we pace ourselves and cache
+# GitHub's search endpoint allows 10 requests/minute unauthenticated, 30 with a
+# token. A run of 8 posts produces ~70 lookups, so we pace ourselves and cache
 # repeated names: the same repo shows up across several posts in the same week.
-SEARCH_DELAY_S = 7.0
+# Waiting 7s while authenticated is three quarters of the run spent on nothing —
+# which is what made clearing a backlog take two hours instead of forty minutes.
+SEARCH_DELAY_S = 7.0        # anonimo: 10 ricerche/minuto
+SEARCH_DELAY_TOKEN_S = 2.0  # con GITHUB_TOKEN: 30/minuto
+
+
+def has_github_token(env: dict | None = None) -> bool:
+    return bool((env if env is not None else os.environ).get("GITHUB_TOKEN"))
+
+
+def search_delay(has_token: bool) -> float:
+    return SEARCH_DELAY_TOKEN_S if has_token else SEARCH_DELAY_S
 BASE_POST_URL = "https://www.instagram.com/p/"
 
 

@@ -184,3 +184,21 @@ def test_collect_reports_each_step_while_it_runs(tmp_path, monkeypatch):
     assert folder["found"] == 2 and folder["new"] == 2
     written = dict(seen[-1][1])
     assert written["entities"] == 2 and written["verified"] == 2
+
+
+# --- pacing and backlog ----------------------------------------------------
+
+def test_search_delay_follows_the_token():
+    """Waiting 7s while authenticated is three quarters of a run spent on
+    nothing — the difference between forty minutes and two hours on a backlog."""
+    from winnow.run import SEARCH_DELAY_S, SEARCH_DELAY_TOKEN_S, search_delay
+    assert search_delay(True) == SEARCH_DELAY_TOKEN_S
+    assert search_delay(False) == SEARCH_DELAY_S
+    assert SEARCH_DELAY_TOKEN_S < SEARCH_DELAY_S
+
+
+def test_has_github_token_reads_the_environment():
+    from winnow.run import has_github_token
+    assert has_github_token({"GITHUB_TOKEN": "ghp_x"})
+    assert not has_github_token({})
+    assert not has_github_token({"GITHUB_TOKEN": ""})

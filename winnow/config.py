@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from winnow import paths
@@ -65,6 +65,18 @@ def load_config(path: Path) -> Config:
         limits=limits,
         model=raw["api"]["model"],
     )
+
+
+def override_posts(cfg: Config, posts: int) -> Config:
+    """One run with a different cap, for clearing a backlog by hand.
+
+    `posts_per_run` is tuned for the nightly rhythm; someone who installs winnow
+    after two years of saving has hundreds of posts waiting, and eight a night
+    means a month of drip-feed. The config on disk is not touched.
+    """
+    if posts < 1:
+        raise ValueError("--posts vuole un numero maggiore di zero")
+    return replace(cfg, limits=replace(cfg.limits, posts_per_run=posts))
 
 
 def active_folders(cfg: Config) -> list[Folder]:

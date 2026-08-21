@@ -59,6 +59,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--version", action="version",
                    version=f"winnow {_version()}")
+    p.add_argument("--posts", type=int, default=None,
+                   help="quanti post in questo giro (di default quelli di "
+                        "config.toml); serve a smaltire l'arretrato")
     p.add_argument("--days", type=int, default=7,
                    help="quanti giorni di findings mettere nel recap")
     p.add_argument("--at", default=None,
@@ -168,12 +171,29 @@ def _cmd_collect(args) -> int:
             print(text, flush=True)
 
     cfg = load_config(args.config)
+    if args.posts is not None:
+        from winnow.config import override_posts
+        try:
+            cfg = override_posts(cfg, args.posts)
+        except ValueError as e:
+            print(e, file=sys.stderr)
+            return 2
+
+    from winnow.run import has_github_token, search_delay
+    token = has_github_token()
+    delay = search_delay(token)
+    if args.posts is not None:
+        print(f"  {args.posts} post a questo giro · stima ~"
+              f"${args.posts * 0.005:.2f} · GITHUB_TOKEN "
+              f"{'presente' if token else 'assente'} ({delay:.0f}s fra le "
+              f"verifiche)", flush=True)
+
     try:
         with open_session(cfg.browser_profile) as page, make_http() as http:
             summary = collect(
                 cfg, args.state_dir, args.findings_dir, paths.shots_dir(),
                 anthropic.Anthropic(), http, page, datetime.now(),
-                on_event=show,
+                search_delay=delay, on_event=show,
             )
     except Halted as e:
         print(f"ARRESTO: {e}", file=sys.stderr)

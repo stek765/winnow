@@ -139,6 +139,25 @@ Folders are read **in config order**, and the cap applies to the whole queue:
 a folder with a big backlog can starve the ones below it for a few nights.
 Reorder the `[[folders]]` blocks to change who goes first.
 
+### The first run, when you already have hundreds saved
+
+Eight a night means a month of drip-feed, so clear the backlog deliberately:
+
+```bash
+winnow collect --posts 50
+```
+
+Money is not the constraint — 200 posts cost about **$0.90**, nowhere near the
+weekly brake. **Time is**: GitHub allows 10 searches a minute anonymously, so
+winnow waits 7s between checks. Give it a token and it waits 2s instead:
+
+```bash
+echo 'GITHUB_TOKEN=ghp_...' >> ~/.config/winnow/env    # any token, no scopes
+```
+
+That turns two hours of backlog into about forty minutes. The nightly run keeps
+its own cap either way.
+
 ## What it costs
 
 Measured, not estimated — two runs of 8 posts, 20 and 21 August, Claude Haiku:
