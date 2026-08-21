@@ -13,6 +13,14 @@ from winnow.config import load_config
 from winnow.state import load_seen
 
 
+def _version() -> str:
+    from importlib.metadata import PackageNotFoundError, version
+    try:
+        return version("winnow")
+    except PackageNotFoundError:      # eseguito dal sorgente, non installato
+        return "dev"
+
+
 USAGE = """\
 winnow — legge i post che salvi, verifica quello che nominano, e una volta
 alla settimana te li fa filtrare dal tuo profilo.
@@ -49,6 +57,8 @@ def _parser() -> argparse.ArgumentParser:
                  "reset-halt", "where"],
         metavar="COMANDO",
     )
+    p.add_argument("--version", action="version",
+                   version=f"winnow {_version()}")
     p.add_argument("--days", type=int, default=7,
                    help="quanti giorni di findings mettere nel recap")
     p.add_argument("--at", default=None,

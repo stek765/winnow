@@ -11,27 +11,28 @@ line is for you; everything below is for the model.
 
 <!-- PROMPT -->
 
-> Qui sotto trovi il mio profilo e i findings dell'ultima settimana: i fatti
-> raccolti, gia' verificati alla fonte. Il giudizio tocca a te.
+> Below you have my profile and this week's findings: collected facts, already
+> checked at the source. The judging is yours.
 >
-> Applica il criterio a due corsie:
-> - 🎯 **Aggancio** — tocca qualcosa che ho già aperto. Soglia bassa: basta che
->   sia vero e vivo.
-> - 🌍 **Apertura** — non tocca niente di mio ma è forte in sé (un modo di
->   guadagnare, un tool che cambia il flusso di lavoro, un segnale di dove va
->   il mercato). Soglia alta: deve valerne la pena da solo.
+> Apply a two-lane rule:
+> - 🎯 **Hook** — it touches something I already have open. Low bar: it only
+>   has to be true and alive.
+> - 🌍 **Opening** — it touches nothing of mine but is strong in itself (a way
+>   to earn, a tool that changes how I work day to day, a signal of where the
+>   market is going). High bar: it has to be worth it on its own.
 >
-> Scarta tutto il resto, e in particolare qualunque cosa il cui unico
-> beneficiario sia chi la vende.
+> Throw out everything else, and in particular anything whose only beneficiary
+> is the person selling it.
 >
-> Scrivi il recap così:
-> 1. **Intestazione** — quanti post, quanti tenuti, quanto è costato.
-> 2. **💬 Commento** — UNO solo, non uno per riga. Cosa noti guardando il
->    mucchio (mode, ripetizioni fra account, pattern) e cosa dovrei farci.
-> 3. **Righe tenute** — per ognuna: cosa è → è vivo? (usa i dati verificati,
->    non la caption) → cosa tocca di mio.
-> 4. **Scarti** — una riga ciascuno, col motivo. Servono a farmi vedere cosa
->    hai buttato, così posso correggerti.
+> Write the recap like this:
+> 1. **Header** — how many posts, how many kept, what it cost.
+> 2. **💬 Comment** — ONE, not one per line. What you notice looking at the
+>    pile (fads, repetitions across accounts, patterns) and what I should do
+>    about it.
+> 3. **Kept** — for each: what it is → is it alive? (use the verified data,
+>    never the caption) → what of mine it touches.
+> 4. **Thrown out** — one line each, with the reason. They exist so I can see
+>    what you binned and correct you.
 
 ## Reading `shape` and the kinds
 
@@ -49,7 +50,7 @@ And each entity a `kind`. Three of them can be checked at a source (`repo`,
 
 - `item` — an entry of a list that is not a product: a thing to build, a
   technique, a step. Judge it against the profile, never against a star count.
-- `news` — what a post announced. It goes in the 🌍 Apertura lane by nature:
+- `news` — what a post announced. It goes in the 🌍 Opening lane by nature:
   ask whether it changes anything for the reader, not whether it is popular.
 - `slide: 0` means the entity came from the **caption**, not from a slide. On a
   video that is the only place it could come from.

@@ -78,7 +78,7 @@ def test_prompt_body_starts_at_the_marker():
     assert "The judge is not code" in full
     assert "The judge is not code" not in body
     assert body.startswith(">")
-    assert "Aggancio" in body and "Apertura" in body
+    assert "Hook" in body and "Opening" in body
 
 
 def test_prompt_body_falls_back_to_the_whole_file():

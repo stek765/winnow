@@ -38,11 +38,14 @@
 
 <br> 
 
-> A click-bait post that happens to contain a live repo with 37k stars passes. 
-> 
-> A beautifully made post listing repos dead for two years gets thrown out.
+> A click-bait post that happens to name a live repo with 37k stars is worth
+> keeping.
+>
+> A beautifully made post listing repos dead for two years is not.
 
-The caption would never tell you which is which. The check and verification process does.
+The caption never tells you which is which — the check does. winnow throws
+nothing away on its own: it records what it found and what the source said, and
+the deciding happens once a week, [with your profile](#once-a-week).
 
 ## Install
 
@@ -120,6 +123,21 @@ still there for when you want them directly.
 
 <br>
 <br>
+
+## What gets read
+
+Only what you put in a folder — winnow never reads *All posts*, and it never
+picks by content. Everything it skips, it skips mechanically:
+
+| | |
+|---|---|
+| the folder is **on** | `active = true` in `config.toml`; `winnow init` lists them for you |
+| **not seen before** | one pass per post, ever — even a failed one, so a broken post is never paid for twice |
+| **8 per run** | `posts_per_run`, newest saved first |
+
+Folders are read **in config order**, and the cap applies to the whole queue:
+a folder with a big backlog can starve the ones below it for a few nights.
+Reorder the `[[folders]]` blocks to change who goes first.
 
 ## What it costs
 

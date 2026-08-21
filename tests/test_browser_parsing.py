@@ -60,3 +60,33 @@ def test_parse_saved_folders_takes_named_folders_only():
         ("github", "/someone/saved/github/111/"),
         ("gym", "/someone/saved/gym/222/"),
     ]
+
+
+# --- when to stop scrolling a lazy-loaded grid ------------------------------
+
+def test_keeps_scrolling_while_the_grid_grows():
+    from winnow.browser import keep_scrolling
+    assert keep_scrolling(24, 48, stalls=0) == (True, 0)
+
+
+def test_one_quiet_read_is_not_the_end():
+    """A slow batch must not be mistaken for the bottom of the folder — that
+    is how a folder of two hundred silently becomes a folder of twenty."""
+    from winnow.browser import keep_scrolling
+    again, stalls = keep_scrolling(48, 48, stalls=0)
+    assert (again, stalls) == (True, 1)
+
+
+def test_stops_after_three_quiet_reads():
+    from winnow.browser import keep_scrolling
+    assert keep_scrolling(48, 48, stalls=2) == (False, 3)
+
+
+def test_growth_resets_the_stall_count():
+    from winnow.browser import keep_scrolling
+    assert keep_scrolling(48, 60, stalls=2) == (True, 0)
+
+
+def test_stops_at_the_cap_however_much_is_left():
+    from winnow.browser import keep_scrolling
+    assert keep_scrolling(380, 400, stalls=0, cap=400) == (False, 0)

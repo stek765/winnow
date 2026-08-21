@@ -72,12 +72,57 @@ POST_LINK_SELECTOR = "a[href*='/p/']"
 GRID_TIMEOUT_MS = 20_000
 
 
-def list_shortcodes(page, folder_url: str) -> list[str]:
-    """List the posts in a saved folder.
+# Instagram paints one screenful and loads the rest as you scroll. Reading the
+# DOM straight after load therefore sees ~12-24 posts and *nothing else* — a
+# folder of two hundred looks like a folder of twenty, with no error anywhere.
+# Once those are marked seen, the run reports "0 new" forever while the backlog
+# sits below the fold.
+SCROLL_STALLS = 3          # letture consecutive senza crescita = fine griglia
+SCROLL_WAIT_S = 4.0        # attesa che il batch successivo compaia
+MAX_POSTS_PER_FOLDER = 400  # tetto: una cartella enorme non deve girare a vuoto
 
-    The grid is lazy-loaded, so we wait for the links themselves rather than
-    for a fixed number of seconds: a clock-based wait is a coin flip that
-    silently reports an empty folder when the network is slow.
+
+def keep_scrolling(before: int, after: int, stalls: int,
+                   cap: int = MAX_POSTS_PER_FOLDER) -> tuple[bool, int]:
+    """Decide whether to scroll again, and carry the stall count.
+
+    Split out of the browser loop on purpose: "when do I stop scrolling" is the
+    logic that decides whether a folder is read whole or in part, and it must be
+    testable without a browser.
+    """
+    if after >= cap:
+        return False, stalls
+    if after > before:
+        return True, 0
+    stalls += 1
+    return stalls < SCROLL_STALLS, stalls
+
+
+def _merge(into: list[str], page) -> None:
+    """Add the shortcodes currently in the DOM, keeping order, skipping dupes.
+
+    Read at every step, never once at the end: Instagram recycles the grid and
+    drops the rows that scrolled out of view, so a single read after scrolling
+    returns the *tail* of the folder and loses everything above it. Measured on
+    a real account — 39 posts came back and not one of them was among the 24
+    read before scrolling.
+    """
+    hrefs = page.eval_on_selector_all(
+        "a[href]", "els => els.map(e => e.getAttribute('href'))")
+    known = set(into)
+    for code in parse_shortcodes([h for h in hrefs if h]):
+        if code not in known:
+            known.add(code)
+            into.append(code)
+
+
+def list_shortcodes(page, folder_url: str) -> list[str]:
+    """List the posts in a saved folder — the whole folder, not the first screen.
+
+    The grid is lazy-loaded, so we wait for the links themselves rather than for
+    a fixed number of seconds: a clock-based wait is a coin flip that silently
+    reports an empty folder when the network is slow. Same reason we stop
+    scrolling on "nothing new came in" and never on "N scrolls done".
     """
     page.goto(BASE + folder_url, wait_until="domcontentloaded")
     _guard_session(page)
@@ -89,10 +134,26 @@ def list_shortcodes(page, folder_url: str) -> list[str]:
         _guard_session(page)
         return []
     human_pause(1.0, 2.0)
-    hrefs = page.eval_on_selector_all(
-        "a[href]", "els => els.map(e => e.getAttribute('href'))"
-    )
-    return parse_shortcodes([h for h in hrefs if h])
+
+    codes: list[str] = []
+    stalls = 0
+    while True:
+        _merge(codes, page)
+        before = len(codes)
+        if before >= MAX_POSTS_PER_FOLDER:
+            break
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        deadline = time.time() + SCROLL_WAIT_S
+        while time.time() < deadline:
+            time.sleep(0.4)
+            _merge(codes, page)
+            if len(codes) > before:
+                break
+        again, stalls = keep_scrolling(before, len(codes), stalls)
+        if not again:
+            break
+        human_pause(0.6, 1.4)
+    return codes
 
 
 SAVED_RE = re.compile(r"^/[^/]+/saved/([^/]+)/(\d+)/?$")
