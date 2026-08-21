@@ -117,6 +117,31 @@ def findings_path(root: Path, day: date) -> Path:
     return root / f"{day.isoformat()}.json"
 
 
+def merge_findings(old: dict, new: dict) -> dict:
+    """Two runs on the same day are one day of findings, not the later one.
+
+    A file per day is the right unit — the recap reads a week by date — but a
+    second run used to *replace* the first. Measured on 2026-08-21: a 48-post
+    run costing $0.11 was overwritten by a 19-post run twenty minutes later,
+    and because every post had already been marked seen, those 131 entities
+    could never be collected again. Paid for, then deleted.
+    """
+    seen = {p["shortcode"] for p in old.get("posts", [])}
+    posts = list(old.get("posts", []))
+    posts += [p for p in new.get("posts", []) if p["shortcode"] not in seen]
+    failed_seen = {f.get("shortcode") for f in old.get("failed", [])}
+    failed = list(old.get("failed", []))
+    failed += [f for f in new.get("failed", [])
+               if f.get("shortcode") not in failed_seen]
+    return {
+        # The ledger of the day, not of the last run: this number is what the
+        # recap header reports as the week's cost.
+        "spend_usd": round(old.get("spend_usd", 0.0) + new.get("spend_usd", 0.0), 6),
+        "failed": failed,
+        "posts": posts,
+    }
+
+
 def write_findings(
     path: Path,
     extractions: list[PostExtraction],
@@ -150,6 +175,14 @@ def write_findings(
             for ex in extractions
         ],
     }
+    if path.exists():
+        try:
+            payload = merge_findings(
+                json.loads(path.read_text(encoding="utf-8")), payload)
+        except json.JSONDecodeError:
+            # A corrupt file must not cost the run its output: keep the new
+            # findings and put the old ones aside instead of dropping either.
+            path.rename(path.with_suffix(".json.corrupt"))
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
 

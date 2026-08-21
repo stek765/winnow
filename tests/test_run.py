@@ -298,3 +298,63 @@ def test_a_key_without_credit_stops_the_run_and_marks_nothing(tmp_path, monkeypa
 def test_only_account_level_failures_stop_everything(exc, fatal):
     from winnow.run import is_unusable
     assert is_unusable(exc) is fatal
+
+
+# --- two runs in one day are one day ---------------------------------------
+
+def test_a_second_run_adds_to_the_day_instead_of_replacing_it(tmp_path):
+    """Measured on 2026-08-21: a 48-post run costing $0.11 was overwritten by a
+    19-post run twenty minutes later. Every post was already marked seen, so
+    those 131 entities were gone for good — paid for, then deleted."""
+    from winnow.run import merge_findings
+
+    old = {"spend_usd": 0.1121, "failed": [],
+           "posts": [{"shortcode": "AAA", "entities": [1, 2]},
+                     {"shortcode": "BBB", "entities": [3]}]}
+    new = {"spend_usd": 0.0308, "failed": [],
+           "posts": [{"shortcode": "CCC", "entities": [4]}]}
+
+    out = merge_findings(old, new)
+    assert [p["shortcode"] for p in out["posts"]] == ["AAA", "BBB", "CCC"]
+    assert out["spend_usd"] == 0.1429, "la spesa del giorno, non dell'ultimo giro"
+
+
+def test_merging_does_not_duplicate_a_post_seen_twice(tmp_path):
+    from winnow.run import merge_findings
+    old = {"spend_usd": 0.01, "failed": [], "posts": [{"shortcode": "AAA"}]}
+    new = {"spend_usd": 0.01, "failed": [], "posts": [{"shortcode": "AAA"}]}
+    assert len(merge_findings(old, new)["posts"]) == 1
+
+
+def test_merging_keeps_the_failures_of_both_runs():
+    from winnow.run import merge_findings
+    old = {"spend_usd": 0, "posts": [], "failed": [{"shortcode": "X", "error": "a"}]}
+    new = {"spend_usd": 0, "posts": [], "failed": [{"shortcode": "Y", "error": "b"}]}
+    assert {f["shortcode"] for f in merge_findings(old, new)["failed"]} == {"X", "Y"}
+
+
+def test_write_findings_appends_to_an_existing_day(tmp_path):
+    from winnow.run import write_findings
+    from winnow.extract import PostExtraction
+
+    path = tmp_path / "2026-08-21.json"
+    write_findings(path, [PostExtraction("AAA", "a", "c", [], 0.01)], {}, 0.01)
+    write_findings(path, [PostExtraction("BBB", "b", "c", [], 0.02)], {}, 0.02)
+
+    out = json.loads(path.read_text())
+    assert [p["shortcode"] for p in out["posts"]] == ["AAA", "BBB"]
+    assert out["spend_usd"] == 0.03
+
+
+def test_a_corrupt_day_file_is_set_aside_not_silently_dropped(tmp_path):
+    """Losing the new findings to save a broken file, or the other way round,
+    are both wrong: keep the run's output and move the wreck aside."""
+    from winnow.run import write_findings
+    from winnow.extract import PostExtraction
+
+    path = tmp_path / "2026-08-21.json"
+    path.write_text("{ questo non e' json", encoding="utf-8")
+    write_findings(path, [PostExtraction("AAA", "a", "c", [], 0.01)], {}, 0.01)
+
+    assert [p["shortcode"] for p in json.loads(path.read_text())["posts"]] == ["AAA"]
+    assert (tmp_path / "2026-08-21.json.corrupt").exists()
