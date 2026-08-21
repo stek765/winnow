@@ -376,10 +376,18 @@ def capture_post(
         path = out_dir / f"{shortcode}_{i:02d}.png"
         # Screenshot della REGIONE, non dell'elemento: cattura cio' che si vede
         # davvero li', non un nodo eventualmente coperto o ritagliato.
-        page.screenshot(
-            path=str(path),
-            clip={k: box[k] for k in ("x", "y", "width", "height")},
-        )
+        try:
+            page.screenshot(
+                path=str(path),
+                clip={k: box[k] for k in ("x", "y", "width", "height")},
+            )
+        except Exception:  # noqa: BLE001
+            # "Clipped area is either empty or outside the resulting image":
+            # the slide scrolled out of the viewport, or Instagram reported a
+            # box it then moved. Four of seven failures on 2026-08-21 were
+            # this, and each one threw away a whole post — including the slides
+            # already captured. One unreadable slide is not an unreadable post.
+            continue
         shots.append(path)
         if i == total:
             break

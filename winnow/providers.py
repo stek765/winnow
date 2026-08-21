@@ -20,6 +20,10 @@ import httpx
 
 from winnow.budget import cost_usd
 
+class Truncated(RuntimeError):
+    """The model ran out of output budget mid-answer."""
+
+
 ANTHROPIC, OPENAI, LOCAL = "anthropic", "openai", "local"
 
 KEY_ENV = {ANTHROPIC: "ANTHROPIC_API_KEY", OPENAI: "OPENAI_API_KEY"}
@@ -85,6 +89,12 @@ def _anthropic(model: str, system: str, text: str, images: list[Path],
         temperature=temperature,
         messages=[{"role": "user", "content": content}])
     reply = next((b.text for b in r.content if b.type == "text"), "[]")
+    if r.stop_reason == "max_tokens":
+        # Truncated JSON parses as "malformed", which sends the reader looking
+        # for a prompt bug. Say what actually happened. Measured 2026-08-21: a
+        # 13-slide list post ran past 4000 output tokens mid-entity.
+        raise Truncated(f"risposta troncata a {max_tokens} token: il post ha "
+                        "troppe voci. Alza max_tokens.")
     return reply, r.usage.input_tokens, r.usage.output_tokens
 
 
@@ -106,7 +116,11 @@ def openai_payload(model: str, system: str, text: str, images: list[Path],
 def read_openai_reply(data: dict) -> tuple[str, int, int]:
     """Pull out text and token counts, tolerating a server that omits usage —
     a local one often does, and a missing count is zero, not a crash."""
-    text = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+    choice = (data.get("choices") or [{}])[0]
+    if choice.get("finish_reason") == "length":
+        raise Truncated("risposta troncata: il post ha troppe voci. "
+                        "Alza max_tokens.")
+    text = choice.get("message", {}).get("content") or ""
     usage = data.get("usage") or {}
     return text, int(usage.get("prompt_tokens") or 0), int(
         usage.get("completion_tokens") or 0)
@@ -127,7 +141,7 @@ def _openai_compatible(base_url: str, key: str | None, model: str, system: str,
 
 
 def complete(provider: str, model: str, base_url: str | None, system: str,
-             text: str, images: list[Path], max_tokens: int = 4000,
+             text: str, images: list[Path], max_tokens: int = 8000,
              temperature: float = 0.0) -> tuple[str, int, int]:
     """One call, one reply, and the tokens it took. Same contract everywhere."""
     if provider == ANTHROPIC:

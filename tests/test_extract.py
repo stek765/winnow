@@ -104,3 +104,39 @@ def test_an_unknown_shape_falls_back_instead_of_failing():
 
 def test_shapes_are_the_three_we_can_actually_tell_apart():
     assert SHAPES == {"list", "news", "other"}
+
+
+# --- a truncated answer is not a malformed one -----------------------------
+
+def test_openai_truncation_is_named_not_reported_as_bad_json():
+    """Measured 2026-08-21: a 13-slide list post ran past the output budget
+    mid-entity, and the failure read "risposta non JSON dal modello" — which
+    sends you hunting for a prompt bug that isn't there."""
+    import pytest
+    from winnow.providers import Truncated, read_openai_reply
+
+    with pytest.raises(Truncated):
+        read_openai_reply({"choices": [{"finish_reason": "length",
+                                        "message": {"content": '{"shape": "list"'}}]})
+
+
+def test_a_complete_openai_reply_is_read_normally():
+    from winnow.providers import read_openai_reply
+    text, tin, tout = read_openai_reply({
+        "choices": [{"finish_reason": "stop", "message": {"content": "[]"}}],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 2}})
+    assert (text, tin, tout) == ("[]", 10, 2)
+
+
+def test_missing_usage_counts_as_zero_not_a_crash():
+    """A local server often omits usage entirely."""
+    from winnow.providers import read_openai_reply
+    assert read_openai_reply({"choices": [{"message": {"content": "[]"}}]}) == ("[]", 0, 0)
+
+
+def test_the_output_budget_leaves_room_for_a_long_list():
+    """A carousel of thirteen slides yields a dozen entities with blurbs; 4000
+    tokens was not enough and the whole post was lost."""
+    import inspect
+    from winnow.providers import complete
+    assert inspect.signature(complete).parameters["max_tokens"].default >= 8000
