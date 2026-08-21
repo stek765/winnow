@@ -105,9 +105,20 @@ def check_profile(profile_file: Path) -> Check:
     if not profile_file.exists():
         return Check("profilo", False, "assente",
                      "rilancia 'winnow init': te lo crea da compilare")
-    if "# Example profile" in profile_file.read_text(encoding="utf-8"):
+    text = profile_file.read_text(encoding="utf-8")
+    if "# Example profile" in text:
         return Check("profilo", False, f"ancora l'esempio: {profile_file}",
                      "rilancia 'winnow init': quattro domande e lo scrive lui")
+
+    # A profile that points at a file which no longer exists is worse than a
+    # missing one: it looks configured and carries nothing.
+    from winnow.recap import resolve_includes
+    _, missing = resolve_includes(text, profile_file.parent)
+    if missing:
+        return Check("profilo", False,
+                     f"punta a {missing[0]}, che non si legge",
+                     "il file e' stato spostato o cancellato: rilancia "
+                     "'winnow init' e ricollegalo")
     return Check("profilo", True, str(profile_file))
 
 
@@ -462,15 +473,59 @@ def open_in_editor(path: Path) -> None:
         print(f"     aprilo a mano: {path}")
 
 
-def ask_profile(profile_file: Path) -> bool:
-    """Four questions, one line each. Empty answers mean "not now"."""
-    template = Path(__file__).parent / "profile-template.md"
-    if not profile_file.exists():
-        profile_file.write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
-        profile_file.chmod(0o600)
+# Files people are likely to already have written about themselves. Offered,
+# never read unless asked: the people most likely to have one are the ones who
+# already keep a CLAUDE.md, and re-answering four questions to say what that
+# file already says is busywork.
+PROFILE_CANDIDATES = (
+    "~/.claude/CLAUDE.md",
+    "~/.config/AGENTS.md",
+    "~/AGENTS.md",
+    "~/notes/about-me.md",
+)
 
-    print("  E' il file che decide cosa vale per TE. Quattro domande, una riga")
-    print("  a testa. Invio vuoto per saltare e scriverlo dopo.\n")
+
+def find_candidates(profile_file: Path) -> list[Path]:
+    return [p for raw in PROFILE_CANDIDATES
+            if (p := Path(raw).expanduser()).is_file() and p != profile_file]
+
+
+def link_profile(profile_file: Path, target: Path) -> bool:
+    """Point the profile at a file the user already maintains.
+
+    A reference and not a copy: a snapshot of a file that changes every week is
+    a profile that is quietly out of date by the third week.
+    """
+    from winnow.recap import find_secrets
+
+    try:
+        body = target.read_text(encoding="utf-8")
+    except OSError as e:
+        print(f"  non riesco a leggerlo ({e.__class__.__name__}): {target}")
+        return False
+
+    leaks = find_secrets(body)
+    if leaks:
+        print(f"\n  \u26a0\ufe0f  In {target} c'e' qualcosa che sembra una credenziale:\n")
+        for hint in leaks[:5]:
+            print(f"        {hint}")
+        print("\n      Il recap finisce negli appunti, e poi in una chat.")
+        if ask("  Collegarlo comunque? [s/N] ").lower() not in ("s", "si", "y", "yes"):
+            return False
+
+    profile_file.write_text(
+        "# My profile\n\n"
+        "Punta a un file che mantengo io: winnow lo rilegge a ogni recap,\n"
+        "quindi resta aggiornato da solo.\n\n"
+        f"@{target}\n", encoding="utf-8")
+    profile_file.chmod(0o600)
+    print(f"  \u2705 collegato {target}")
+    print(f"     {profile_file} lo include, non lo copia")
+    return True
+
+
+def answer_questions(profile_file: Path) -> bool:
+    print("\n  Quattro domande, una riga a testa. Invio vuoto per saltarne una.\n")
     answers: list[tuple[str, str]] = []
     for question, heading in PROFILE_QUESTIONS:
         print(f"  {question}")
@@ -484,12 +539,57 @@ def ask_profile(profile_file: Path) -> bool:
         return False
     profile_file.write_text(render_profile(answers), encoding="utf-8")
     profile_file.chmod(0o600)
-    print(f"  ✅ scritto {profile_file}")
+    print(f"  \u2705 scritto {profile_file}")
     if ask("  Vuoi aprirlo per aggiungere altro? [s/N] ").lower() in (
             "s", "si", "y", "yes"):
         open_in_editor(profile_file)
         ask("  (premi INVIO quando hai finito) ")
     return True
+
+
+def profile_menu(candidates: list[Path]) -> list[str]:
+    """The options, in the order they are printed. Pure, so the numbering that
+    decides what happens can be checked without a terminal."""
+    return (["ask"] + [f"link:{c}" for c in candidates] + ["other", "skip"])
+
+
+def ask_profile(profile_file: Path) -> bool:
+    """Four questions — or a file you already keep."""
+    template = Path(__file__).parent / "profile-template.md"
+    if not profile_file.exists():
+        profile_file.write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
+        profile_file.chmod(0o600)
+
+    candidates = find_candidates(profile_file)
+    options = profile_menu(candidates)
+    labels = {"ask": "rispondi a quattro domande (2 minuti)",
+              "other": "collega un file che hai gia' (percorso)",
+              "skip": "salto, lo scrivo dopo"}
+
+    print("  E' il file che decide cosa vale per TE.\n")
+    for i, opt in enumerate(options, 1):
+        if opt.startswith("link:"):
+            path = Path(opt[5:])
+            kb = path.stat().st_size // 1024
+            print(f"    {i}. collega {path}  ({kb} KB)")
+        else:
+            print(f"    {i}. {labels[opt]}")
+
+    raw = ask("\n  Quale? [1] ") or "1"
+    try:
+        chosen = options[int(raw) - 1]
+    except (ValueError, IndexError):
+        chosen = "ask"
+
+    if chosen.startswith("link:"):
+        return link_profile(profile_file, Path(chosen[5:]))
+    if chosen == "other":
+        raw = ask("  Percorso del file: ")
+        return link_profile(profile_file, Path(raw).expanduser()) if raw else False
+    if chosen == "skip":
+        print(f"  saltato. Il file da riscrivere e' {profile_file}")
+        return False
+    return answer_questions(profile_file)
 
 
 STEPS = ("il modello", "browser", "accesso Instagram", "cartelle salvate",

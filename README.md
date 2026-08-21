@@ -244,6 +244,27 @@ nothing**, and the spend ledger correctly records zero.
 run. If the model turns out to be unreachable, the run **stops** and marks
 nothing as seen, so the queue is still there when you fix it.
 
+**Step 5 takes a file you already wrote, if you have one.** Anyone keeping a
+`CLAUDE.md`, an `AGENTS.md` or a notes file about themselves has already done
+the work — `init` offers it:
+
+```
+    1. rispondi a quattro domande (2 minuti)
+    2. collega ~/.claude/CLAUDE.md  (123 KB)
+    3. collega un file che hai gia' (percorso)
+    4. salto, lo scrivo dopo
+```
+
+Linking writes `@/path/to/file` into `profile.md` — a **reference, not a copy**,
+so the profile follows the file as you edit it. If that file ever goes missing,
+`winnow status` and `winnow recap` say so instead of quietly filtering with
+nothing.
+
+> ⚠️ **The bundle ends up in your clipboard and then in a chat window.** So
+> `init` and `recap` scan the profile for things shaped like credentials — API
+> keys, tokens, private keys — and stop to ask. A personal notes file is exactly
+> the kind of place where one is sitting forgotten.
+
 **Step 5 is the one that matters** — the rest is plumbing. So `init` asks
 instead of leaving you homework:
 

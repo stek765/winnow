@@ -12,6 +12,7 @@ what stops people going back to their saved posts in the first place.
 """
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from datetime import date, datetime, timedelta
@@ -35,6 +36,62 @@ def week_files(findings_dir: Path, today: date, days: int = DAYS) -> list[Path]:
 
 
 MARKER = "<!-- PROMPT -->"
+
+# A line that is just a path, `@`-prefixed — the same syntax CLAUDE.md uses for
+# its own imports, because the people most likely to already have a file worth
+# pointing at are the ones who wrote one of those.
+INCLUDE_RE = re.compile(r"^@(\S.*)$", re.MULTILINE)
+
+# Things that must never be pasted into a chat window. Deliberately narrow:
+# crying wolf on every line containing "token" would train people to ignore it.
+SECRET_RE = re.compile(
+    r"(sk-[A-Za-z0-9_\-]{16,}"
+    r"|gh[pousr]_[A-Za-z0-9]{16,}"
+    r"|AKIA[0-9A-Z]{16}"
+    r"|xox[abposr]-[A-Za-z0-9\-]{10,}"
+    r"|-----BEGIN [A-Z ]*PRIVATE KEY-----"
+    r"|[A-Za-z0-9]{8}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{12}:[A-Za-z0-9]{20,})"
+)
+
+
+def find_secrets(text: str) -> list[str]:
+    """Lines that look like they hold a credential.
+
+    The bundle ends up in a clipboard and then in somebody's chat window. A
+    profile that points at a personal notes file can carry an API key along
+    with it — and the person pointing at it will not remember it is in there.
+    """
+    out = []
+    for n, line in enumerate(text.splitlines(), 1):
+        if SECRET_RE.search(line):
+            out.append(f"riga {n}: {line.strip()[:60]}")
+    return out
+
+
+def resolve_includes(text: str, base: Path | None = None
+                     ) -> tuple[str, list[str]]:
+    """Replace `@path` lines with the file's contents.
+
+    Returns the text and the paths that could not be read. A missing include is
+    reported, never quietly dropped: the whole point of the profile is what it
+    says, and half a profile that looks whole is worse than an error.
+    """
+    missing: list[str] = []
+
+    def swap(m: re.Match) -> str:
+        raw = m.group(1).strip()
+        path = Path(raw).expanduser()
+        if not path.is_absolute() and base is not None:
+            path = base / path
+        try:
+            body = path.read_text(encoding="utf-8")
+        except OSError:
+            missing.append(str(path))
+            return (f"> ⚠️ il profilo puntava a `{path}`, che non si riesce a "
+                    f"leggere: quel pezzo di contesto MANCA.")
+        return f"<!-- da {path} -->\n{body.strip()}"
+
+    return INCLUDE_RE.sub(swap, text), missing
 
 
 def package_file(name: str) -> str:
@@ -96,6 +153,11 @@ def copy_to_clipboard(text: str) -> str | None:
     return None
 
 
+def ask_confirm(prompt: str) -> bool:
+    from winnow.setup import ask
+    return ask(prompt).lower() in ("s", "si", "y", "yes")
+
+
 def run_recap(days: int = DAYS, now: datetime | None = None) -> int:
     now = now or datetime.now()
     profile_path = paths.profile_file()
@@ -111,8 +173,25 @@ def run_recap(days: int = DAYS, now: datetime | None = None) -> int:
               "Prova 'winnow status'.")
         return 1
 
+    profile, missing = resolve_includes(
+        profile_path.read_text(encoding="utf-8"), profile_path.parent)
+    for path in missing:
+        print(f"  ⚠️  il profilo punta a {path}, che non si legge: "
+              "quel contesto non c'e' nel recap.")
+
+    leaks = find_secrets(profile)
+    if leaks:
+        print("\n  ⚠️  ATTENZIONE: nel profilo (o in un file che include) c'e'")
+        print("      qualcosa che sembra una credenziale, e il recap finisce")
+        print("      negli appunti e poi in una chat:\n")
+        for hint in leaks[:5]:
+            print(f"        {hint}")
+        print("\n      Togliela dal file, o punta a un file che non la contiene.")
+        if ask_confirm("  Continuo comunque? [s/N] ") is False:
+            return 1
+
     bundle = build_bundle(prompt_body(package_file("recap-prompt.md")),
-                          profile_path.read_text(encoding="utf-8"), files)
+                          profile, files)
     out = paths.recap_dir() / f"{now.date().isoformat()}.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(bundle, encoding="utf-8")
