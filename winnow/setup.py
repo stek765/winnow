@@ -44,6 +44,25 @@ kind = "repo"      # repo | news
 """
 
 
+def ask(prompt: str, secret: bool = False) -> str:
+    """input(), except that the end of the input is an answer and not a crash.
+
+    Piped stdin, a closed terminal, Ctrl-D: all of them used to end `winnow
+    init` in a traceback, which reads like the tool is broken when the user
+    only meant "not now".
+    """
+    try:
+        return (getpass.getpass(prompt) if secret else input(prompt)).strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return ""
+
+
+def bold(text: str) -> str:
+    """Escapes only where something can render them."""
+    return f"\033[1m{text}\033[0m" if sys.stdout.isatty() else text
+
+
 @dataclass(frozen=True)
 class Check:
     name: str
@@ -88,8 +107,7 @@ def check_profile(profile_file: Path) -> Check:
                      "rilancia 'winnow init': te lo crea da compilare")
     if "# Example profile" in profile_file.read_text(encoding="utf-8"):
         return Check("profilo", False, f"ancora l'esempio: {profile_file}",
-                     f"apri {profile_file} e riscrivilo con la tua situazione "
-                     "(obiettivi, decisioni aperte, cosa hai gia' escluso)")
+                     "rilancia 'winnow init': quattro domande e lo scrive lui")
     return Check("profilo", True, str(profile_file))
 
 
@@ -158,7 +176,7 @@ def run_login(profile: Path) -> bool:
         print("    1. rifiuta i cookie facoltativi")
         print("    2. accedi a Instagram")
         print("    3. torna qui e premi INVIO\n")
-        input("  > ")
+        ask("  > ")
         return "/accounts/login" not in page.url
 
 
@@ -200,9 +218,11 @@ def ask_api_key(env_file: Path) -> bool:
     getpass keeps it out of the terminal scrollback and out of shell history —
     the two places a pasted secret usually survives.
     """
-    print("\n  Serve una chiave API di Anthropic (console.anthropic.com).")
-    print("  Mettici anche un limite di spesa, mentre sei li'.")
-    key = getpass.getpass("  Incolla la chiave (invio per saltare): ").strip()
+    print("  Serve una chiave API di Anthropic. Ti apro la pagina:")
+    print(f"  {KEY_URL}")
+    print("  Creane una, e mettici anche un limite di spesa mentre sei li'.\n")
+    open_url(KEY_URL)
+    key = ask("  Incolla la chiave qui (invio per saltare): ", secret=True)
     if not key:
         return False
     if not key.startswith("sk-"):
@@ -223,7 +243,7 @@ def configure_folders(config_file: Path, profile: Path) -> bool:
     """
     from winnow.browser import list_saved_folders, open_session
 
-    username = input("\n  Username Instagram: ").strip().lstrip("@")
+    username = ask("\n  Username Instagram: ").lstrip("@")
     if not username:
         return False
     print("  cerco le tue cartelle salvate...")
@@ -241,11 +261,11 @@ def configure_folders(config_file: Path, profile: Path) -> bool:
     for i, (name, _) in enumerate(found, 1):
         print(f"    {i:2}. {name}")
     picked = parse_selection(
-        input("\n  Quali vuoi far leggere a winnow? (es. 1,3-4) "), len(found))
+        ask("\n  Quali vuoi far leggere a winnow? (es. 1,3-4) "), len(found))
     if not picked:
         print("  nessuna scelta: le scrivo tutte spente, accendile quando vuoi.")
     repos = parse_selection(
-        input("  Di queste, quali contengono repo o tool? (invio = nessuna) "),
+        ask("  Di queste, quali contengono repo o tool? (invio = nessuna) "),
         len(found)) if picked else set()
 
     folders = [
@@ -258,66 +278,186 @@ def configure_folders(config_file: Path, profile: Path) -> bool:
     return True
 
 
-def run_init() -> int:
-    """One command, everything it can do by itself.
+KEY_URL = "https://console.anthropic.com/settings/keys"
 
-    Order matters: the key first (cheap), then the browser, then the login —
-    because discovering the saved folders needs a session, and writing the
-    config needs the folders.
+PROFILE_QUESTIONS = [
+    ("Chi sei, in due righe?", "Who I am"),
+    ("Cosa stai cercando di ottenere nei prossimi due o tre anni?",
+     "What I'm actually after"),
+    ("Che decisioni hai aperte adesso?", "Open questions"),
+    ("Cosa hai gia' escluso, e perche'? (la riga piu' importante)",
+     "Already decided — do NOT bring these back"),
+]
+
+PROFILE_TAIL = """\
+## Interesting even if unrelated to work
+Ways to earn, tools that change how I work day to day, where the market is
+heading, things worth building.
+
+## What I never want to see
+Motivational content, courses, "get rich with X", and anything whose only
+beneficiary is the person selling it.
+"""
+
+
+def render_profile(answers: list[tuple[str, str]]) -> str:
+    """Turn the answers into the file the judge reads.
+
+    The template used to be copied verbatim with "now rewrite it" — which is
+    homework, and homework does not get done. The headings are the same, so a
+    file written here and one edited by hand are the same kind of file.
     """
-    print("winnow — configurazione\n")
-    paths.ensure_dirs()
-    print(f"  cartelle pronte sotto {paths.data_dir()}")
+    out = ["# My profile", "",
+           "Written by `winnow init`. Add to it whenever something changes —",
+           "the more honest it is, the better the weekly recap.", ""]
+    for heading, answer in answers:
+        out += [f"## {heading}", answer.strip(), ""]
+    return "\n".join(out) + "\n" + PROFILE_TAIL
 
-    if not check_api_key(paths.env_file()).ok:
-        ask_api_key(paths.env_file())
 
-    if not check_chromium().ok:
-        install_chromium()
+def open_url(url: str) -> None:
+    """Take them there instead of asking them to go there."""
+    import webbrowser
+    try:
+        webbrowser.open(url)
+    except Exception:      # noqa: BLE001 — a headless box has no browser
+        pass
 
-    profile = paths.browser_profile()
-    if not check_browser_profile(profile).ok and check_chromium().ok:
-        answer = input("\n  Accedere a Instagram adesso? [S/n] ").strip().lower()
-        if answer in ("", "s", "si", "y", "yes"):
-            run_login(profile)
 
-    profile_file = paths.profile_file()
+def open_in_editor(path: Path) -> None:
+    editor = os.environ.get("EDITOR") or os.environ.get("VISUAL")
+    try:
+        if editor:
+            subprocess.run([editor, str(path)])
+        elif sys.platform == "darwin":
+            subprocess.run(["open", "-t", str(path)])
+        else:
+            subprocess.run(["xdg-open", str(path)])
+    except Exception:      # noqa: BLE001
+        print(f"     aprilo a mano: {path}")
+
+
+def ask_profile(profile_file: Path) -> bool:
+    """Four questions, one line each. Empty answers mean "not now"."""
+    template = Path(__file__).parent / "profile-template.md"
     if not profile_file.exists():
-        template = Path(__file__).parent / "profile-template.md"
         profile_file.write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
         profile_file.chmod(0o600)
-        print(f"  creato {profile_file} da riscrivere con la tua situazione")
 
+    print("  E' il file che decide cosa vale per TE. Quattro domande, una riga")
+    print("  a testa. Invio vuoto per saltare e scriverlo dopo.\n")
+    answers: list[tuple[str, str]] = []
+    for question, heading in PROFILE_QUESTIONS:
+        print(f"  {question}")
+        answer = ask("  > ")
+        print()
+        if answer:
+            answers.append((heading, answer))
+
+    if not answers:
+        print(f"  saltato. Il file da riscrivere e' {profile_file}")
+        return False
+    profile_file.write_text(render_profile(answers), encoding="utf-8")
+    profile_file.chmod(0o600)
+    print(f"  ✅ scritto {profile_file}")
+    if ask("  Vuoi aprirlo per aggiungere altro? [s/N] ").lower() in (
+            "s", "si", "y", "yes"):
+        open_in_editor(profile_file)
+        ask("  (premi INVIO quando hai finito) ")
+    return True
+
+
+STEPS = ("chiave API", "browser", "accesso Instagram", "cartelle salvate",
+         "il tuo profilo", "raccolta giornaliera")
+
+
+def step(n: int, title: str) -> None:
+    print("\n" + bold(f"[{n}/{len(STEPS)}] {title}"))
+
+
+def run_init() -> int:
+    """Six steps, in the only order they can happen in.
+
+    Everything a first-time user has to do lives here, numbered, and each step
+    is skipped when it is already done — so re-running after a stumble picks up
+    where it stopped instead of starting over. The order is forced by the
+    dependencies: reading the saved folders needs a session, and writing the
+    config needs the folders.
+    """
+    print("winnow — sei passi, cinque minuti.")
+    print("Puoi interrompere quando vuoi: rilanciando 'winnow init' riprende "
+          "da dove eri.")
+    paths.ensure_dirs()
+
+    env_file, profile_file = paths.env_file(), paths.profile_file()
+    browser = paths.browser_profile()
     config_file = paths.config_file()
-    if not check_config(config_file).ok and check_browser_profile(profile).ok:
-        configure_folders(config_file, profile)
-    elif not config_file.exists():
-        config_file.write_text(CONFIG_TEMPLATE, encoding="utf-8")
-        config_file.chmod(0o600)
-        print(f"  creato {config_file} da compilare")
+
+    step(1, STEPS[0])
+    if check_api_key(env_file).ok:
+        print("  ✅ gia' a posto")
+    else:
+        ask_api_key(env_file)
+
+    step(2, STEPS[1])
+    if check_chromium().ok:
+        print("  ✅ Chromium pronto")
+    else:
+        install_chromium()
+
+    step(3, STEPS[2])
+    if check_browser_profile(browser).ok:
+        print("  ✅ sessione salvata")
+    elif check_chromium().ok:
+        print("  Apro una finestra: accedi a Instagram a mano, winnow non")
+        print("  digita mai la tua password.")
+        if ask("  Procedo? [S/n] ").lower() in ("", "s", "si", "y", "yes"):
+            run_login(browser)
+
+    step(4, STEPS[3])
+    if check_config(config_file).ok:
+        print(f"  ✅ {config_file}")
+    elif check_browser_profile(browser).ok:
+        configure_folders(config_file, browser)
+    else:
+        if not config_file.exists():
+            config_file.write_text(CONFIG_TEMPLATE, encoding="utf-8")
+            config_file.chmod(0o600)
+        print("  serve prima l'accesso (passo 3): le cartelle le legge dal tuo "
+              "account.")
+
+    step(5, STEPS[4])
+    if check_profile(profile_file).ok:
+        print(f"  ✅ {profile_file}")
+    else:
+        ask_profile(profile_file)
+
+    step(6, STEPS[5])
+    offer_schedule()
 
     checks = [
-        check_config(config_file),
-        check_api_key(paths.env_file()),
+        check_api_key(env_file),
         check_chromium(),
-        check_browser_profile(profile),
+        check_browser_profile(browser),
+        check_config(config_file),
         check_profile(profile_file),
     ]
-
     print("\n" + "-" * 58)
     for c in checks:
         print(f"  {'✅' if c.ok else '❌'} {c.name:20} {c.detail}")
-    missing = [c for c in checks if not c.ok]
-    if not missing:
-        offer_schedule()
-        print("\n  Tutto pronto. Prova con:  winnow collect\n")
-        return 0
 
-    print("\n  Manca ancora:\n")
-    for c in missing:
-        print(f"    • {c.name}: {c.todo or c.detail}")
-    print("\n  Poi rilancia 'winnow init' per ricontrollare.\n")
-    return 1
+    missing = [c for c in checks if not c.ok]
+    if missing:
+        print("\n  Manca ancora:\n")
+        for c in missing:
+            print(f"    • {c.name}: {c.todo or c.detail}")
+        print("\n  Rilancia 'winnow init' e riprende da li'.\n")
+        return 1
+
+    print("\n  Tutto pronto. Il primo giro, con l'arretrato che hai salvato:\n")
+    print("      winnow collect --posts 20\n")
+    print("  Poi ogni notte da solo, e a fine settimana:  winnow recap\n")
+    return 0
 
 
 def offer_schedule() -> None:
@@ -337,7 +477,7 @@ def offer_schedule() -> None:
         return
 
     print(f"\n  winnow puo' raccogliere da solo una volta al giorno ({which}).")
-    answer = input(f"  Programmarla alle {DEFAULT_TIME}? [S/n, oppure HH:MM] ").strip()
+    answer = ask(f"  Programmarla alle {DEFAULT_TIME}? [S/n, oppure HH:MM] ")
     if answer.lower() in ("n", "no"):
         print("  ok. Quando vuoi: winnow schedule --at HH:MM")
         return

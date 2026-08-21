@@ -138,3 +138,38 @@ import pytest
 def test_parse_selection(text, expected):
     from winnow.setup import parse_selection
     assert parse_selection(text, 6) == expected
+
+
+# --- the profile is written from answers, not left as homework -------------
+
+def test_render_profile_keeps_the_headings_the_judge_reads():
+    from winnow.setup import PROFILE_QUESTIONS, render_profile
+    text = render_profile([("Who I am", "firmware dev"),
+                           ("Open questions", "thesis abroad or not")])
+    assert "## Who I am\nfirmware dev\n" in text
+    assert "## Open questions\nthesis abroad or not\n" in text
+    # the heading that follows must not be glued to the last answer
+    assert "\n\n## Interesting even if unrelated to work" in text
+    assert "## What I never want to see" in text
+    # every question maps onto a heading that exists in the template
+    from pathlib import Path
+    template = (Path(__file__).resolve().parents[1] / "winnow"
+                / "profile-template.md").read_text(encoding="utf-8")
+    for _, heading in PROFILE_QUESTIONS:
+        assert f"## {heading}" in template
+
+
+def test_a_written_profile_no_longer_counts_as_the_example(tmp_path):
+    """check_profile keys off the template's title: if render_profile ever
+    emitted it, init would loop forever asking the same four questions."""
+    from winnow.setup import check_profile, render_profile
+    f = tmp_path / "profile.md"
+    f.write_text(render_profile([("Who I am", "x")]), encoding="utf-8")
+    assert check_profile(f).ok
+
+
+def test_ask_survives_the_end_of_input(monkeypatch):
+    """Ctrl-D or a closed pipe means "not now", not a traceback."""
+    import winnow.setup as setup
+    monkeypatch.setattr("builtins.input", lambda *_: (_ for _ in ()).throw(EOFError))
+    assert setup.ask("domanda? ") == ""

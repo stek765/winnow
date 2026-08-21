@@ -55,8 +55,8 @@ pipx install git+https://github.com/stek765/winnow
 winnow init
 ```
 
-That is the whole setup — one command asks for what it can't guess and does
-everything else itself. → [**What `winnow init` does**](#what-winnow-init-does)
+One command, six steps, about five minutes. It opens the pages you need, asks
+you four questions, and does the rest itself. → [**the six steps**](#info)
 
 ## Commands
 
@@ -206,40 +206,38 @@ source. Saved posts never leave the machine except as slides sent to the
 extraction model. Override the two roots with `XDG_CONFIG_HOME` /
 `XDG_DATA_HOME`, or `WINNOW_CONFIG_DIR` / `WINNOW_DATA_DIR`.
 
-## What `winnow init` does
 
-It asks for the API key and writes it with the right permissions, downloads the
-browser, opens a window for you to sign in, **reads your saved folders off your
-account** and asks which ones to watch, drops a starter profile in
-`~/.config/winnow/profile.md`, and installs the daily run. Rerun it any time: it
-reports where you stand instead of starting over — including telling you off
-while the profile is still the example.
+---
 
-```console
-$ winnow init
+<br>
 
-  Serve una chiave API di Anthropic (console.anthropic.com).
-  Incolla la chiave (invio per saltare): ······
-  ✅ scritta in ~/.config/winnow/env (600)
+## Info
 
-  Accedere a Instagram adesso? [S/n]
-  cerco le tue cartelle salvate...
+`winnow init` is six numbered steps, in the only order they can happen in. Stop
+whenever you like — re-running picks up where you left off.
 
-  Cartelle salvate trovate:
+| | | |
+|---|---|---|
+| 1 | chiave API | opens console.anthropic.com, you paste the key back |
+| 2 | browser | downloads Chromium, once |
+| 3 | accesso Instagram | opens a window, you sign in by hand |
+| 4 | cartelle salvate | reads them off your account, you pick which ones |
+| 5 | **il tuo profilo** | four questions, one line each |
+| 6 | raccolta giornaliera | launchd / systemd timer / cron |
 
-     1. github
-     2. ai
-     3. gym
+**Step 5 is the one that matters** — the rest is plumbing. So `init` asks
+instead of leaving you homework:
 
-  Quali vuoi far leggere a winnow? (es. 1,3-4) 1,2
-  Di queste, quali contengono repo o tool? (invio = nessuna) 1
-  ✅ 2 cartelle attive in ~/.config/winnow/config.toml
-
-  creato ~/.config/winnow/profile.md da riscrivere con la tua situazione
-
-  Programmarla alle 13:00? [S/n, oppure HH:MM]
-  ✅ programmato ogni giorno alle 13:00 (launchd)
 ```
+  Chi sei, in due righe?
+  Cosa stai cercando di ottenere nei prossimi due o tre anni?
+  Che decisioni hai aperte adesso?
+  Cosa hai gia' escluso, e perche'?   ← la piu' importante
+```
+
+An empty line skips a question. But a vague profile is a vague filter, and that
+last question is what turns *"looks interesting"* into *"you ruled that out in
+August"*.
 
 Three things stay yours, because no code can do them: **creating the API key**
 (set a spend limit while you're there), **signing in** — winnow never types your

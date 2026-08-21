@@ -288,7 +288,8 @@ def run_schedule(at: str | None, off: bool, assume_yes: bool = False) -> int:
                  "cron": Path("crontab")}.get(which, Path("-"))
         print(f"  winnow verra' eseguito ogni giorno alle {hour:02d}:{minute:02d}.")
         print(f"  Scrivo in {where} ({which}).")
-        if input("  Procedo? [S/n] ").strip().lower() not in ("", "s", "si", "y", "yes"):
+        from winnow.setup import ask
+        if ask("  Procedo? [S/n] ").lower() not in ("", "s", "si", "y", "yes"):
             print("  annullato.")
             return 1
     return install(hour, minute, which)

@@ -245,6 +245,14 @@ def main(argv: list[str] | None = None) -> int:
         args.state_dir = paths.state_dir()
     if args.findings_dir is None:
         args.findings_dir = paths.findings_dir()
+    try:
+        return _dispatch(args)
+    except KeyboardInterrupt:
+        print("\ninterrotto.", file=sys.stderr)
+        return 130
+
+
+def _dispatch(args) -> int:
     return {
         "status": _cmd_status,
         "reset-halt": _cmd_reset_halt,
