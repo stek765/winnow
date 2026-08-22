@@ -146,7 +146,7 @@ def test_search_repo_rejects_a_famous_repo_whose_name_does_not_match():
         ]})
     v = search_repo(_client(handler), "AI Job Search")
     assert v.checked is False, "rifiutato, non dichiarato assente"
-    assert "career-ops" in v.note, "e va detto cosa e' stato scartato"
+    assert "santifer/career-ops" in v.candidates, "e va detto cosa e' stato scartato"
 
 
 def test_search_repo_flags_homonyms():

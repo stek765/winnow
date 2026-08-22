@@ -24,6 +24,10 @@ class Verification:
     description: str | None = None
     url: str | None = None
     note: str = ""
+    # Other things at the source that answer to the same name. Structured and
+    # not buried in `note`, because "three different projects are called
+    # Numbat" is an uncertainty a reader must be handed, not prose to parse.
+    candidates: tuple[str, ...] = ()
 
 
 def normalize_repo_name(text: str) -> str | None:
@@ -106,7 +110,8 @@ def _model_matches(model_id: str, wanted: str) -> bool:
     return wanted in (_slug(model_id), _slug(bare))
 
 
-def _from_item(item: dict, note: str) -> Verification:
+def _from_item(item: dict, note: str,
+               candidates: tuple[str, ...] = ()) -> Verification:
     return Verification(
         checked=True,
         exists=True,
@@ -117,6 +122,7 @@ def _from_item(item: dict, note: str) -> Verification:
         description=item.get("description"),
         url=item.get("html_url"),
         note=note,
+        candidates=candidates,
     )
 
 
@@ -169,20 +175,20 @@ def search_repo(http: httpx.Client, name: str) -> Verification:
         return Verification(
             checked=False,
             note=f"search finds no repository called {name!r} (it may have "
-                 "been renamed, or may not be a repository)"
-                 + (f" | near misses discarded: {near}" if near else ""),
+                 "been renamed, or may not be a repository)",
+            candidates=tuple(i.get("full_name", "?") for i in items[:4]),
         )
 
     top = exact[0]
     note = f"exact name match for {name!r}"
-    if len(exact) > 1:
-        rivals = ", ".join(
-            f"{i.get('full_name')} (⭐{i.get('stargazers_count')}, "
-            f"{(i.get('pushed_at') or '')[:10]})"
-            for i in exact[1:3]
-        )
-        note += f" | ⚠️ same name: {rivals}"
-    return _from_item(top, note)
+    # Stars *and* date: on 2026-08-21 the discarded rival for 'OpenSEO' was
+    # last touched in 2016, which is the fact that tells you it is a homonym.
+    others = tuple(
+        f"{i.get('full_name')} ({i.get('stargazers_count')}★, "
+        f"{(i.get('pushed_at') or '?')[:7]})" for i in exact[1:4])
+    if others:
+        note += f" | ⚠️ same name: {', '.join(others)}"
+    return _from_item(top, note, candidates=others)
 
 
 def resolve_repo(http: httpx.Client, name: str) -> Verification:
@@ -239,13 +245,14 @@ def verify_model(http: httpx.Client, name: str) -> Verification:
         return Verification(
             checked=False,
             note=f"no model on HuggingFace is called exactly {name!r} "
-                 "(proprietary, or a different name)"
-                 + (f" | near misses discarded: {near}" if near else ""),
+                 "(proprietary, or a different name)",
+            candidates=tuple(h.get("modelId", "?") for h in hits[:4]),
         )
 
     top = exact[0]
     downloads = top.get("downloads") or 0
-    others = ", ".join(h.get("modelId", "?") for h in exact[1:3])
+    rivals = tuple(h.get("modelId", "?") for h in exact[1:4])
+    others = ", ".join(rivals)
     note = f"{downloads} downloads"
     if downloads < 1000:
         note += " — marginal, possibly not the canonical model"
@@ -259,6 +266,7 @@ def verify_model(http: httpx.Client, name: str) -> Verification:
         description=top.get("modelId"),
         url=f"{HF_API}/{top.get('modelId')}",
         note=note,
+        candidates=rivals,
     )
 
 

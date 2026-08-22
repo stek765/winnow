@@ -14,6 +14,7 @@ import httpx
 from winnow.browser import capture_post, list_shortcodes
 from winnow.budget import check_brake, record_spend
 from winnow.config import Config, active_folders
+from winnow.describe import describe
 from winnow.extract import Entity, PostExtraction, extract_post
 from winnow.state import filter_new, load_seen, mark_seen
 from winnow.verify import (
@@ -148,6 +149,7 @@ def write_findings(
     verifications: dict[tuple[str, str], Verification],
     spend_usd: float,
     failed: list[dict] | None = None,
+    today: str = "",
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -161,14 +163,12 @@ def write_findings(
                 "caption": ex.caption,
                 "url": f"{BASE_POST_URL}{ex.shortcode}/",
                 "entities": [
-                    {
-                        **asdict(e),
-                        "verification": asdict(
-                            verifications.get(
-                                (ex.shortcode, e.name), Verification(checked=False)
-                            )
-                        ),
-                    }
+                    describe(
+                        asdict(e),
+                        asdict(verifications.get((ex.shortcode, e.name),
+                                                 Verification(checked=False))),
+                        today,
+                    )
                     for e in ex.entities
                 ],
             }
@@ -259,7 +259,8 @@ def collect(
                 # Do not mark seen, do not carry on: the queue stays intact
                 # and the run resumes here once the problem is fixed.
                 write_findings(findings_path(findings_dir, now.date()),
-                               extractions, verifications, spend, failed)
+                               extractions, verifications, spend, failed,
+                               today=now.date().isoformat())
                 raise Unusable(str(exc)[:300]) from exc
             failed.append({"shortcode": code, "folder": folder_name,
                            "error": f"{type(exc).__name__}: {exc}"[:300]})
@@ -269,7 +270,8 @@ def collect(
             mark_seen(seen_path, [code], folder_name, now.date().isoformat())
 
     out_path = findings_path(findings_dir, now.date())
-    write_findings(out_path, extractions, verifications, spend, failed)
+    write_findings(out_path, extractions, verifications, spend, failed,
+                   today=now.date().isoformat())
     say("written", path=str(out_path),
         entities=sum(len(e.entities) for e in extractions),
         verified=sum(1 for v in verifications.values() if v.checked and v.exists),

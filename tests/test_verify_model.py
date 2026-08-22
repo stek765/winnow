@@ -59,7 +59,9 @@ def test_the_discarded_near_misses_are_named_so_the_judge_can_see_them():
             {"modelId": "someone/Totally-Unrelated", "downloads": 10, "likes": 1},
         ])
     v = verify_model(_client(handler), "Codex")
-    assert "someone/Totally-Unrelated" in v.note
+    # In `candidates` and not buried in the prose: the reader has to be handed
+    # what was thrown away, not made to parse a sentence for it.
+    assert "someone/Totally-Unrelated" in v.candidates
 
 
 def test_punctuation_and_case_do_not_stop_a_real_match():
