@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="it"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Come si usa winnow</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Geist',system-ui,sans-serif;background:#2d3142;
+color:#f5f5f5;min-height:100vh;display:flex;align-items:center;
+justify-content:center;padding:3rem 2rem}
+svg{width:100%;max-width:1120px;display:block}
+</style></head><body><svg viewBox="0 0 1120 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="winnow-flow-dark-title winnow-flow-dark-desc">
+      <title id="winnow-flow-dark-title">Come si usa winnow</title>
+      <desc id="winnow-flow-dark-desc">Once: winnow init. Every day, on its own: winnow collect writes one findings file. Every week, two commands from you: winnow recap puts the week on your clipboard, you paste it into a model, and winnow render turns the answer into a page that opens itself.</desc>
+      <defs>
+        <marker id="arrM" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#bfc0c0"/></marker>
+        <marker id="arrA" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#f08a59"/></marker>
+      </defs>
+      <rect width="100%" height="100%" fill="#2d3142"/>
+      <text x="40" y="48" fill="#8e98ac" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">WINNOW · IL GIRO</text>
+      <text x="40" y="80" fill="#f5f5f5" font-size="24" font-family="'Instrument Serif', serif">Una volta, poi da solo</text>
+      <text x="140" y="112" fill="#8e98ac" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">UNA VOLTA</text>
+      <line x1="76" y1="128" x2="204" y2="128" stroke="rgba(245,245,245,0.14)" stroke-width="1"/>
+      <text x="392" y="112" fill="#8e98ac" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">OGNI GIORNO · WINNOW, DA SOLO</text>
+      <line x1="244" y1="128" x2="540" y2="128" stroke="rgba(245,245,245,0.14)" stroke-width="1"/>
+      <text x="812" y="112" fill="#8e98ac" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">OGNI SETTIMANA · TU, DUE COMANDI</text>
+      <line x1="580" y1="128" x2="1044" y2="128" stroke="rgba(245,245,245,0.14)" stroke-width="1"/>
+      <line x1="204" y1="212" x2="240" y2="212" stroke="#bfc0c0" stroke-width="1.2" marker-end="url(#arrM)"/>
+      <line x1="372" y1="212" x2="408" y2="212" stroke="#bfc0c0" stroke-width="1.2" marker-end="url(#arrM)"/>
+      <line x1="540" y1="212" x2="576" y2="212" stroke="#bfc0c0" stroke-width="1.2" marker-end="url(#arrM)"/>
+      <line x1="708" y1="212" x2="744" y2="212" stroke="#f08a59" stroke-width="1.2" marker-end="url(#arrA)"/>
+      <line x1="876" y1="212" x2="912" y2="212" stroke="#f08a59" stroke-width="1.2" marker-end="url(#arrA)"/>
+      <rect x="76" y="168" width="128" height="88" rx="6" fill="#2d3142"/>
+      <rect x="76" y="168" width="128" height="88" rx="6" fill="rgba(245,245,245,0.05)" stroke="#f5f5f5" stroke-width="1"/>
+      <rect x="84" y="176" width="26" height="12" rx="2" fill="transparent" stroke="rgba(191,192,192,0.40)" stroke-width="0.8"/>
+      <text x="97" y="185" fill="#8e98ac" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CMD</text>
+      <text x="140" y="220" fill="#f5f5f5" font-size="12" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">winnow init</text>
+      <text x="140" y="240" fill="#bfc0c0" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">una volta, 5 min</text>
+      <rect x="244" y="168" width="128" height="88" rx="6" fill="#2d3142"/>
+      <rect x="244" y="168" width="128" height="88" rx="6" fill="rgba(245,245,245,0.05)" stroke="#bfc0c0" stroke-width="1" stroke-dasharray="5,4"/>
+      <rect x="252" y="176" width="32" height="12" rx="2" fill="transparent" stroke="rgba(191,192,192,0.40)" stroke-width="0.8"/>
+      <text x="268" y="185" fill="#8e98ac" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">AUTO</text>
+      <text x="308" y="220" fill="#f5f5f5" font-size="12" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">winnow collect</text>
+      <text x="308" y="240" fill="#bfc0c0" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">13:00, launchd</text>
+      <rect x="412" y="168" width="128" height="88" rx="6" fill="#2d3142"/>
+      <rect x="412" y="168" width="128" height="88" rx="6" fill="rgba(0,0,0,0.22)" stroke="#bfc0c0" stroke-width="1"/>
+      <rect x="420" y="176" width="32" height="12" rx="2" fill="transparent" stroke="rgba(191,192,192,0.40)" stroke-width="0.8"/>
+      <text x="436" y="185" fill="#8e98ac" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">FILE</text>
+      <text x="476" y="220" fill="#f5f5f5" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">findings/</text>
+      <text x="476" y="240" fill="#bfc0c0" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">un file al giorno</text>
+      <rect x="580" y="168" width="128" height="88" rx="6" fill="#2d3142"/>
+      <rect x="580" y="168" width="128" height="88" rx="6" fill="rgba(245,245,245,0.05)" stroke="#f5f5f5" stroke-width="1"/>
+      <rect x="588" y="176" width="26" height="12" rx="2" fill="transparent" stroke="rgba(191,192,192,0.40)" stroke-width="0.8"/>
+      <text x="601" y="185" fill="#8e98ac" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CMD</text>
+      <text x="644" y="220" fill="#f5f5f5" font-size="12" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">winnow recap</text>
+      <text x="644" y="240" fill="#bfc0c0" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">tutto negli appunti</text>
+      <rect x="748" y="168" width="128" height="88" rx="6" fill="#2d3142"/>
+      <rect x="748" y="168" width="128" height="88" rx="6" fill="rgba(240,138,89,0.12)" stroke="#f08a59" stroke-width="1"/>
+      <rect x="756" y="176" width="20" height="12" rx="2" fill="transparent" stroke="rgba(240,138,89,0.50)" stroke-width="0.8"/>
+      <text x="766" y="185" fill="#f08a59" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">TU</text>
+      <text x="812" y="220" fill="#f5f5f5" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">un modello</text>
+      <text x="812" y="240" fill="#bfc0c0" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">incolli e mandi</text>
+      <rect x="916" y="168" width="128" height="88" rx="6" fill="#2d3142"/>
+      <rect x="916" y="168" width="128" height="88" rx="6" fill="rgba(240,138,89,0.12)" stroke="#f08a59" stroke-width="1"/>
+      <rect x="924" y="176" width="26" height="12" rx="2" fill="transparent" stroke="rgba(240,138,89,0.50)" stroke-width="0.8"/>
+      <text x="937" y="185" fill="#f08a59" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CMD</text>
+      <text x="980" y="220" fill="#f5f5f5" font-size="12" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">winnow render</text>
+      <text x="980" y="240" fill="#bfc0c0" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">si apre da sola</text>
+      <line x1="40" y1="308" x2="1080" y2="308" stroke="rgba(245,245,245,0.14)" stroke-width="0.8"/>
+      <text x="40" y="328" fill="#bfc0c0" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.18em">LEGENDA</text>
+      <rect x="40" y="344" width="14" height="10" rx="2" fill="rgba(245,245,245,0.05)" stroke="#f5f5f5" stroke-width="1"/>
+      <text x="60" y="352" fill="#bfc0c0" font-size="8.5" font-family="'Geist', sans-serif">un comando che dai tu</text>
+      <rect x="232" y="344" width="14" height="10" rx="2" fill="rgba(245,245,245,0.05)" stroke="#bfc0c0" stroke-width="1" stroke-dasharray="3,2"/>
+      <text x="252" y="352" fill="#bfc0c0" font-size="8.5" font-family="'Geist', sans-serif">gira da solo, non lo scrivi</text>
+      <rect x="500" y="344" width="14" height="10" rx="2" fill="rgba(0,0,0,0.22)" stroke="#bfc0c0" stroke-width="1"/>
+      <text x="520" y="352" fill="#bfc0c0" font-size="8.5" font-family="'Geist', sans-serif">quello che resta su disco</text>
+      <rect x="720" y="344" width="14" height="10" rx="2" fill="rgba(240,138,89,0.12)" stroke="#f08a59" stroke-width="1"/>
+      <text x="740" y="352" fill="#bfc0c0" font-size="8.5" font-family="'Geist', sans-serif">dove il lavoro diventa tuo</text>
+    </svg></body></html>

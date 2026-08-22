@@ -29,6 +29,13 @@
 
 <p align="center"><img src="assets/winnow-demo.gif" alt="Six drawn scenes: a post is saved on Instagram, the saved folder fills up, winnow opens every slide of the carousel, pulls out the names, checks each one at the source with real star counts, and your profile decides which ones survive into the weekly recap." width="840"></p>
 
+## The loop
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/diagrams/winnow-flow-dark.png">
+  <img src="assets/diagrams/winnow-flow.png" alt="Once: winnow init, five minutes. Every day, on its own via launchd: winnow collect writes one findings file. Every week, two commands from you: winnow recap puts everything on your clipboard, you paste it into a model, and winnow render turns the answer into a page that opens itself.">
+</picture>
+
 ## Overview Pipeline:
 
 <picture>
