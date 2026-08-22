@@ -49,10 +49,20 @@ def test_bundle_keeps_every_entity(tmp_path):
     assert '"exists": false' in out
 
 
-def test_bundle_order_is_prompt_profile_findings(tmp_path):
+def test_the_profile_comes_after_the_facts_and_the_mentality(tmp_path):
+    """The week a profile drove the judgement, fifteen saved posts were
+    dismissed by quoting the reader's own plan back at them. Contents first,
+    then how to read them, then who is reading — and the ask last, because in a
+    long context the last thing read is the thing that gets done."""
     f = _findings(tmp_path, "2026-08-21")
-    out = build_bundle("THE-PROMPT", "THE-PROFILE", [f])
-    assert out.index("THE-PROMPT") < out.index("THE-PROFILE") < out.index("thing0")
+    out = build_bundle("THE-ASK", "THE-PROFILE", [f], "THE-MENTALITY")
+    assert (out.index("thing0") < out.index("THE-MENTALITY")
+            < out.index("THE-PROFILE") < out.index("THE-ASK"))
+
+
+def test_the_profile_is_labelled_as_a_tint_not_a_filter(tmp_path):
+    out = build_bundle("a", "me", [_findings(tmp_path, "2026-08-21")], "m")
+    assert "tints it, it does not drive it" in out
 
 
 def test_bundle_names_each_day(tmp_path):
@@ -78,7 +88,7 @@ def test_prompt_body_starts_at_the_marker():
     assert "The judge is not code" in full
     assert "The judge is not code" not in body
     assert body.startswith(">")
-    assert "Hook" in body and "Opening" in body
+    assert "language my profile is written in" in body
 
 
 def test_prompt_body_falls_back_to_the_whole_file():
@@ -180,7 +190,48 @@ def test_the_bundle_carries_its_own_instructions():
     the prompt: otherwise the message is telling the user not to write
     something nobody wrote."""
     from winnow.recap import build_bundle
-    out = build_bundle("APPLY THE TWO-LANE RULE", "PROFILE", [])
-    assert "## 1. What to do" in out
-    assert out.index("## 1. What to do") < out.index("APPLY THE TWO-LANE RULE")
-    assert out.index("APPLY THE TWO-LANE RULE") < out.index("## 2. My profile")
+    out = build_bundle("THE ASK", "PROFILE", [], "MENTALITY")
+    assert "## 4. What to produce" in out
+    assert out.index("## 4. What to produce") < out.index("THE ASK")
+
+
+# --- the mentality ships and is the same for everyone ---------------------
+
+def test_the_mentality_travels_with_the_package():
+    """It has to work from an installed copy, with no repo checkout in sight —
+    and it is the block that makes winnow useful to someone who has not written
+    a profile yet."""
+    from winnow.recap import package_file
+    text = package_file("mentality.md")
+    assert "A saved post is a question, not a vote" in text
+    assert "applies to advice, never to curiosity" in text
+
+
+def test_the_mentality_says_nothing_about_one_particular_person():
+    """It is block 2 precisely because it is identical for every user. A name,
+    a city or a plan leaking in here would make it somebody's profile."""
+    from winnow.recap import package_file
+    text = package_file("mentality.md").lower()
+    for personal in ("stefano", "eindhoven", "cra", "red directive", "firmware",
+                     "vwce", "thesis"):
+        assert personal not in text, personal
+
+
+def test_the_mentality_carries_the_lessons_that_were_paid_for():
+    from winnow.recap import package_file
+    text = package_file("mentality.md")
+    assert "watermark" in text                       # OmniGet, 29 posts
+    assert "checked: false" in text                  # Claude, not absent
+    assert "trusted" in text                         # caption vs source
+    assert "may belong to another project" in text or "discarded" in text
+
+
+def test_the_blocks_stay_the_top_level_of_the_bundle():
+    """The mentality and the profile are whole documents with their own `##`
+    headings. Pasted in raw they sit at the same rank as the four blocks and
+    the reader loses the structure entirely."""
+    from winnow.recap import build_bundle
+    out = build_bundle("ask", "# My profile\n\n## Who I am\nx",
+                       [], "# Mentality\n\n## A rule\ny")
+    top = [l for l in out.splitlines() if l.startswith("## ")]
+    assert all(l[3].isdigit() for l in top), top

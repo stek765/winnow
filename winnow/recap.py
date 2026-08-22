@@ -111,34 +111,47 @@ def prompt_body(text: str) -> str:
     return (after or text).strip()
 
 
-def build_bundle(prompt: str, profile: str, files: list[Path]) -> str:
-    """Prompt, profile, findings — in the order a model should read them."""
+def build_bundle(prompt: str, profile: str, files: list[Path],
+                 mentality: str = "") -> str:
+    """The four blocks, in the order the reader needs them.
+
+    Contents first, then how to read them, then who is reading — because the
+    profile must tint the judgement, not drive it. The week that a profile
+    drove the judgement, fifteen saved posts were dismissed by quoting the
+    reader's own plan back at them, which answered a question nobody asked.
+
+    The ask comes last on purpose: it is what gets acted on, and in a long
+    context the last thing read is the thing that gets done.
+    """
     parts = [
         "# winnow — weekly recap",
         "",
-        "Everything below is one week of collected facts plus the profile they",
-        "must be weighed against. Follow the instructions in the first section.",
+        "Below: a week of collected facts, how to read them, who is reading,",
+        "and what to produce. Work through it in that order.",
         "",
         "---",
         "",
-        "## 1. What to do",
+        f"## 1. The week ({len(files)} day{'s' if len(files) != 1 else ''})",
         "",
-        prompt.strip(),
-        "",
-        "---",
-        "",
-        "## 2. My profile",
-        "",
-        profile.strip(),
-        "",
-        "---",
-        "",
-        f"## 3. The findings ({len(files)} day{'s' if len(files) != 1 else ''})",
+        "Facts, already checked at the source. Every entity carries",
+        "`what_it_is` (with where that sentence came from) and `doubts`",
+        "(what the data itself says is shaky).",
         "",
     ]
     for f in files:
-        parts += [f"### {f.stem}", "", "```json", f.read_text(encoding="utf-8").strip(),
-                  "```", ""]
+        parts += [f"### {f.stem}", "", "```json",
+                  f.read_text(encoding="utf-8").strip(), "```", ""]
+
+    parts += ["---", "", "## 2. How to read a pile like this", "",
+              # Demoted one level: its `##` headings would otherwise sit at
+              # the same rank as the four blocks and flatten the structure.
+              (mentality or "").strip().replace("\n## ", "\n### ")
+                                       .replace("\n# ", "\n### "), "",
+              "---", "", "## 3. Who is reading — this tints it, it does not "
+              "drive it", "",
+              profile.strip().replace("\n## ", "\n### ")
+                             .replace("\n# ", "\n### "), "",
+              "---", "", "## 4. What to produce", "", prompt.strip(), ""]
     return "\n".join(parts)
 
 
@@ -193,7 +206,7 @@ def run_recap(days: int = DAYS, now: datetime | None = None,
             return 1
 
     bundle = build_bundle(prompt_body(package_file("recap-prompt.md")),
-                          profile, files)
+                          profile, files, package_file("mentality.md"))
     out = paths.recap_dir() / f"{now.date().isoformat()}.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(bundle, encoding="utf-8")
@@ -214,8 +227,7 @@ def run_recap(days: int = DAYS, now: datetime | None = None,
     else:
         print(f"\n  Copy the whole of {out} and paste it into a model.\n")
         print("  Next:  paste and send.")
-    print("         You do not write a prompt — section 1 of the file is the "
-          "prompt.")
+    print("         You do not write a prompt — the file ends with the ask.")
     if len(bundle) > 300_000:
         print(f"         ⚠️  ~{len(bundle) // 4000}k tokens: it needs a large "
               "context window.")
