@@ -31,6 +31,7 @@ them to your profile to be filtered.
   winnow status        is it alive? what did it find? what has it cost?
   winnow recap         the week + your profile on your clipboard, ready to
                        paste into a model
+  winnow render FILE   turn the model's answer into a page you click
   winnow config        change folders, model, posts per run, hour, profile
   winnow reset-halt    restart after the spend brake stopped it
 
@@ -54,8 +55,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--config", default=None, type=Path, help=argparse.SUPPRESS)
     p.add_argument(
         "command", nargs="?",
-        choices=["init", "login", "collect", "status", "recap", "config",
-                 "schedule", "reset-halt", "where"],
+        choices=["init", "login", "collect", "status", "recap", "render",
+                 "config", "schedule", "reset-halt", "where"],
         metavar="COMMAND",
     )
     p.add_argument("--version", action="version",
@@ -63,6 +64,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--posts", type=int, default=None,
                    help="how many posts this run (default: config.toml); "
                         "for clearing a backlog")
+    p.add_argument("file", nargs="?", default=None,
+                   help="for 'render': the JSON the model answered with")
     p.add_argument("--no-open", action="store_true",
                    help="do not open the recap file at the end")
     p.add_argument("--days", type=int, default=7,
@@ -84,6 +87,39 @@ def _cmd_init(args) -> int:
 def _cmd_recap(args) -> int:
     from winnow.recap import run_recap
     return run_recap(args.days, open_file=not args.no_open)
+
+
+def _cmd_render(args) -> int:
+    """`winnow render answer.json` — the judgement, as a page."""
+    import json as _json
+
+    from winnow.render import render_file
+
+    if not args.file:
+        print("usage: winnow render <file.json>", file=sys.stderr)
+        print("  save what the model answered, then render it.", file=sys.stderr)
+        return 2
+    src = Path(args.file)
+    if not src.exists():
+        print(f"{src} does not exist.", file=sys.stderr)
+        return 2
+    try:
+        out = render_file(src)
+    except _json.JSONDecodeError as e:
+        print(f"{src} is not valid JSON: {e}", file=sys.stderr)
+        print("  paste the model's answer without the surrounding text.",
+              file=sys.stderr)
+        return 2
+    except (KeyError, TypeError, AttributeError) as e:
+        print(f"{src} is JSON but not the shape winnow expects ({e}).",
+              file=sys.stderr)
+        print("  see the shape at the top of winnow/render.py", file=sys.stderr)
+        return 2
+    print(f"  → {out}")
+    if sys.stdout.isatty():
+        import webbrowser
+        webbrowser.open(f"file://{out.resolve()}")
+    return 0
 
 
 def _cmd_config(args) -> int:
@@ -272,6 +308,7 @@ def _dispatch(args) -> int:
         "reset-halt": _cmd_reset_halt,
         "collect": _cmd_collect,
         "recap": _cmd_recap,
+        "render": _cmd_render,
         "config": _cmd_config,
         "schedule": _cmd_schedule,
         "init": _cmd_init,
