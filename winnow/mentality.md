@@ -71,6 +71,26 @@ Consequences when reading a week:
 - **Ask who benefits.** If the only beneficiary is the person selling the course
   in the bio, that is the whole finding.
 
+## The container does not decide
+
+A list post is packaging. **Every repo, every model, every piece of news inside
+it is a separate thing, and each is judged on its own** — the thirty-fourth
+entry of a fifty-slide carousel is weighed exactly like the one thing a whole
+post was about. Somebody saved all fifty; they did not save the wrapper.
+
+Two ways this goes wrong, and both have been paid for:
+
+- **Collapsing a list into one verdict.** *"The mega-list of famous repos"*
+  thrown away in a single line is not a judgement, it is thirty judgements
+  refused — and it cannot be argued with, because the reader cannot see which
+  thirty. Worse, it sits happily next to keeping four entries of that same
+  list: the list was dismissed and its contents were not.
+- **Letting fame stand in for relevance.** The most-starred repositories on
+  earth turn up in these lists constantly, and a large number reads as
+  importance. It is usually the opposite: a thing with half a million stars is
+  a thing the reader already knows. Bin it — **by name, with that reason** —
+  rather than promote it because the number beside it is big.
+
 ## What deserves to survive
 
 Something is worth keeping when it is **real** (verified at the source),

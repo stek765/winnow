@@ -46,7 +46,8 @@ def test_bundle_keeps_every_entity(tmp_path):
     out = build_bundle("PROMPT", "PROFILE", [f])
     for i in range(4):
         assert f"thing{i}" in out
-    assert '"exists": false' in out
+    # Arranged, not dumped — but absence still has to be said out loud.
+    assert "the source has nothing under this name" in out
 
 
 def test_the_profile_comes_after_the_facts_and_the_mentality(tmp_path):
@@ -65,11 +66,15 @@ def test_the_profile_is_labelled_as_a_tint_not_a_filter(tmp_path):
     assert "tints it, it does not drive it" in out
 
 
-def test_bundle_names_each_day(tmp_path):
+def test_the_week_is_one_pile_not_one_heading_per_day(tmp_path):
+    """A day is how findings are *stored*, not how they are read. Split by
+    day, the same project named on Monday and on Thursday is two entries and
+    the reader does the merging by hand."""
     files = [_findings(tmp_path, d) for d in ("2026-08-20", "2026-08-21")]
     out = build_bundle("p", "me", files)
-    assert "### 2026-08-20" in out and "### 2026-08-21" in out
+    assert "### 2026-08-20" not in out and "### 2026-08-21" not in out
     assert "(2 days)" in out
+    assert out.count("**thing0**") == 1
 
 
 def test_shipped_prompt_and_template_are_installed():
@@ -235,3 +240,29 @@ def test_the_blocks_stay_the_top_level_of_the_bundle():
                        [], "# Mentality\n\n## A rule\ny")
     top = [l for l in out.splitlines() if l.startswith("## ")]
     assert all(l[3].isdigit() for l in top), top
+
+
+def test_the_prompt_bins_one_thing_per_line_and_never_one_group_per_line():
+    """The recap of 2026-08-23 threw away eighteen repos in a single line —
+    "the mega-list of eternal repos (~18 entries)" — and in the same breath
+    kept four entries of that same list as finds. The bin exists to be
+    corrected, and a bucket cannot be corrected: the reader cannot see which
+    eighteen, so cannot say "that one was wrong".
+
+    A list post is packaging. Its thirty-fourth entry is a thing somebody
+    saved, judged exactly like a thing that was the whole subject of its own
+    post."""
+    from winnow.recap import package_file, prompt_body
+    body = prompt_body(package_file("recap-prompt.md"))
+    assert "One line per thing, never one line per group" in body
+    assert "appears exactly once: either above, or here" in body
+    # The old wording licensed dropping things entirely.
+    assert "not to be exhaustive" not in body
+
+
+def test_the_mentality_says_the_container_does_not_decide():
+    """Block 2, so it holds for everyone: what a thing is worth does not
+    depend on whether it arrived alone or as entry 34 of a listicle."""
+    from winnow.recap import package_file
+    text = package_file("mentality.md")
+    assert "The container does not decide" in text

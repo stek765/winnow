@@ -81,3 +81,18 @@ def test_no_images_means_no_slide():
 
 def test_the_area_floor_is_well_above_a_banner():
     assert MIN_SLIDE_AREA > 310 * 130
+
+
+def test_parse_meta_account_handles_the_other_shape_instagram_serves():
+    """Measured on DcNOt8mkugc: a 97-entity post arrived with no account,
+    because its og:description reads '<handle> on Instagram: "..."' with no
+    likes-and-comments prefix to split on."""
+    from winnow.browser import parse_meta_account
+    meta = 'codingknowledge on Instagram: "50 GitHub Repos That Are Worth It"'
+    assert parse_meta_account(meta) == "codingknowledge"
+
+
+def test_parse_meta_account_reads_an_english_date_too():
+    from winnow.browser import parse_meta_account
+    meta = '4,922 likes, 194 comments - getintoai on August 15, 2026: "hi"'
+    assert parse_meta_account(meta) == "getintoai"

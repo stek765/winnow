@@ -2,8 +2,9 @@
 
 This module is the one place where the two halves meet, and it is careful not
 to become the judge: it gathers, it does not weigh. No entity is dropped, no
-score is computed, nothing is ranked. What comes out is the prompt, your
-profile and the week's findings, concatenated in that order.
+score is computed, nothing is ranked. What comes out is four blocks — the
+week's facts, how to read them, who is reading, and the ask — with the facts
+arranged by `digest.py` rather than dumped as the JSON they are stored in.
 
 The reason it exists at all: without it the weekly step means remembering
 three paths, knowing that "the week" is the last seven daily files, and that
@@ -20,9 +21,15 @@ import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from winnow import paths
+from winnow import digest, paths
 
 DAYS = 7
+
+# Past this, the profile stops tinting the judgement and starts driving it:
+# the model has more of your plan in front of it than of your week. Measured
+# once at 128,000 characters — a quarter of the bundle, and the recap came
+# back auditing saved posts against a plan instead of answering them.
+PROFILE_BUDGET = 15_000
 
 
 def week_files(findings_dir: Path, today: date, days: int = DAYS) -> list[Path]:
@@ -111,8 +118,20 @@ def prompt_body(text: str) -> str:
     return (after or text).strip()
 
 
+def load_days(files: list[Path]) -> list[dict]:
+    """The findings files, parsed. A corrupt day is reported, not fatal."""
+    days = []
+    for f in files:
+        try:
+            days.append(json.loads(f.read_text(encoding="utf-8")))
+        except (OSError, json.JSONDecodeError) as exc:
+            print(f"  \u26a0\ufe0f  {f.name} could not be read ({exc}): "
+                  "that day is not in the recap.")
+    return days
+
+
 def build_bundle(prompt: str, profile: str, files: list[Path],
-                 mentality: str = "") -> str:
+                 mentality: str = "", today: str = "") -> str:
     """The four blocks, in the order the reader needs them.
 
     Contents first, then how to read them, then who is reading — because the
@@ -133,14 +152,9 @@ def build_bundle(prompt: str, profile: str, files: list[Path],
         "",
         f"## 1. The week ({len(files)} day{'s' if len(files) != 1 else ''})",
         "",
-        "Facts, already checked at the source. Every entity carries",
-        "`what_it_is` (with where that sentence came from) and `doubts`",
-        "(what the data itself says is shaky).",
+        digest.render(digest.gather(load_days(files), today), len(files)),
         "",
     ]
-    for f in files:
-        parts += [f"### {f.stem}", "", "```json",
-                  f.read_text(encoding="utf-8").strip(), "```", ""]
 
     parts += ["---", "", "## 2. How to read a pile like this", "",
               # Demoted one level: its `##` headings would otherwise sit at
@@ -194,6 +208,12 @@ def run_recap(days: int = DAYS, now: datetime | None = None,
         print(f"  ⚠️  the profile points at {path}, which cannot be read: "
               "that context is not in the recap.")
 
+    if len(profile) > PROFILE_BUDGET:
+        print(f"\n  \u26a0\ufe0f  your profile is {len(profile):,} characters. The "
+              "recap only needs\n      who you are and what you are after — "
+              "a plan, a portfolio or a\n      year of notes will drown the "
+              f"week's findings.\n      {profile_path}\n")
+
     leaks = find_secrets(profile)
     if leaks:
         print("\n  ⚠️  WARNING: the profile (or a file it includes) holds")
@@ -206,7 +226,8 @@ def run_recap(days: int = DAYS, now: datetime | None = None,
             return 1
 
     bundle = build_bundle(prompt_body(package_file("recap-prompt.md")),
-                          profile, files, package_file("mentality.md"))
+                          profile, files, package_file("mentality.md"),
+                          now.date().isoformat())
     out = paths.recap_dir() / f"{now.date().isoformat()}.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(bundle, encoding="utf-8")

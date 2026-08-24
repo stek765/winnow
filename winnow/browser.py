@@ -293,15 +293,31 @@ def parse_meta_caption(content: str) -> str:
 
 
 def parse_meta_account(content: str) -> str:
-    """Pull the account handle out of og:description."""
-    i = content.find(" - ")
-    if i == -1:
+    """Pull the account handle out of og:description.
+
+    Instagram serves at least two shapes, and only one of them was handled:
+
+        '4,922 likes, 194 comments - getintoai su August 15, 2026: "..."'
+        'codingknowledge on Instagram: "50 GitHub Repos ..."'
+
+    The second one returned nothing at all — measured on post DcNOt8mkugc,
+    a 97-entity list post that arrived with no account against it. Without
+    the handle the judge cannot tell one account posting five times from
+    five accounts agreeing, which is the difference between a watermark and
+    a signal.
+    """
+    head, marker, _ = content.partition(': "')
+    if not marker and " - " not in content:
         return ""
-    rest = content[i + 3:]
-    end = rest.find(" su ")
-    if end == -1:
-        end = rest.find(": ")
-    return rest[:end].strip() if end != -1 else ""
+    # 'N likes, M comments - handle ...' — drop the counters when present.
+    if " - " in head:
+        head = head.split(" - ", 1)[1]
+    # '... su August 15, 2026' / '... on Instagram' — both are what follows
+    # the handle, in whichever language the account is served in.
+    for sep in (" su ", " on "):
+        if sep in head:
+            head = head.split(sep, 1)[0]
+    return head.strip()
 
 
 def read_meta(page) -> tuple[str, str]:

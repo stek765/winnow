@@ -604,7 +604,11 @@ def ask_profile(profile_file: Path) -> bool:
         if opt.startswith("link:"):
             path = Path(opt[5:])
             kb = path.stat().st_size // 1024
-            print(f"    {i}. link {path}  ({kb} KB)")
+            # A big file here is a trap worth naming at the moment of
+            # choosing: the profile is meant to tint the week, and a file
+            # this size ends up outweighing it.
+            big = "  ⚠ large — it will outweigh the week" if kb > 15 else ""
+            print(f"    {i}. link {path}  ({kb} KB){big}")
         else:
             print(f"    {i}. {labels[opt]}")
 

@@ -108,7 +108,25 @@ still there for when you want them directly.
 
 ### `winnow recap` puts the prompt, your profile and the week's findings on the clipboard. Paste them into a model and ask.
 
+<details>
+<summary><b>What is actually in that clipboard</b> — four blocks, in this order</summary>
+
 <br>
+
+| | | |
+|---|---|---|
+| **1. The week** | the facts | Every thing named in the posts you saved, merged into one entry each — what it is and who said so, what GitHub or Hugging Face answered, which posts named it, and what is shaky about it. Grouped by kind: code you can run, models, products, list entries, news, claims. |
+| **2. How to read a pile like this** | `winnow/mentality.md` | The same file for everyone. A saved post is a question, not a vote; the caption is marketing and the source is a fact; a name repeated by one account is their letterhead. |
+| **3. Who is reading** | your `profile.md` | Tints it. Does not drive it — which is why it comes *after* the facts and the mentality, and why a huge file here is a warning. |
+| **4. What to produce** | `winnow/recap-prompt.md` | The ask, last, because in a long context the last thing read is the thing that gets done. |
+
+Nothing else from the repo goes in. The daily `findings/*.json` files are the
+source of block 1, but they are rearranged before they are handed over: dumped
+raw, the same project appeared once per day and the facts were four times
+larger than they needed to be.
+
+</details>
+
 <br>
 
 ## What happens inside a run

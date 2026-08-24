@@ -217,3 +217,17 @@ kind = "repo"
     assert cfg.limits.posts_per_run == 42, "il limite messo a mano sopravvive"
     assert cfg.provider == "local" and cfg.base_url.endswith("/v1")
     assert cfg.model == "qwen2.5vl"
+
+
+def test_a_large_file_to_link_is_flagged_at_the_moment_of_choosing(
+        tmp_path, capsys, monkeypatch):
+    """A 128 KB profile made up a quarter of the bundle and the recap came
+    back auditing saved posts against a plan. Saying so afterwards is too
+    late — the choice is made here."""
+    from winnow import setup
+    big = tmp_path / "huge.md"
+    big.write_text("x" * 200_000, encoding="utf-8")
+    monkeypatch.setattr(setup, "PROFILE_CANDIDATES", (str(big),))
+    monkeypatch.setattr(setup, "ask", lambda *_a, **_k: "1")
+    setup.ask_profile(tmp_path / "profile.md")
+    assert "large" in capsys.readouterr().out

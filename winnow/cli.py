@@ -96,8 +96,9 @@ def _cmd_render(args) -> int:
     from winnow.render import render_file
 
     if not args.file:
-        print("usage: winnow render <file.json>", file=sys.stderr)
-        print("  save what the model answered, then render it.", file=sys.stderr)
+        print("usage: winnow render <file>", file=sys.stderr)
+        print("  save the model's whole answer to a file, then render it.",
+              file=sys.stderr)
         return 2
     src = Path(args.file)
     if not src.exists():
@@ -107,7 +108,7 @@ def _cmd_render(args) -> int:
         out = render_file(src)
     except _json.JSONDecodeError as e:
         print(f"{src} is not valid JSON: {e}", file=sys.stderr)
-        print("  paste the model's answer without the surrounding text.",
+        print("  no JSON block found: ask the model for the ```json fence.",
               file=sys.stderr)
         return 2
     except (KeyError, TypeError, AttributeError) as e:
