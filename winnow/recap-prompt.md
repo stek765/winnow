@@ -115,6 +115,24 @@ block 4.
 > Invent a new one when none of these is honest — a forced fit is worse than a
 > new word. Do not invent one to avoid saying `FUORI BERSAGLIO`.
 >
+> ⚠️ **The reason belongs to the thing, not to the group. A reason that fits
+> twenty things is not a reason** — it is the group's name written a second
+> time. `"why": "famoso"` under twenty entries, or one sentence at the top of
+> a list of bare names, are the same refusal wearing different clothes: I
+> cannot argue with either, and arguing with it is the only reason this
+> section exists.
+>
+> Write what makes *that* thing droppable: «468k stelle, un elenco di API
+> gratuite che si apre una volta e non si riapre» can be contested. «famoso»
+> cannot. If two entries could swap reasons without anyone noticing, neither
+> has been given one.
+>
+> ⚠️ **`checked: false` never becomes `LO CONOSCI`.** When no source answered,
+> the verdict is `NON VERIFICATO` — even when you are certain you know the
+> thing, and especially then. Answering from what you know instead of from
+> what was checked is the one move that makes the whole tool worthless: it is
+> the difference between a filter and an opinion.
+>
 > **Write `post` and `slide` on the binned things too, not only on the kept
 > ones.** The page uses them to print, beside each thing that got through, the
 > other things that were on that same slide and what stopped each of them —
