@@ -168,6 +168,21 @@ def build_bundle(prompt: str, profile: str, files: list[Path],
     return "\n".join(parts)
 
 
+def _next_answer_path(recap_dir: Path, stem: str) -> Path:
+    """Where today's answer goes, without overwriting an earlier run's.
+
+    Shared by the complete-answer path and the truncated one below: both are
+    "the model's words, written before anything is done with them", and a
+    second run on the same day must not silently clobber the first.
+    """
+    path = recap_dir / f"{stem}.answer.md"
+    n = 2
+    while path.exists():
+        path = recap_dir / f"{stem}.answer-{n}.md"
+        n += 1
+    return path
+
+
 def ask_confirm(prompt: str) -> bool:
     from winnow.setup import ask
     return ask(prompt).lower() in ("y", "yes", "s", "si")
@@ -249,35 +264,47 @@ def run_recap(now: datetime | None = None, open_file: bool = True,
         print(f"  ❌ no config: {paths.config_file()}")
         print("     run 'winnow init'.")
         return 1
+    recap_dir = paths.recap_dir()
+    recap_dir.mkdir(parents=True, exist_ok=True)
+    stem = now.date().isoformat()
+
     try:
         text, tin, tout = (ask or judge.ask)(
             bundle, cfg.provider, cfg.model, cfg.base_url,
             on_event=on_event)
+    except providers.Truncated as e:
+        # This is the one call the "written before it is read" guarantee
+        # used to miss: `judge.ask` classifies it correctly (not retryable,
+        # stop at once), but until now the cut-off text never reached disk —
+        # a whole week's judgement, at max_tokens=16000, thrown away.
+        partial = getattr(e, "partial", "") or ""
+        src = _next_answer_path(recap_dir, stem)
+        src.write_text(partial, encoding="utf-8")
+        print(f"  ❌ {e}")
+        print(f"     partial answer saved: {src}")
+        return 1
     except judge.Fatal as e:
         print(f"  ❌ {e}")
         return 1
 
     # Written before it is read: a judgement costs real money, and a broken
     # answer on disk gets fixed by hand — a lost one does not.
-    recap_dir = paths.recap_dir()
-    recap_dir.mkdir(parents=True, exist_ok=True)
-    stem = now.date().isoformat()
-    src = recap_dir / f"{stem}.answer.md"
-    n = 2
-    while src.exists():
-        src = recap_dir / f"{stem}.answer-{n}.md"
-        n += 1
+    src = _next_answer_path(recap_dir, stem)
     src.write_text(text, encoding="utf-8")
 
     usd = providers.cost(cfg.provider, cfg.model, tin, tout)
     try:
-        out = render_file(src, embed_shots=True)
+        # Parsed once, here, and handed to `render_file` — which otherwise
+        # re-reads `src` and parses it again on its own. `data` is what the
+        # "judged" event below needs too, so this is also the one place that
+        # result has to be computed.
+        data = extract_json(text)
+        out = render_file(src, data=data, embed_shots=True)
     except json.JSONDecodeError as e:
         print(f"  ❌ the answer is not valid JSON: {e.msg}")
         print(f"     saved anyway: {src}")
         return 1
 
-    data = extract_json(text)
     say("judged", kept=(data.get("counts") or {}).get("kept", 0),
         of=len(facts["things"]), usd=usd)
     # `progress.line` already prints "  → {path}" for this event — printing

@@ -442,6 +442,29 @@ def test_the_marker_moves_only_after_the_page_exists(tmp_path, monkeypatch):
     assert last_judged(tmp_path / "judged.json") is None
 
 
+def test_a_truncated_reply_is_saved_before_it_fails(tmp_path, monkeypatch):
+    """The most expensive call in the tool (max_tokens=16000) used to be the
+    one hole in "the answer is written down before it is parsed": the reply
+    classified correctly as not-worth-retrying, and its text — real money —
+    never touched disk. It must, even though the run still fails."""
+    from winnow.providers import Truncated
+    from winnow.recap import run_recap
+    from winnow.window import last_judged
+    _fixture(tmp_path, monkeypatch)
+
+    def cut_off(*a, **k):
+        exc = Truncated("reply truncated at 16000 tokens")
+        exc.partial = '```json\n{"week": "2026-08-25", "counts": {"kept'
+        raise exc
+
+    assert run_recap(open_file=False, ask=cut_off) == 1
+    saved = list((tmp_path / "recap").glob("*.answer*.md"))
+    assert saved and "counts" in saved[0].read_text(encoding="utf-8")
+    # A recap that failed must not be marked as judged: the next run has to
+    # see these days again, same as any other failure mid-recap.
+    assert last_judged(tmp_path / "judged.json") is None
+
+
 def test_a_second_run_with_nothing_new_says_so_and_costs_nothing(
         tmp_path, monkeypatch):
     from winnow.recap import run_recap

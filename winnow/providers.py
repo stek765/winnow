@@ -93,8 +93,14 @@ def _anthropic(model: str, system: str, text: str, images: list[Path],
         # Truncated JSON parses as "malformed", which sends the reader looking
         # for a prompt bug. Say what actually happened. Measured 2026-08-21: a
         # 13-slide list post ran past 4000 output tokens mid-entity.
-        raise Truncated(f"reply truncated at {max_tokens} tokens: the post has "
+        exc = Truncated(f"reply truncated at {max_tokens} tokens: the post has "
                         "too many entries. Raise max_tokens.")
+        # The cut-off text already cost real money (this is the weekly recap's
+        # heaviest call, max_tokens=16000). Carried on the exception, not
+        # returned, so the signature stays "one reply or an error" — a caller
+        # that has somewhere to put a partial answer can still reach it.
+        exc.partial = reply
+        raise exc
     return reply, r.usage.input_tokens, r.usage.output_tokens
 
 
@@ -117,10 +123,14 @@ def read_openai_reply(data: dict) -> tuple[str, int, int]:
     """Pull out text and token counts, tolerating a server that omits usage —
     a local one often does, and a missing count is zero, not a crash."""
     choice = (data.get("choices") or [{}])[0]
-    if choice.get("finish_reason") == "length":
-        raise Truncated("reply truncated: the post has too many entries. "
-                        "Raise max_tokens.")
     text = choice.get("message", {}).get("content") or ""
+    if choice.get("finish_reason") == "length":
+        exc = Truncated("reply truncated: the post has too many entries. "
+                        "Raise max_tokens.")
+        # Same reasoning as the Anthropic path: the words already cost money,
+        # so they ride on the exception instead of being thrown away.
+        exc.partial = text
+        raise exc
     usage = data.get("usage") or {}
     return text, int(usage.get("prompt_tokens") or 0), int(
         usage.get("completion_tokens") or 0)

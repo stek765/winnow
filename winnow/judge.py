@@ -68,6 +68,12 @@ def ask(bundle: str, provider: str, model: str, base_url: str | None,
             return call(provider=provider, model=model, base_url=base_url,
                         system="", text=bundle, images=[],
                         max_tokens=16000, temperature=0.0)
+        except providers.Truncated:
+            # Not retryable (more tokens will not fix a fixed max_tokens),
+            # but wrapping it in Fatal would strip the `.partial` text it
+            # carries — and that text is the one thing worth keeping from a
+            # call this expensive. Let the caller see it as what it is.
+            raise
         except Exception as exc:              # noqa: BLE001 — sorted later
             if not is_retryable(exc):
                 raise Fatal(str(exc)) from exc
