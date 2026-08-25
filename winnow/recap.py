@@ -50,7 +50,7 @@ MARKER = "<!-- PROMPT -->"
 # pointing at are the ones who wrote one of those.
 INCLUDE_RE = re.compile(r"^@(\S.*)$", re.MULTILINE)
 
-# Things that must never be pasted into a chat window. Deliberately narrow:
+# Things that must never be sent to a model provider. Deliberately narrow:
 # crying wolf on every line containing "token" would train people to ignore it.
 SECRET_RE = re.compile(
     r"(sk-[A-Za-z0-9_\-]{16,}"
