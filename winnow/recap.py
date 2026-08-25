@@ -15,8 +15,6 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
-import subprocess
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -170,31 +168,21 @@ def build_bundle(prompt: str, profile: str, files: list[Path],
     return "\n".join(parts)
 
 
-def copy_to_clipboard(text: str) -> str | None:
-    """Best effort. Returns the tool used, or None — never raises: a missing
-    clipboard must not cost you the bundle that was already written."""
-    for cmd in (["pbcopy"], ["wl-copy"], ["xclip", "-selection", "clipboard"]):
-        if shutil.which(cmd[0]):
-            try:
-                subprocess.run(cmd, input=text, text=True, check=True)
-                return cmd[0]
-            except subprocess.SubprocessError:
-                return None
-    return None
-
-
 def ask_confirm(prompt: str) -> bool:
     from winnow.setup import ask
     return ask(prompt).lower() in ("y", "yes", "s", "si")
 
 
 def run_recap(now: datetime | None = None, open_file: bool = True,
-              on_event=None, ask=None) -> int:
+              on_event=None, ask=None, confirm=None) -> int:
     """Prepare, ask, write the page. One run instead of three.
 
     There used to be three — `winnow recap`, paste into a model, `winnow
     render` — and the step in between was the one place things could fail
     without anyone understanding why. On 2026-08-25 it ate a real response.
+
+    `confirm` is injectable for the same reason `ask` is: the credential
+    guard below must be testable without a terminal attached to stdin.
     """
     from winnow import judge, window
     from winnow.render import render_file
@@ -218,11 +206,32 @@ def run_recap(now: datetime | None = None, open_file: bool = True,
         print("  Nothing new since the last recap.")
         return 0
 
-    days = [json.loads(f.read_text(encoding="utf-8")) for f in files]
+    # `load_days`, not a raw read: a corrupt day here must be reported and
+    # skipped, the same as everywhere else this window is read.
+    days = load_days(files)
     profile = profile_path.read_text(encoding="utf-8")
     profile, missing = resolve_includes(profile, profile_path.parent)
     for m in missing:
         print(f"  ⚠️  the profile points at {m}, which cannot be read.")
+
+    if len(profile) > PROFILE_BUDGET:
+        print(f"\n  ⚠️  your profile is {len(profile):,} characters. The "
+              "recap only needs\n      who you are and what you are after — "
+              "a plan, a portfolio or a\n      year of notes will drown the "
+              f"week's findings.\n      {profile_path}\n")
+
+    # The bundle now goes straight to a third-party API instead of sitting on
+    # a clipboard where a person could notice it — the guard matters more
+    # than it used to, not less.
+    leaks = find_secrets(profile)
+    if leaks:
+        print(f"\n  ⚠️  {profile_path} holds something that looks like a "
+              "credential:\n")
+        for hint in leaks[:5]:
+            print(f"        {hint}")
+        print("\n      The bundle goes straight to the model provider.")
+        if not (confirm or ask_confirm)("  Send it anyway? [y/N] "):
+            return 1
 
     facts = digest.gather(days, now.date().isoformat())
     # build_bundle wants the PATHS, not the days already read into memory.
@@ -234,7 +243,12 @@ def run_recap(now: datetime | None = None, open_file: bool = True,
 
     # `config.py` exposes flat fields (`.provider`, `.model`, `.base_url`),
     # not a nested `.api` namespace — kept in step with the rest of the repo.
-    cfg = config.load_config(paths.config_file())
+    try:
+        cfg = config.load_config(paths.config_file())
+    except FileNotFoundError:
+        print(f"  ❌ no config: {paths.config_file()}")
+        print("     run 'winnow init'.")
+        return 1
     try:
         text, tin, tout = (ask or judge.ask)(
             bundle, cfg.provider, cfg.model, cfg.base_url,
@@ -266,13 +280,14 @@ def run_recap(now: datetime | None = None, open_file: bool = True,
     data = extract_json(text)
     say("judged", kept=(data.get("counts") or {}).get("kept", 0),
         of=len(facts["things"]), usd=usd)
+    # `progress.line` already prints "  → {path}" for this event — printing
+    # the path again here would just show the same line twice from the CLI.
     say("rendered", path=str(out))
 
     # The marker moves only now: marking as judged a day whose recap failed
     # would lose it forever.
     window.mark_judged(judged, files[-1].stem)
 
-    print(f"  → {out}")
     if open_file and sys.stdout.isatty():
         import webbrowser
         webbrowser.open(f"file://{out.resolve()}")

@@ -29,8 +29,7 @@ them to your profile to be filtered.
                        folders, profile, daily run
   winnow collect       one pass now, instead of waiting for the next
   winnow status        is it alive? what did it find? what has it cost?
-  winnow recap         the week + your profile on your clipboard, ready to
-                       paste into a model
+  winnow recap         judge the days not judged yet, and open the page
   winnow render        the answer you just copied, as a page you click
   winnow config        change folders, model, posts per run, hour, profile
   winnow update        pull the newest winnow, if there is one
@@ -69,8 +68,6 @@ def _parser() -> argparse.ArgumentParser:
                    help="for 'render': the JSON the model answered with")
     p.add_argument("--no-open", action="store_true",
                    help="do not open the recap file at the end")
-    p.add_argument("--days", type=int, default=7,
-                   help="how many days of findings to put in the recap")
     p.add_argument("--at", default=None,
                    help="hour of the daily run, HH:MM")
     p.add_argument("--off", action="store_true",

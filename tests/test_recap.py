@@ -476,3 +476,25 @@ def test_it_reports_as_it_goes(tmp_path, monkeypatch):
     run_recap(open_file=False, ask=lambda *a, **k: (ANSWER, 100, 50),
               on_event=lambda e, d: seen.append(e))
     assert "bundling" in seen and "judged" in seen and "rendered" in seen
+
+
+def test_a_leaked_profile_stops_before_it_is_sent(tmp_path, monkeypatch):
+    """The bundle now goes straight to a model provider instead of sitting on
+    a clipboard where a person could notice it first — so a key found in the
+    profile has to stop the recap before it is sent, not just be logged.
+    Declining must cost nothing: the model is never asked."""
+    from winnow.recap import run_recap
+    _fixture(tmp_path, monkeypatch)
+    (tmp_path / "profile.md").write_text(
+        "# io\nkey = sk-abcdefghijklmnopqrstuvwxyz1234567890\n",
+        encoding="utf-8")
+
+    calls = []
+
+    def counted(*a, **k):
+        calls.append(1)
+        return ANSWER, 100, 50
+
+    assert run_recap(open_file=False, ask=counted,
+                     confirm=lambda prompt: False) == 1
+    assert calls == []
