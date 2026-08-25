@@ -56,3 +56,41 @@ def test_one_slide_is_not_one_slides():
     """Small, but it is the line printed most often in a run."""
     assert "1 slide" in line("post", {"i": 1, "n": 8, "account": "x", "slides": 1})
     assert "2 slides" in line("post", {"i": 1, "n": 8, "account": "x", "slides": 2})
+
+
+# --- il recap ----------------------------------------------------------------
+
+def test_the_bundle_says_what_went_in():
+    out = line("bundling", {"days": 3, "posts": 30, "things": 144})
+    assert "3" in out and "30" in out and "144" in out
+
+
+def test_asking_names_the_attempt_only_when_it_is_not_the_first():
+    """«tentativo 1 di 5» sul primo giro è rumore: dice che qualcosa è
+    andato storto quando non è successo niente."""
+    first = line("asking", {"attempt": 1, "of": 5})
+    again = line("asking", {"attempt": 2, "of": 5})
+    assert "1" not in first
+    assert "2" in again
+
+
+def test_waiting_says_how_long_and_why():
+    out = line("waiting", {"seconds": 15.0, "attempt": 2,
+                           "why": "network is unreachable"})
+    assert "15" in out and "network" in out
+
+
+def test_the_judgement_reports_what_it_cost():
+    out = line("judged", {"kept": 15, "of": 144, "usd": 0.42})
+    assert "15" in out and "144" in out and "0.42" in out
+
+
+def test_the_page_says_where_it_is():
+    out = line("rendered", {"path": "/tmp/recap/2026-08-25.html"})
+    assert "2026-08-25.html" in out
+
+
+def test_an_event_from_a_newer_version_is_ignored_and_not_a_crash():
+    """Una corsa che è già costata soldi non deve morire perché un chiamante
+    più nuovo ha emesso un evento che questa versione non ha mai visto."""
+    assert line("something_new", {"whatever": 1}) == ""

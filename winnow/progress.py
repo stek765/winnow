@@ -62,4 +62,27 @@ def line(event: str, data: dict) -> str:
     if event == "halted":
         return f"  HALTED     {data.get('reason', '')}"
 
+    # --- il recap --------------------------------------------------------
+    if event == "bundling":
+        days = data.get("days", 0)
+        day_word = "day" if days == 1 else "days"
+        return (f"  bundling   {days} {day_word} · {data.get('posts', 0)} "
+                f"posts · {data.get('things', 0)} things")
+    if event == "asking":
+        attempt = data.get("attempt", 1)
+        # Il numero del tentativo solo quando non è il primo: dirlo sempre
+        # segnala un problema che al primo giro non è successo.
+        if attempt <= 1:
+            return "  asking     the model is reading it…"
+        return f"  asking     attempt {attempt} of {data.get('of', '?')}"
+    if event == "waiting":
+        secs = data.get("seconds", 0)
+        return (f"  waiting    {secs:.0f}s before trying again "
+                f"({data.get('why', 'no reason given')})")
+    if event == "judged":
+        return (f"  judged     {data.get('kept', 0)} of "
+                f"{data.get('of', 0)} · USD {data.get('usd', 0):.2f}")
+    if event == "rendered":
+        return f"  → {data.get('path', '')}"
+
     return ""
