@@ -6,8 +6,8 @@ import json
 import pytest
 
 from winnow.render import (
-    _md, _stars, extract_json, kept_html, render, render_file, shared_slides,
-    shot_for, sieve_html, slide_note, stopped_html,
+    _md, _stars, counts_html, extract_json, kept_html, render, render_file,
+    shared_slides, shot_for, slide_note, stopped_html,
 )
 
 
@@ -191,30 +191,7 @@ def test_why_it_got_through_is_labelled_as_such():
     valued over another. The reason is a labelled field, not a paragraph the
     reader has to guess the purpose of."""
     out = kept_html({"title": "x", "why": "tocca la tesi"}, 0, "c", None, None)
-    assert "Perche' passa" in out and "tocca la tesi" in out
-
-
-# --- the sieve ----------------------------------------------------------------
-
-def test_the_sieve_has_one_mark_per_thing_and_lights_the_kept_ones():
-    """The signature element, and the only decoration: it is the ratio at the
-    size the ratio deserves, made of the things themselves."""
-    out = sieve_html([{"name": "a"}, {"name": "b"}],
-                     [{"name": "c", "verdict": "LO CONOSCI"}])
-    assert out.count('class="mk') == 3
-    assert out.count('class="mk on"') == 2
-    assert "2 passate" in out and "1 fermate" in out
-
-
-def test_an_empty_week_has_no_sieve():
-    assert sieve_html([], []) == ""
-
-
-def test_every_mark_carries_its_own_name():
-    """A graphic of the number would be decoration. Naming each mark makes it
-    the number, made of the things."""
-    out = sieve_html([], [{"name": "n8n-io/n8n", "verdict": "LO CONOSCI"}])
-    assert "n8n-io/n8n" in out and "LO CONOSCI" in out
+    assert "Perché passa" in out and "tocca la tesi" in out
 
 
 # --- what was stopped ---------------------------------------------------------
@@ -361,3 +338,246 @@ def test_a_slide_nobody_recorded_is_not_printed_as_slide_zero(tmp_path):
     assert "slide 0" not in out
     assert "slide 4" in kept_html({"title": "x", "post": "ABC", "slide": 4},
                                   0, "c", tmp_path, tmp_path)
+
+
+# --- getting the answer back out of the chat window ---------------------------
+
+def test_the_answer_can_come_straight_off_the_clipboard(monkeypatch, tmp_path):
+    """`winnow recap` puts the bundle *on* the clipboard, so the answer coming
+    back *off* it closes the loop with no file handling in between. "Save the
+    model's whole answer to a file first" is a step, and a step is where this
+    stops being used on a Sunday."""
+    import winnow.render as R
+    monkeypatch.setattr(R, "paste_from_clipboard",
+                        lambda: '```json\n{"week": "2026-08-24"}\n```')
+    out = R.render_clipboard(tmp_path, shots=tmp_path / "nope")
+    assert out.exists() and out.suffix == ".html"
+    # The answer itself is kept, not just the page built from it: a judgement
+    # that cost real money must survive the next thing copied.
+    assert out.with_suffix(".md").exists()
+    assert "2026-08-24" in out.with_suffix(".md").read_text(encoding="utf-8")
+
+
+def test_an_empty_clipboard_is_a_message_and_not_a_traceback(monkeypatch, tmp_path):
+    import winnow.render as R
+    monkeypatch.setattr(R, "paste_from_clipboard", lambda: "   ")
+    with pytest.raises(ValueError, match="clipboard"):
+        R.render_clipboard(tmp_path)
+
+
+def test_a_clipboard_holding_something_else_says_so(monkeypatch, tmp_path):
+    """Copying the wrong thing is the likeliest mistake here, and the message
+    has to say which of the two went wrong."""
+    import winnow.render as R
+    monkeypatch.setattr(R, "paste_from_clipboard", lambda: "ciao come stai")
+    with pytest.raises(json.JSONDecodeError):
+        R.render_clipboard(tmp_path)
+
+
+def test_two_answers_in_one_day_do_not_overwrite_each_other(monkeypatch, tmp_path):
+    """Re-asking the model after correcting it is the normal way to use this,
+    and the second answer must not silently destroy the first."""
+    import winnow.render as R
+    monkeypatch.setattr(R, "paste_from_clipboard",
+                        lambda: '```json\n{"week": "w"}\n```')
+    first = R.render_clipboard(tmp_path, shots=tmp_path / "nope")
+    second = R.render_clipboard(tmp_path, shots=tmp_path / "nope")
+    assert first != second and first.exists() and second.exists()
+
+
+# --- why this one and not the other forty-nine --------------------------------
+
+def test_a_thing_from_a_list_slide_shows_what_happened_to_its_neighbours():
+    """The question a reader actually asks, and the page could not answer:
+    «why bumblebee and not the other fifty?». The slide shows a wall of fifty
+    links, one of them got through, and the reasons for the other forty-nine
+    were a scroll away in a list of 129 rows — which is the same as not being
+    there.
+
+    Measured 2026-08-24: `perplexityai/bumblebee` shares slide 5 with ten
+    other things. Naming those ten *next to it*, each with the verdict that
+    stopped it, turns the wall of links from a confusing picture into the
+    argument itself."""
+    from winnow.render import siblings_map
+    kept = [{"name": "o/keeper", "post": "P", "slide": 5}]
+    stopped = [{"name": "o/other", "post": "P", "slide": 5,
+                "verdict": "LO CONOSCI"},
+               {"name": "o/elsewhere", "post": "P", "slide": 9,
+                "verdict": "NON ESISTE"}]
+    sib = siblings_map(kept, stopped)
+    out = kept_html(kept[0], 0, "c", None, None, siblings=sib)
+    assert "o/other" in out and "LO CONOSCI" in out
+    assert "o/elsewhere" not in out          # different slide, not a neighbour
+    assert out.count("o/keeper") == 1        # never lists itself
+
+
+def test_a_thing_alone_on_its_slide_says_nothing_about_neighbours():
+    """Fourteen of the fifteen kept things sit alone on their slide. A block
+    headed «on the same slide» with nothing in it is noise."""
+    from winnow.render import siblings_map
+    kept = [{"name": "o/alone", "post": "P", "slide": 1}]
+    out = kept_html(kept[0], 0, "c", None, None,
+                    siblings=siblings_map(kept, []))
+    assert "stessa slide" not in out
+
+
+def test_the_caption_counts_the_slide_instead_of_saying_many():
+    """«this slide names many» is vague where a number is available, and the
+    number is what tells you whether it is a list of three or of fifty."""
+    from winnow.render import siblings_map
+    kept = [{"name": "o/a", "post": "P", "slide": 2}]
+    stopped = [{"name": f"o/{i}", "post": "P", "slide": 2} for i in range(11)]
+    sib = siblings_map(kept, stopped)
+    assert "12" in slide_note(kept[0], None, None, sib)
+
+
+def test_the_name_is_readable_on_the_picture():
+    """A wall of fifty links with no marking does not say which of the fifty
+    this entry is. The name goes on the image itself."""
+    out = kept_html({"title": "x", "name": "perplexityai/bumblebee",
+                     "post": "P"}, 0, "c", None, None)
+    assert "stamp" in out and "bumblebee" in out
+
+
+# --- typography ---------------------------------------------------------------
+
+def test_italian_on_the_page_is_written_with_real_accents():
+    """Measured 2026-08-24: 123 words on one page written `e'`, `gia'`,
+    `piu'`, `meta'`, `perche'`, `vulnerabilita'`. The meaning survives and the
+    page still looks cheap — it is Italian typed like a 1990s terminal, and a
+    reader said so before working out why. The file is UTF-8; there was never
+    a reason."""
+    from winnow.render import CSS, render
+    page = render({"categories": [{"name": "c", "items": [
+        {"title": "t", "why": "w", "doubt": "d", "post": "P"}]}],
+        "discarded": [{"name": "n", "verdict": "V", "why": "r"}]})
+    chrome = page.replace(CSS, "")
+    for wrong in ("perche'", "e' ", "piu'", "gia'", "cioe'", "meta'", "puo'",
+                  "li' ", "cosi'"):
+        assert wrong not in chrome.lower(), wrong
+
+
+def test_the_page_carries_the_winnower_s_mark():
+    """A page with no mark is a page from nowhere. The tool is named after
+    winnowing — tossing grain so the chaff blows away — which is the same
+    gesture the page describes, so the mark is the basket, not a monogram."""
+    from winnow.render import render
+    page = render({"categories": []})
+    assert "<svg" in page and 'class="mark"' in page
+    assert "winnow" in page.lower()
+
+
+def test_the_mark_is_drawn_and_never_fetched():
+    """A logo loaded from a file is a logo missing from an archived page."""
+    from winnow.render import logo_svg
+    assert "<img" not in logo_svg() and "http" not in logo_svg()
+
+
+# --- the chip has to say something --------------------------------------------
+
+def test_the_chip_states_a_fact_and_not_a_category():
+    """«VIVO» is a word about winnow's bookkeeping, not about the project: a
+    reader asked, fairly, what it was supposed to mean. The chip is prime
+    space — it says the thing that was actually checked."""
+    from winnow.render import state_chip
+    assert state_chip({"state": "alive", "last_commit": "2026-08"}) \
+        == "ultimo commit 2026-08"
+    assert state_chip({"state": "stale", "last_commit": "2016-01"}) \
+        == "fermo dal 2016-01"
+    assert state_chip({"state": "unknown"}) == "nessuna fonte da chiedere"
+    assert state_chip({"state": "absent"}) == "la fonte non lo trova"
+    # A date is not always there, and inventing one is worse than a plain word.
+    assert state_chip({"state": "alive"}) == "trovato alla fonte"
+
+
+def test_the_date_is_not_printed_twice():
+    """Chip and footnote used to carry the same month, which reads as the page
+    repeating itself rather than as two facts."""
+    out = kept_html({"title": "x", "name": "o/r", "state": "alive",
+                     "stars": 100, "last_commit": "2026-08"}, 0, "c", None, None)
+    assert out.count("2026-08") == 1
+
+
+def test_the_painting_travels_with_the_package():
+    """The mark of this tool is Millet's winnower — it is the first thing in
+    the README, and a recap that borrows the repo's identity has to carry it,
+    not link to a checkout that an installed copy does not have."""
+    from winnow.render import PAINTING
+    assert PAINTING.exists() and PAINTING.stat().st_size > 10_000
+
+
+def test_the_painting_is_embedded_and_never_linked():
+    """The page gets moved, mailed, opened in three years. A file reference is
+    a hole waiting to open; a data URI is not."""
+    from winnow.render import render
+    page = render({"categories": []})
+    assert "data:image/jpeg;base64," in page
+    assert "winnower.jpg" not in page
+
+
+def test_the_painting_is_credited():
+    """Public domain still has an author, and the repo already names him."""
+    from winnow.render import render
+    page = render({"categories": []})
+    assert "Millet" in page
+
+
+# --- the first screen ---------------------------------------------------------
+
+def test_the_name_is_the_anchor_of_the_first_screen():
+    """«WINNOW» used to be the smallest thing on the page — grey mono, 11px,
+    top left — while the tool's name is what the reader has to remember."""
+    from winnow.render import render
+    page = render({"categories": []})
+    assert 'class="wordmark"' in page
+    assert ">winnow<" in page
+
+
+def test_the_comment_is_marked_as_a_comment():
+    """Set as plain body copy under the headline it reads as a subtitle, and a
+    judgement that reads as a caption gets skimmed. It is the one piece of
+    opinion on a page otherwise made of verified facts, and it has to look
+    like one."""
+    from winnow.render import render
+    page = render({"comment": "qualcosa"})
+    assert 'class="comment"' in page
+    assert "Il commento" in page
+
+
+def test_the_painting_bleeds_instead_of_floating():
+    """A dark reproduction with four hard edges, dropped on a light page, is a
+    picture *on* the page rather than part of it. Masked into a dark band it
+    stops being a rectangle."""
+    from winnow.render import CSS
+    assert "mask-image" in CSS and "-webkit-mask-image" in CSS
+
+
+def test_the_headline_is_a_sentence_and_not_two_numbers():
+    """«144 cose. 15 passate.» is a statistic set in 7rem — a reader said so:
+    «il titolo è fatto da 2 numeri». The ratio is the product of this tool, so
+    it stays in the headline, but it has to *say* something: what the second
+    number means is the whole point, and «passate» is winnow's word, not the
+    reader's."""
+    from winnow.render import render
+    page = render({"counts": {"kept": 15},
+                   "categories": [{"name": "c", "items": [{"title": "t"}]}],
+                   "discarded": [{"name": "x"}] * 8})
+    assert "valgono il tuo tempo" in page
+
+
+def test_the_mark_sits_on_the_same_line_as_the_name():
+    """The ear's viewBox carried empty space under the stem, so centring the
+    box floated the drawing above the word beside it. A logo that does not sit
+    on its own wordmark is the first thing anybody notices."""
+    from winnow.render import logo_svg
+    import re
+    box = re.search(r'viewBox="([^"]+)"', logo_svg()).group(1).split()
+    assert box[3] == "49", "the box must end where the stem ends"
+
+
+def test_the_cost_is_a_stat_like_the_others():
+    """It was the only cell with no bold number, so it had no first baseline
+    to align on and floated above the row. A number and a label, like its
+    neighbours."""
+    out = counts_html({"posts": 30, "usd": 0.13})
+    assert "<b>$0.13</b>" in out and "spesi" in out

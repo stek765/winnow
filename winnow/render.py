@@ -6,14 +6,11 @@ came out, and the half that got stopped is half the product. A reader who
 cannot see what was thrown away, and on what grounds, has no way to tell a
 filter from a coin toss — and no way to correct it.
 
-So the page has three parts, in this order:
+So the page has two parts:
 
-  * the count, and one short paragraph that has to earn its place;
-  * **the sieve** — every thing in the week as one mark, the kept ones lit.
-    It is the only decoration on the page and it is not decoration: it is the
-    ratio, at the size the ratio deserves;
-  * what passed, with the slide it came from, and what stopped, grouped by
-    the *verdict* that stopped it, with the count next to each.
+  * what passed, with the slide it came from;
+  * what stopped, grouped by the *verdict* that stopped it, with the count
+    next to each.
 
 Grouping the rejects by verdict is what makes the reasoning auditable. Reading
 a hundred and twenty-nine prose lines tells you nothing about how the filter
@@ -53,14 +50,17 @@ import html
 import json
 import os
 import re
+from datetime import date
 from pathlib import Path
 
-# Words, not symbols. A tick and a circle need a legend; these do not.
+# What a chip says when there is no date to say it with. Words, not symbols:
+# a tick and a quarter-circle need a legend, and a page with a legend is a page
+# that failed to say it the first time.
 STATES = {
-    "alive":   "vivo",
-    "stale":   "fermo",
-    "unknown": "non verificato",
-    "absent":  "assente alla fonte",
+    "alive":   "trovato alla fonte",
+    "stale":   "fermo da anni",
+    "unknown": "nessuna fonte da chiedere",
+    "absent":  "la fonte non lo trova",
 }
 
 # The order verdicts appear in, when the judgement does not impose one. Source
@@ -170,8 +170,46 @@ def shot_for(item: dict, shots: Path | None,
     return str(shots / (exact if exact in names else names[0]))
 
 
+# What a sibling chip says about the one that got through.
+KEPT = "TENUTA"
+
+
+def siblings_map(kept: list[dict], stopped: list[dict]) -> dict:
+    """(post, slide) -> every thing on that slide, with what happened to it.
+
+    This is the answer to the one question the page could not answer. A list
+    slide is a wall of fifty links; one of them got through and the reasons
+    for the other forty-nine were a scroll away, in a list of a hundred and
+    twenty-nine rows — which is the same as not being there at all. Measured
+    2026-08-24: `perplexityai/bumblebee` shares its slide with ten others, and
+    a reader looking at that wall asked, reasonably, *"why this one and not
+    the other fifty?"*.
+
+    Naming the neighbours right beside it, each with the verdict that stopped
+    it, turns the confusing picture into the argument itself.
+    """
+    out: dict[tuple[str, int], list[tuple[str, str]]] = {}
+    for it in kept:
+        key = (post_of(it), _slide_of(it))
+        out.setdefault(key, []).append((it.get("name") or "?", KEPT))
+    for it in stopped:
+        key = (post_of(it), _slide_of(it))
+        out.setdefault(key, []).append(
+            (it.get("name") or it.get("what") or "?",
+             (it.get("verdict") or "FERMATA").strip()))
+    return out
+
+
+def siblings_of(item: dict, siblings: dict | None) -> list[tuple[str, str]]:
+    """The other things on this thing's slide. Never itself."""
+    rows = (siblings or {}).get((post_of(item), _slide_of(item)), [])
+    name = item.get("name")
+    return [r for r in rows if r[0] != name]
+
+
 def slide_note(item: dict, shapes: dict[str, str] | None = None,
-               shared: set[tuple[str, int]] | None = None) -> str:
+               shared: set[tuple[str, int]] | None = None,
+               siblings: dict | None = None) -> str:
     """What the picture is, when it is not a picture of this thing.
 
     A caption that says the slide names many projects turns a confusing image
@@ -189,6 +227,11 @@ def slide_note(item: dict, shapes: dict[str, str] | None = None,
     post, slide = post_of(item), _slide_of(item)
     if not post:
         return ""
+    n = len((siblings or {}).get((post, slide), []))
+    if n > 1:
+        # A number where one is available: it is what tells you whether this
+        # came off a list of three or of fifty.
+        return f"una di {n} su questa slide"
     if (post, slide) in (shared or set()):
         return "questa slide ne nomina molti"
     return ""
@@ -220,56 +263,74 @@ def plate(item: dict) -> str:
             f'<span class="plate-n">{_esc(label)}</span></span>')
 
 
+def state_chip(item: dict) -> str:
+    """What was actually checked, in words that mean something on their own.
+
+    This used to print the internal state — `vivo`, `fermo` — which is a word
+    about winnow's bookkeeping and not about the project. A reader asked, quite
+    fairly, what «VIVO» was supposed to tell them: nothing, is the answer. The
+    chip is the most-read spot on the entry, so it carries the fact the state
+    was *derived from* rather than the label winnow filed it under.
+    """
+    state = (item.get("state") or "unknown").strip().lower()
+    when = (item.get("last_commit") or "").strip()
+    if when and state == "alive":
+        return f"ultimo commit {when}"
+    if when and state == "stale":
+        return f"fermo dal {when}"
+    return STATES.get(state, STATES["unknown"])
+
+
 def _facts(item: dict) -> str:
     """Name, size, age — the footnote line, in that order."""
+    # No date here: the chip says it, and printing it twice reads as the page
+    # repeating itself rather than as two facts.
     stars = _stars(item.get("stars"))
     return " · ".join(filter(None, [
         _esc(item.get("name")),
         f"{stars}★" if stars else "",
-        _esc(item.get("last_commit")),
     ]))
 
 
-def sieve_html(kept: list[dict], stopped: list[dict]) -> str:
-    """Every thing in the week as one mark. The kept ones lit.
+def _stamp(item: dict) -> str:
+    """The name, over the picture.
 
-    The signature element, and the only one: it is the ratio at the size the
-    ratio deserves. Each mark carries its own name, so the block is not a
-    graphic of the number — it is the number, made of the things.
+    A wall of fifty links does not say which of the fifty this entry is about,
+    and the reader should not have to hunt for it in a screenshot. The short
+    name — `bumblebee`, not `perplexityai/bumblebee` — is what is legible at
+    this size and what is written on the slide itself.
     """
-    total = len(kept) + len(stopped)
-    if not total:
+    name = (item.get("name") or "").strip()
+    if not name:
         return ""
-    marks = []
-    for i, it in enumerate(kept):
-        marks.append(f'<i class="mk on" style="--n:{i}" '
-                     f'title="{_esc(it.get("name") or it.get("title"))}"></i>')
-    for j, it in enumerate(stopped):
-        marks.append(f'<i class="mk" style="--n:{len(kept) + j}" '
-                     f'title="{_esc(it.get("name"))} — '
-                     f'{_esc(it.get("verdict") or "fermata")}"></i>')
-    return f"""<section class="sieve">
-  <p class="eyebrow">Il setaccio</p>
-  <div class="marks">{"".join(marks)}</div>
-  <p class="key"><span class="k-on">{len(kept)} passate</span>
-     <span class="k-off">{len(stopped)} fermate</span>
-     <span class="k-tot">{total} cose in tutto</span></p>
-</section>"""
+    return f'<span class="stamp">{_esc(name.rsplit("/", 1)[-1])}</span>'
+
+
+def _siblings_html(item: dict, siblings: dict | None) -> str:
+    rows = siblings_of(item, siblings)
+    if not rows:
+        return ""
+    chips = "".join(
+        f'<span class="sib{" kept" if verdict == KEPT else ""}">'
+        f'{_esc(name)}<b>{_esc(verdict)}</b></span>'
+        for name, verdict in sorted(rows, key=lambda r: r[0].lower()))
+    return (f'<div class="sibs"><span class="lab">Sulla stessa slide, '
+            f'e cosa ne è stato</span>{chips}</div>')
 
 
 def kept_html(item: dict, i: int, cat: str, shots: Path | None,
               out_dir: Path | None, shapes: dict[str, str] | None = None,
-              shared: set | None = None) -> str:
+              shared: set | None = None, siblings: dict | None = None) -> str:
     """One thing that got through: the slide, then why it got through."""
     src = _rel(shot_for(item, shots, shapes, shared), out_dir)
     pic = (f'<img loading="lazy" src="{_esc(src)}" alt="">' if src
            else plate(item))
-    note = slide_note(item, shapes, shared)
+    note = slide_note(item, shapes, shared, siblings)
     post = post_of(item)
     n = _slide_of(item)
-    stamp = f"slide {n}" if post and n > 0 else ""
+    caption = f"slide {n}" if post and n > 0 else ""
     if note:
-        stamp = f"{stamp} · {note}" if stamp else note
+        caption = f"{caption} · {note}" if caption else note
     url = _esc(item.get("url"))
     links = []
     if item.get("url"):
@@ -283,17 +344,17 @@ def kept_html(item: dict, i: int, cat: str, shots: Path | None,
     doubt = _esc(item.get("doubt"))
     return f"""<article class="pass" data-cat="{_esc(cat)}">
   <figure class="mount">
-    {pic}
-    {f'<figcaption>{_esc(stamp)}</figcaption>' if stamp else ''}
+    {pic}{_stamp(item)}
+    {f'<figcaption>{_esc(caption)}</figcaption>' if caption else ''}
   </figure>
   <div class="body">
     <p class="tags"><span class="cat">{_esc(cat)}</span><span
-       class="st s-{state}">{_esc(STATES.get(item.get("state", "unknown"),
-                                             STATES["unknown"]))}</span></p>
+       class="st s-{state}">{_esc(state_chip(item))}</span></p>
     <h3>{_esc(item.get("title") or item.get("does"))}</h3>
     <p class="does">{_md(item.get("does"))}</p>
-    <p class="why"><span class="lab">Perche' passa</span>{_md(item.get("why"))}</p>
+    <p class="why"><span class="lab">Perché passa</span>{_md(item.get("why"))}</p>
     {f'<p class="doubt"><span class="lab">Dubbio</span>{doubt}</p>' if doubt else ''}
+    {_siblings_html(item, siblings)}
     <p class="foot">{_facts(item)}</p>
     <p class="links">{" ".join(links)}</p>
   </div>
@@ -332,27 +393,89 @@ def stopped_html(rows: list[dict]) -> str:
     return f"""<section class="stopped">
   <p class="eyebrow">Fermate</p>
   <h2>{len(rows)} cose non sono passate</h2>
-  <p class="intro">Ognuna col suo nome e il suo motivo, perche' un mucchio non
-    si puo' correggere. I numeri qui sotto sono la forma del ragionamento:
-    se uno e' sbagliato, e' li' che si vede.</p>
+  <p class="intro">Ognuna col suo nome e il suo motivo, perché un mucchio non
+    si può correggere. I numeri qui sotto sono la forma del ragionamento:
+    se uno è sbagliato, è lì che si vede.</p>
   <div class="vfs"><button class="vf on" data-v="*">Tutte<b>{len(rows)}</b></button>{chips}</div>
   <div class="vgs">{"".join(blocks)}</div>
 </section>"""
 
 
 def counts_html(counts: dict) -> str:
+    usd = counts.get("usd")
     cells = [(counts.get("posts"), "post letti"),
              (counts.get("kept"), "passate"),
              (counts.get("failed"), "illeggibili"),
-             (None, f"${counts.get('usd', 0):.2f}"
-              if counts.get("usd") is not None else None)]
+             # The cost used to be a bare label with no number, which left it
+             # with no first baseline to align on: it floated above the row.
+             (f"${usd:.2f}" if usd is not None else None, "spesi")]
     out = []
     for v, label in cells:
-        if label is None:
+        if v is None:
             continue
-        num = f"<b>{_esc(v)}</b>" if v is not None else ""
-        out.append(f'<span class="stat">{num}<span>{_esc(label)}</span></span>')
+        out.append(f'<span class="stat"><b>{_esc(v)}</b>'
+                   f'<span>{_esc(label)}</span></span>')
     return "".join(out)
+
+
+PAINTING = Path(__file__).parent / "winnower.jpg"
+
+
+def painting_data_uri() -> str:
+    """Millet's winnower, as bytes inside the page.
+
+    Embedded and never linked. This page gets moved, mailed and opened again
+    in three years; a file reference is a hole waiting to open, and the whole
+    point of the recap is that it survives being ignored for a while.
+
+    The image is the tool's identity — it is the first thing in the README —
+    and it earns the space: a man throwing grain into the air so the wind can
+    take the husks is the argument the page is making, made once, by somebody
+    better at it. Public domain, and credited under it anyway.
+    """
+    import base64
+    try:
+        data = base64.b64encode(PAINTING.read_bytes()).decode("ascii")
+    except OSError:
+        return ""
+    return f"data:image/jpeg;base64,{data}"
+
+
+def logo_svg() -> str:
+    """An ear of wheat, with three grains lifting off it.
+
+    The small mark, for where the painting cannot go — a tab, a favicon, a
+    printed page. Drawn, never fetched.
+
+    Three earlier attempts drew the *vessel* and each failed the same way, on
+    reading rather than on drawing: at this size a thin outlined bowl reads as
+    a smile, round dots read as dust, a solid half-circle reads as a soup
+    bowl, and a flat tray reads as a smudge. A vessel needs a scene to be
+    recognised and a mark has none. An ear of wheat does not.
+    """
+    ear = "".join(
+        f'<ellipse cx="{x}" cy="{y}" rx="3" ry="5.7" '
+        f'transform="rotate({a} {x} {y})" fill="currentColor"/>'
+        # Tapered: narrow at the tip, wider at the base. Even offsets made it
+        # read as a pine cone.
+        for x, y, a in ((22, 5.5, 0),
+                        (17.9, 13, -28), (26.1, 13, 28),
+                        (17.2, 21, -30), (26.8, 21, 30),
+                        (16.6, 29, -32), (27.4, 29, 32)))
+    off = "".join(
+        f'<ellipse cx="{x}" cy="{y}" rx="2.5" ry="3.9" class="grain" '
+        f'transform="rotate({a} {x} {y})" style="--i:{i}"/>'
+        for i, (x, y, a) in enumerate(((38, 21, -46), (47, 13, -30),
+                                       (56, 6, -16))))
+    # The box ends where the drawing ends. Left over empty space under the
+    # stem floated the ear above the word it sits beside.
+    return (
+        '<svg class="mark" viewBox="11 0 49 49" width="49" height="49" '
+        'role="img" aria-label="winnow">'
+        f'{ear}{off}'
+        '<path d="M22 34 V47" stroke="currentColor" stroke-width="2.4" '
+        'stroke-linecap="round" fill="none"/>'
+        '</svg>')
 
 
 FONTS = ("https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400"
@@ -381,52 +504,102 @@ body{
   background-attachment:fixed;
 }
 img{max-width:100%; display:block;}
-.eyebrow{
+.eyebrow, .comment .lab{
   font-family:var(--mono); font-size:.68rem; font-weight:500;
   letter-spacing:.22em; text-transform:uppercase; color:var(--faint);
   margin:0 0 1rem;
 }
 
 /* ---- head ------------------------------------------------------------- */
-.head{padding:clamp(3rem,9vw,7rem) var(--pad) clamp(2rem,5vw,3.5rem); max-width:78rem;}
+/* Two columns: the argument on the left, the painting on the right. Millet
+   made this page's case in 1847 — a man throws grain in the air so the wind
+   takes the husks — and it earns real estate rather than a corner. */
+/* The first screen sits on the same light table as the rest of the page.
+   It was a dark band for a while — the painting is dark, so giving it a night
+   of its own made it bleed instead of sitting there as a rectangle — but the
+   whole thing then read as *too much*: a second identity halfway down the
+   page. The painting still bleeds; it just does it into the paper, at a third
+   of its weight, where it is atmosphere rather than a photograph. */
+.head{position:relative; isolation:isolate; overflow:hidden;
+  padding:clamp(2.5rem,6vw,4.5rem) var(--pad) clamp(2.5rem,5vw,3.5rem);
+  min-height:min(72vh,40rem); display:flex; flex-direction:column;
+  justify-content:center;}
+.head .say{position:relative; z-index:3; max-width:min(56ch,56%);}
+/* Masked sideways and downwards, so no edge of it is ever a line. */
+.art{position:absolute; z-index:0; inset:0 0 0 auto; height:100%; width:52%;
+  object-fit:cover; object-position:62% 26%; opacity:.34; filter:saturate(.75);
+  -webkit-mask-image:linear-gradient(100deg,transparent 6%,#000 58%),
+    linear-gradient(#000 62%,transparent 100%);
+  mask-image:linear-gradient(100deg,transparent 6%,#000 58%),
+    linear-gradient(#000 62%,transparent 100%);
+  -webkit-mask-composite:source-in; mask-composite:intersect;
+  animation:sink 1.6s cubic-bezier(.2,.8,.3,1) both;}
+@keyframes sink{from{opacity:0; transform:scale(1.05);}
+  to{opacity:.34; transform:none;}}
+/* A scrim in the page's own colour: type has to win over a picture, always. */
+.head::after{content:""; position:absolute; inset:0; z-index:1;
+  pointer-events:none;
+  background:linear-gradient(100deg,var(--glass) 30%,
+    rgba(233,236,237,.7) 50%,rgba(233,236,237,0) 74%);}
+@keyframes up{from{opacity:0; transform:translateY(14px);}
+  to{opacity:1; transform:none;}}
+
+.wordmark{display:flex; align-items:center; gap:.55rem;
+  margin:0 0 clamp(1.75rem,4vw,2.6rem);
+  animation:up .7s cubic-bezier(.2,.8,.3,1) both;}
+.wordmark span{font-family:var(--display); font-weight:700;
+  font-size:clamp(1.5rem,3vw,2.1rem); letter-spacing:-.03em; color:var(--ink);}
+.wordmark b{font-family:var(--mono); font-size:.7rem; font-weight:400;
+  letter-spacing:.18em; color:var(--faint); margin-left:.3rem;
+  padding-left:.9rem; border-left:1px solid var(--rule);}
+/* «winnow» has neither an ascender nor a descender, so its visual mass sits
+   below the centre of its own line box. Centring the mark on that line box is
+   geometrically right and looks wrong; 3px down is the optical correction. */
+.mark{color:var(--grease); flex:none; width:30px; height:30px;
+  transform:translateY(3px);}
+.mark .grain{fill:var(--grease); animation:drift 5s ease-in-out infinite;
+  animation-delay:calc(var(--i) * .4s);}
+@keyframes drift{
+  0%,100%{transform:translate(0,0);}
+  50%{transform:translate(2.5px,-2px);}
+}
+
 .head h1{
   font-family:var(--display); font-weight:700;
-  font-size:clamp(2.6rem,8.5vw,6.4rem); line-height:.94;
-  letter-spacing:-.035em; margin:0 0 1.6rem; max-width:16ch;
-}
+  font-size:clamp(1.9rem,4.4vw,3.4rem); line-height:1.05;
+  letter-spacing:-.03em; margin:0 0 clamp(1.5rem,3vw,2.1rem); max-width:20ch;
+  color:var(--ink);
+  animation:up .8s cubic-bezier(.2,.8,.3,1) .1s both;}
 .head h1 em{font-style:normal; color:var(--grease);}
-.lede{max-width:56ch; font-size:clamp(1.02rem,1.6vw,1.2rem); color:var(--soft);}
-.lede p{margin:0 0 .85rem;}
-.lede strong{color:var(--ink); font-weight:600;}
-.lede code{font-family:var(--mono); font-size:.86em; color:var(--ink);}
-.stats{display:flex; flex-wrap:wrap; gap:1.75rem; margin:2.4rem 0 0;}
-.stat{display:flex; align-items:baseline; gap:.45rem; min-height:1.9rem;
-  font-family:var(--mono); font-size:.74rem; letter-spacing:.12em;
-  text-transform:uppercase; color:var(--faint);}
-.stat b{font-family:var(--display); font-size:1.5rem; font-weight:600;
-  letter-spacing:-.02em; color:var(--ink);}
 
-/* ---- the sieve -------------------------------------------------------- */
-.sieve{padding:clamp(2rem,5vw,3rem) var(--pad) clamp(2.5rem,6vw,4rem);
-  border-top:1px solid var(--rule); max-width:78rem;}
-.marks{display:flex; flex-wrap:wrap; gap:4px 3px; max-width:62rem;}
-.mk{
-  width:7px; height:30px; border-radius:1px; background:#c2c9cc;
-  transform-origin:bottom center; animation:grow .5s cubic-bezier(.2,.8,.3,1) both;
-  animation-delay:calc(var(--n)*7ms);
-}
-.mk.on{background:var(--grease); height:44px;}
-.mk:hover{background:var(--ink);}
-.mk.on:hover{background:#8e2214;}
-@keyframes grow{from{transform:scaleY(0); opacity:0;} to{transform:scaleY(1); opacity:1;}}
-.key{display:flex; flex-wrap:wrap; gap:1.5rem; margin:1.6rem 0 0;
-  font-family:var(--mono); font-size:.72rem; letter-spacing:.1em;
+/* The one piece of opinion on a page otherwise made of checked facts, so it
+   is marked as one. Set as plain body copy it read as a subtitle; hung off a
+   red bar it read as decoration stuck on the side. A hairline with the label
+   sitting on it is how a magazine opens a column, and it is quiet. */
+.comment{position:relative; max-width:50ch; padding-top:1.1rem;
+  border-top:1px solid var(--rule);
+  animation:up .8s cubic-bezier(.2,.8,.3,1) .2s both;}
+.comment .lab{position:absolute; top:-.52rem; left:0; margin:0;
+  padding-right:.8rem; background:var(--glass); color:var(--grease);}
+.comment p{margin:0 0 .7rem; font-size:clamp(.86rem,.95vw,.94rem);
+  line-height:1.68; color:var(--soft);}
+.comment p:last-child{margin-bottom:0;}
+.comment strong{color:var(--ink); font-weight:600;}
+.comment em{font-style:italic;}
+.comment code{font-family:var(--mono); font-size:.86em; color:var(--ink);}
+
+.stats{display:flex; flex-wrap:wrap; align-items:baseline; gap:1.5rem;
+  margin:clamp(1.6rem,3vw,2.2rem) 0 0;
+  animation:up .8s cubic-bezier(.2,.8,.3,1) .3s both;}
+.stat{display:flex; align-items:baseline; gap:.45rem; min-height:1.9rem;
+  font-family:var(--mono); font-size:.72rem; letter-spacing:.12em;
   text-transform:uppercase; color:var(--faint);}
-.key span{display:flex; align-items:center; gap:.5rem;}
-.key span::before{content:""; width:9px; height:9px; border-radius:50%;
-  background:#c2c9cc;}
-.key .k-on::before{background:var(--grease);}
-.key .k-tot::before{display:none;}
+.stat b{font-family:var(--display); font-size:1.3rem; font-weight:600;
+  letter-spacing:-.02em; color:var(--ink);}
+/* A museum label. Public domain still has an author. */
+.credit{position:absolute; z-index:3; right:var(--pad); bottom:1.4rem; margin:0;
+  font-size:.72rem; color:var(--faint); text-align:right; max-width:26ch;}
+.credit em{font-style:italic;}
 
 /* ---- passed ----------------------------------------------------------- */
 .passed{padding:clamp(2rem,5vw,3rem) var(--pad) clamp(3rem,7vw,5rem);
@@ -460,7 +633,14 @@ img{max-width:100%; display:block;}
 .pass.seen{opacity:1; transform:none;}
 .pass.hide{display:none;}
 .mount{margin:0; background:var(--mount); border-radius:3px; overflow:hidden;
-  box-shadow:0 1px 2px rgba(16,20,26,.16), 0 12px 28px -18px rgba(16,20,26,.5);}
+  position:relative; box-shadow:var(--lift);}
+/* The name, over the picture: a wall of fifty links does not say which of
+   the fifty this entry is, and hunting for it in a screenshot is work. */
+.stamp{position:absolute; top:.55rem; left:.55rem; max-width:calc(100% - 1.1rem);
+  font-family:var(--mono); font-size:.72rem; font-weight:500; color:#fff;
+  background:var(--grease); padding:.3rem .55rem; border-radius:2px;
+  box-shadow:0 2px 10px rgba(16,20,26,.35); overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap;}
 .mount img{width:100%; aspect-ratio:4/5; object-fit:cover;
   transition:transform .7s cubic-bezier(.2,.8,.3,1);}
 .pass:hover .mount img{transform:scale(1.035);}
@@ -494,8 +674,22 @@ img{max-width:100%; display:block;}
 .doubt .lab{color:var(--amber); opacity:.75;}
 .why strong, .does strong{font-weight:600;}
 .why code, .does code, .r code{font-family:var(--mono); font-size:.86em;}
-.foot{font-family:var(--mono); font-size:.72rem; color:var(--faint);
-  margin:1.2rem 0 .9rem; word-break:break-word;}
+/* The neighbours on the same slide, and what happened to each. This is the
+   answer to "why this one and not the other fifty" — and it has to sit next
+   to the thing, not in a list of 129 rows further down the page. */
+.sibs{margin:1.4rem 0 0; padding-top:1rem; border-top:1px dashed var(--rule);}
+.sibs .lab{margin-bottom:.6rem;}
+.sib{display:inline-flex; align-items:baseline; gap:.4rem; margin:0 .35rem .35rem 0;
+  padding:.28rem .55rem; border:1px solid var(--rule); border-radius:2px;
+  font-family:var(--mono); font-size:.72rem; color:var(--soft);
+  background:var(--lit);}
+.sib b{font-weight:500; font-size:.62rem; letter-spacing:.08em;
+  color:var(--faint);}
+.sib.kept{border-color:var(--grease); color:var(--grease);}
+.sib.kept b{color:var(--grease);}
+/* The name identifies the thing, so it is read, not squinted at. */
+.foot{font-family:var(--mono); font-size:.82rem; font-weight:500;
+  color:var(--ink); margin:1.2rem 0 .9rem; word-break:break-word;}
 .links{display:flex; gap:.6rem; margin:0; flex-wrap:wrap;}
 .links a{font-family:var(--mono); font-size:.68rem; letter-spacing:.12em;
   text-transform:uppercase; text-decoration:none; padding:.5rem .9rem;
@@ -532,12 +726,21 @@ img{max-width:100%; display:block;}
 /* ---- quality floor ---------------------------------------------------- */
 a:focus-visible, button:focus-visible, .mk:focus-visible{
   outline:2px solid var(--grease); outline-offset:3px;}
+@media (max-width:900px){
+  .head{min-height:auto;}
+  .head .say{max-width:100%;}
+  .art{width:100%; opacity:.16;
+    -webkit-mask-image:linear-gradient(#000 55%,transparent 100%);
+    mask-image:linear-gradient(#000 55%,transparent 100%);}
+  .head::after{background:linear-gradient(var(--glass) 20%,
+    rgba(233,236,237,.55) 60%,rgba(233,236,237,0) 100%);}
+  .credit{position:static; text-align:left; margin-top:2.5rem; max-width:100%;}
+}
 @media (max-width:720px){
   body{font-size:16px;}
   .pass{grid-template-columns:1fr;}
   .mount{max-width:20rem;}
   .rows li{grid-template-columns:1fr;}
-  .mk{height:22px;} .mk.on{height:32px;}
 }
 @media (prefers-reduced-motion:reduce){
   *{animation:none !important; transition:none !important;}
@@ -564,8 +767,8 @@ JS = """
       });
     }, {rootMargin:'400px 0px 400px 0px'});
     pass.forEach(function(el){ io.observe(el); });
-    // Se per qualsiasi ragione l'osservatore non scatta, la pagina non puo'
-    // restare vuota: una schermata di grigio si legge come un errore.
+    // If the observer never fires, for any reason, the page must not stay
+    // blank: a screenful of grey reads as an error, not as a page.
     setTimeout(function(){
       pass.forEach(function(el){ el.classList.add('seen'); });
     }, 2500);
@@ -633,11 +836,14 @@ def render(data: dict, shots: Path | None = None,
     # slide holding one keeper and eleven rejects is still a wall of links,
     # and asking only the keepers would call it a portrait.
     shared = shared_slides(kept + list(stopped))
-    passed = "".join(kept_html(it, i, cat, shots, out_dir, shapes, shared)
+    siblings = siblings_map(kept, list(stopped))
+    passed = "".join(kept_html(it, i, cat, shots, out_dir, shapes, shared,
+                               siblings)
                      for i, (cat, it) in enumerate(flat))
     chips = "".join(f'<button class="cf" data-cat="{_esc(c.get("name"))}">'
                     f'{_esc(c.get("name"))}</button>' for c in cats)
     counts = data.get("counts") or {}
+    art = painting_data_uri()
     total = len(kept) + len(stopped)
     return f"""<!doctype html>
 <html lang="it"><head><meta charset="utf-8">
@@ -650,13 +856,15 @@ def render(data: dict, shots: Path | None = None,
 <body>
 
 <header class="head">
-  <p class="eyebrow">winnow · {week}</p>
-  <h1>{total} cose.<br><em>{len(kept)} passate.</em></h1>
-  <div class="lede">{lede}</div>
-  <div class="stats">{counts_html(counts)}</div>
+  {f'<img class="art" src="{art}" alt="Un contadino lancia il grano in aria: il vento porta via la pula.">' if art else ""}
+  <div class="say">
+    <p class="wordmark">{logo_svg()}<span>winnow</span><b>{week}</b></p>
+    <h1>{total} cose salvate.<br><em>{len(kept)} valgono il tuo tempo.</em></h1>
+    {f'<div class="comment"><p class="lab">Il commento della settimana</p>{lede}</div>' if lede else ""}
+    <div class="stats">{counts_html(counts)}</div>
+  </div>
+  <p class="credit">Jean-François Millet, <em>Il vagliatore</em>, 1847–48. Pubblico dominio.</p>
 </header>
-
-{sieve_html(kept, stopped)}
 
 <section class="passed">
   <p class="eyebrow">Passate</p>
@@ -698,10 +906,59 @@ def extract_json(text: str) -> dict:
     raise json.JSONDecodeError("no JSON object in this file", text, 0)
 
 
+def paste_from_clipboard() -> str:
+    """Whatever is on the clipboard. Best effort, never raises."""
+    import shutil
+    import subprocess
+    for cmd in (["pbpaste"], ["wl-paste"],
+                ["xclip", "-selection", "clipboard", "-o"]):
+        if shutil.which(cmd[0]):
+            try:
+                return subprocess.run(cmd, capture_output=True, text=True,
+                                      check=True).stdout
+            except subprocess.SubprocessError:
+                return ""
+    return ""
+
+
+def render_clipboard(recap_dir: Path, shots: Path | None = None,
+                     findings: Path | None = None,
+                     now: date | None = None) -> Path:
+    """The model's answer, straight from the clipboard to a page.
+
+    `winnow recap` puts the bundle *on* the clipboard; this takes the answer
+    *off* it, and the loop closes with no file handling in between. "Save the
+    model's whole answer to a file, then render it" was one instruction too
+    many for a thing done once a week on a Sunday — and the step where it
+    stops being done at all.
+
+    The answer is written down before it is rendered, and never over an
+    earlier one: re-asking the model after correcting it is the normal way to
+    use this, and a judgement that cost real money must survive both the next
+    thing copied and the next attempt.
+    """
+    text = paste_from_clipboard()
+    if not text.strip():
+        raise ValueError("the clipboard is empty — copy the model's answer "
+                         "first, all of it, including the ```json block")
+    data = extract_json(text)           # raises before anything is written
+    recap_dir.mkdir(parents=True, exist_ok=True)
+    stem = (now or date.today()).isoformat()
+    src = recap_dir / f"{stem}.answer.md"
+    n = 2
+    while src.exists():
+        src = recap_dir / f"{stem}.answer-{n}.md"
+        n += 1
+    src.write_text(text, encoding="utf-8")
+    return render_file(src, shots=shots, findings=findings, data=data)
+
+
 def render_file(src: Path, out: Path | None = None,
                 shots: Path | None = None,
-                findings: Path | None = None) -> Path:
-    data = extract_json(src.read_text(encoding="utf-8"))
+                findings: Path | None = None,
+                data: dict | None = None) -> Path:
+    if data is None:
+        data = extract_json(src.read_text(encoding="utf-8"))
     out = out or src.with_suffix(".html")
     out.parent.mkdir(parents=True, exist_ok=True)
     from winnow import paths

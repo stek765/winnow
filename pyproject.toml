@@ -25,4 +25,4 @@ include = ["winnow*"]
 # The recap prompt and the starter profile ship with the package: `winnow
 # recap` must work from an installed copy, with no repo checkout in sight.
 [tool.setuptools.package-data]
-winnow = ["*.md"]
+winnow = ["*.md", "*.jpg"]
