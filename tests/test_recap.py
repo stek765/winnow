@@ -523,6 +523,39 @@ def test_a_leaked_profile_stops_before_it_is_sent(tmp_path, monkeypatch):
     assert calls == []
 
 
+def test_a_recap_records_its_spend(tmp_path, monkeypatch):
+    """`run.py` checks and records around every extraction; the recap call —
+    a week in, up to 16k tokens out — was the one gap: paid for, but invisible
+    to `weekly_spend` and to the brake."""
+    import json as _json
+
+    from winnow.recap import run_recap
+    _fixture(tmp_path, monkeypatch)
+    assert run_recap(open_file=False,
+                     ask=lambda *a, **k: (ANSWER, 100, 50)) == 0
+    runs = _json.loads((tmp_path / "spend.json").read_text(encoding="utf-8"))
+    assert len(runs) == 1
+    # claude-haiku-4-5: 100 in @ $1/M + 50 out @ $5/M.
+    assert runs[0]["usd"] == pytest.approx(0.00035)
+
+
+def test_a_tripped_brake_stops_the_recap_before_it_asks(tmp_path, monkeypatch):
+    """The freeze must sit before the model is asked, not after: a recap run
+    with the brake already tripped must not spend a cent."""
+    from winnow.recap import run_recap
+    _fixture(tmp_path, monkeypatch)
+    (tmp_path / "HALTED").write_text("stopped by hand", encoding="utf-8")
+
+    calls = []
+
+    def counted(*a, **k):
+        calls.append(1)
+        return ANSWER, 100, 50
+
+    assert run_recap(open_file=False, ask=counted) == 1
+    assert calls == []
+
+
 def test_the_readme_does_not_describe_a_flow_that_is_gone():
     """Il copia-incolla non esiste più: un README che lo racconta manda
     l'utente a cercare un passaggio che non c'è."""

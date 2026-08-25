@@ -100,6 +100,11 @@ def _anthropic(model: str, system: str, text: str, images: list[Path],
         # returned, so the signature stays "one reply or an error" — a caller
         # that has somewhere to put a partial answer can still reach it.
         exc.partial = reply
+        # Same reasoning for the tokens: the API already billed for them
+        # (`r.usage` is populated even when `stop_reason == "max_tokens"`), so
+        # a caller that wants to record the spend does not have to guess it.
+        exc.input_tokens = r.usage.input_tokens
+        exc.output_tokens = r.usage.output_tokens
         raise exc
     return reply, r.usage.input_tokens, r.usage.output_tokens
 
@@ -124,16 +129,22 @@ def read_openai_reply(data: dict) -> tuple[str, int, int]:
     a local one often does, and a missing count is zero, not a crash."""
     choice = (data.get("choices") or [{}])[0]
     text = choice.get("message", {}).get("content") or ""
+    # Read once: a server that truncates still reports usage in the same
+    # response, so the count is here whether or not the finish reason below
+    # sends this call down the Truncated branch.
+    usage = data.get("usage") or {}
+    tin = int(usage.get("prompt_tokens") or 0)
+    tout = int(usage.get("completion_tokens") or 0)
     if choice.get("finish_reason") == "length":
         exc = Truncated("reply truncated: the post has too many entries. "
                         "Raise max_tokens.")
         # Same reasoning as the Anthropic path: the words already cost money,
         # so they ride on the exception instead of being thrown away.
         exc.partial = text
+        exc.input_tokens = tin
+        exc.output_tokens = tout
         raise exc
-    usage = data.get("usage") or {}
-    return text, int(usage.get("prompt_tokens") or 0), int(
-        usage.get("completion_tokens") or 0)
+    return text, tin, tout
 
 
 def _openai_compatible(base_url: str, key: str | None, model: str, system: str,

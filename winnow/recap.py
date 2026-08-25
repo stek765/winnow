@@ -20,6 +20,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from winnow import config, digest, paths, providers
+from winnow.budget import Halted, check_brake, record_spend
 from winnow.render import extract_json
 
 DAYS = 7
@@ -264,6 +265,20 @@ def run_recap(now: datetime | None = None, open_file: bool = True,
         print(f"  ❌ no config: {paths.config_file()}")
         print("     run 'winnow init'.")
         return 1
+
+    # `collect()` checks and records around every extraction (`run.py`); this
+    # call was the one gap — the heaviest one winnow makes (a week in, up to
+    # 16k tokens out), invisible to `weekly_spend` and able to run past an
+    # already-tripped brake. Same guard, same place in the sequence: before
+    # the money is spent, not after.
+    state_dir = paths.state_dir()
+    spend_path = state_dir / "spend.json"
+    try:
+        check_brake(state_dir, spend_path, cfg.limits, now)
+    except Halted as e:
+        print(f"  ❌ {e}")
+        return 1
+
     recap_dir = paths.recap_dir()
     recap_dir.mkdir(parents=True, exist_ok=True)
     stem = now.date().isoformat()
@@ -280,6 +295,15 @@ def run_recap(now: datetime | None = None, open_file: bool = True,
         partial = getattr(e, "partial", "") or ""
         src = _next_answer_path(recap_dir, stem)
         src.write_text(partial, encoding="utf-8")
+        # The cut-off text already cost tokens — `providers.py` carries them
+        # on the exception for exactly this. A network death or a revoked key
+        # never reaches this branch at all (no reply came back to truncate),
+        # so there is nothing dishonest about recording here and nowhere else.
+        tin = getattr(e, "input_tokens", 0)
+        tout = getattr(e, "output_tokens", 0)
+        if tin or tout:
+            record_spend(spend_path, providers.cost(
+                cfg.provider, cfg.model, tin, tout), now)
         print(f"  ❌ {e}")
         print(f"     partial answer saved: {src}")
         return 1
@@ -293,6 +317,9 @@ def run_recap(now: datetime | None = None, open_file: bool = True,
     src.write_text(text, encoding="utf-8")
 
     usd = providers.cost(cfg.provider, cfg.model, tin, tout)
+    # Recorded now, not after `render_file`: the answer is on disk and paid
+    # for at this point regardless of whether it turns out to parse.
+    record_spend(spend_path, usd, now)
     try:
         # Parsed once, here, and handed to `render_file` — which otherwise
         # re-reads `src` and parses it again on its own. `data` is what the
