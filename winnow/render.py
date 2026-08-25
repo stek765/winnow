@@ -249,6 +249,21 @@ def _rel(path: str, out_dir: Path | None) -> str:
         return path
 
 
+def _inline(path: str) -> str:
+    """An image as a data URI, or "" if it cannot be read.
+
+    Recap pages get moved, mailed and reopened months later. A reference to
+    a shared folder — which on top of that has to be cleaned, or it grows
+    into tens of GB — is a hole that opens on its own.
+    """
+    import base64
+    try:
+        data = base64.b64encode(Path(path).read_bytes()).decode("ascii")
+    except OSError:
+        return ""
+    return f"data:image/png;base64,{data}"
+
+
 def plate(item: dict) -> str:
     """What stands in when no slide was ever captured.
 
@@ -320,9 +335,12 @@ def _siblings_html(item: dict, siblings: dict | None) -> str:
 
 def kept_html(item: dict, i: int, cat: str, shots: Path | None,
               out_dir: Path | None, shapes: dict[str, str] | None = None,
-              shared: set | None = None, siblings: dict | None = None) -> str:
+              shared: set | None = None, siblings: dict | None = None,
+              embed_shots: bool = False) -> str:
     """One thing that got through: the slide, then why it got through."""
-    src = _rel(shot_for(item, shots, shapes, shared), out_dir)
+    found = shot_for(item, shots, shapes, shared)
+    src = (_inline(found) if embed_shots and found
+           else _rel(found, out_dir))
     pic = (f'<img loading="lazy" src="{_esc(src)}" alt="">' if src
            else plate(item))
     note = slide_note(item, shapes, shared, siblings)
@@ -819,7 +837,8 @@ def shapes_from(findings_dir: Path | None) -> dict[str, str]:
 
 def render(data: dict, shots: Path | None = None,
            out_dir: Path | None = None,
-           shapes: dict[str, str] | None = None) -> str:
+           shapes: dict[str, str] | None = None,
+           embed_shots: bool = False) -> str:
     """Judgement (as data) -> the week, cut in half and both halves shown."""
     week = _esc(data.get("week"))
     lede = "".join(f"<p>{_md(p.strip())}</p>"
@@ -838,7 +857,7 @@ def render(data: dict, shots: Path | None = None,
     shared = shared_slides(kept + list(stopped))
     siblings = siblings_map(kept, list(stopped))
     passed = "".join(kept_html(it, i, cat, shots, out_dir, shapes, shared,
-                               siblings)
+                               siblings, embed_shots)
                      for i, (cat, it) in enumerate(flat))
     chips = "".join(f'<button class="cf" data-cat="{_esc(c.get("name"))}">'
                     f'{_esc(c.get("name"))}</button>' for c in cats)
@@ -977,7 +996,8 @@ def blame_json(text: str, err: json.JSONDecodeError) -> str:
 def render_file(src: Path, out: Path | None = None,
                 shots: Path | None = None,
                 findings: Path | None = None,
-                data: dict | None = None) -> Path:
+                data: dict | None = None,
+                embed_shots: bool = False) -> Path:
     if data is None:
         data = extract_json(src.read_text(encoding="utf-8"))
     out = out or src.with_suffix(".html")
@@ -987,6 +1007,7 @@ def render_file(src: Path, out: Path | None = None,
         shots = paths.shots_dir()
     shapes = shapes_from(findings if findings is not None else paths.findings_dir())
     out.write_text(
-        render(data, shots if shots.is_dir() else None, out.parent, shapes),
+        render(data, shots if shots.is_dir() else None, out.parent, shapes,
+               embed_shots),
         encoding="utf-8")
     return out

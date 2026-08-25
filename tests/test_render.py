@@ -605,3 +605,41 @@ def test_the_parse_error_points_at_the_line_that_broke():
     from winnow.render import blame_json
     err = json.JSONDecodeError("Expecting property name", '{\n  week: 1\n}', 4)
     assert "week: 1" in blame_json('{\n  week: 1\n}', err)
+
+
+# --- la pagina deve sopravvivere alla pulizia ---------------------------
+
+def test_the_slides_can_travel_inside_the_page(tmp_path):
+    """Le pagine puntano a una cartella condivisa che pesa 58 MB in due
+    giorni (misurato 2026-08-25) e che nessuno pulisce. Non pulire sono
+    decine di GB in un anno; pulire svuota le pagine vecchie — cioè proprio
+    l'archivio. Dentro la pagina, come già il quadro, e il problema sparisce."""
+    from winnow.render import render
+    shots = tmp_path / "shots"
+    shots.mkdir()
+    (shots / "ABC_02.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"x" * 64)
+    page = render({"categories": [{"name": "c", "items": [
+        {"title": "t", "post": "ABC", "slide": 2}]}]},
+        shots=shots, out_dir=tmp_path, embed_shots=True)
+    assert "data:image/png;base64," in page
+    assert "shots/ABC_02.png" not in page
+
+
+def test_by_default_the_page_still_links_its_slides(tmp_path):
+    """Il comportamento di oggi non cambia da sotto i piedi a nessuno."""
+    from winnow.render import render
+    shots = tmp_path / "shots"
+    shots.mkdir()
+    (shots / "ABC_02.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    page = render({"categories": [{"name": "c", "items": [
+        {"title": "t", "post": "ABC", "slide": 2}]}]},
+        shots=shots, out_dir=tmp_path)
+    assert "shots/ABC_02.png" in page
+
+
+def test_a_missing_slide_does_not_break_an_embedded_page(tmp_path):
+    from winnow.render import render
+    page = render({"categories": [{"name": "c", "items": [
+        {"title": "t", "post": "NOPE", "slide": 1}]}]},
+        shots=tmp_path, out_dir=tmp_path, embed_shots=True)
+    assert "<html" in page and "data:image/png" not in page
