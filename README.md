@@ -33,16 +33,59 @@ those facts meet **your profile**, and what comes back is about you.
   <img src="assets/diagrams/winnow-flow.png" alt="Once: winnow init, five minutes. Every day, on its own via launchd: winnow collect writes one findings file. Every week, two commands from you: winnow recap puts everything on your clipboard, you paste it into a model, and winnow render turns the answer into a page that opens itself.">
 </picture>
 
-## Install
+## Start to finish
+
+### Once — about five minutes
 
 ```bash
 pipx install git+https://github.com/stek765/winnow
-
 winnow init
 ```
 
-One command, six steps, about five minutes. It opens the pages you need, asks
-you four questions, and does the rest itself. → [**the six steps**](#info)
+`pipx`, not `git clone`: cloning gives you the source, not the command. (Clone
+it if you mean to change the code — then `pipx install --editable .`)
+
+`winnow init` walks six steps and opens the pages you need on the way: **the
+model** (an API key — Anthropic, OpenAI, or anything OpenAI-compatible on
+localhost), **the browser** Playwright drives, **the Instagram login** (a real
+window; you type it, the session is kept), **which saved folders** to follow,
+**your `profile.md`**, and **the daily run**. → [the six steps in
+detail](#info)
+
+> ⚠️ Step five is the one that decides everything. `profile.md` is what turns a
+> pile of facts into a recap addressed to you — [what goes in it](#once-a-week).
+
+### Every day — nothing
+
+A launchd job runs `winnow collect` at 13:00. It opens the posts you saved
+since yesterday, reads **every slide** of each carousel, checks each name at
+GitHub or Hugging Face, and writes one file into `findings/`. About **$0.008 a
+post**, and it stops itself for good past €10 in a week.
+
+Nothing to do. `winnow status` tells you it is alive.
+
+### Every week — two commands, with a paste in between
+
+```bash
+winnow recap                 # 1
+                             # 2 · paste into a model, send
+                             # 3 · copy its whole answer
+winnow render                # 4 · no arguments
+```
+
+| | |
+|---|---|
+| **1** | `winnow recap` puts four blocks on your clipboard: the week's facts, how to read a pile like this, your profile, and the ask. It also writes them to `recap/` and opens the file. |
+| **2** | Paste into a model and send. **You write no prompt** — the bundle ends with the ask. |
+| **3** | **Copy the model's whole answer**, the <code>&#96;&#96;&#96;json</code> block included. That block is what the page is built from. |
+| **4** | `winnow render`, **with no arguments**: it reads the clipboard, writes the answer down (never over an earlier one), and opens the page. |
+
+The page shows what got through — each with the slide you would have seen on
+Instagram — and, under it, **every single thing that did not**, grouped by the
+verdict that stopped it, with the count beside each. That last part is the one
+to argue with: if *31 out of scope* looks wrong, you can see which 31.
+
+`winnow render answer.md` still takes a file, if you would rather keep one.
 
 ## Commands
 
@@ -54,6 +97,7 @@ Six. Everything else `init` does for you.
 | `winnow collect` | one pass now, instead of waiting for the next run |
 | `winnow status` | is it alive, what did it find, what has it cost |
 | `winnow recap` | the week + your profile, on your clipboard and open on screen |
+| `winnow render` | the answer you just copied, as a page that opens itself |
 | `winnow config` | change folders, model, posts per run, hour, profile |
 | `winnow reset-halt` | restart after the spend brake stopped it |
 
@@ -107,6 +151,11 @@ still there for when you want them directly.
 </table>
 
 ### `winnow recap` puts the prompt, your profile and the week's findings on the clipboard. Paste them into a model and ask.
+
+Then **copy the answer back** and run `winnow render` — no arguments, it takes
+it off the clipboard and opens the page. The bundle goes out through the
+clipboard and the judgement comes back the same way: there is no file to save
+in between.
 
 <details>
 <summary><b>What is actually in that clipboard</b> — four blocks, in this order</summary>
