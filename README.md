@@ -101,7 +101,7 @@ word.
 
 ## Commands
 
-Six. Everything else `init` does for you.
+Eight. Everything else `init` does for you.
 
 | | |
 |---|---|
