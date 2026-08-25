@@ -50,14 +50,14 @@ L'app è **un bottone che chiude il giro**. Tutto il resto le sta dietro.
 
 ## 3. Le decisioni bloccate
 
-| Decisione | Scelta | Perché |
-|---|---|---|
-| Guscio finale | **Tauri** | Il difficile del multipiattaforma non è la finestra, è la distribuzione: Tauri impacchetta `.dmg`, `.deb`, `.AppImage` e ha l'aggiornatore dentro. |
-| Guscio v1 | **browser senza barra** | Se la meta è Tauri, non ha senso comprare la finestra due volte: Tauri porta finestra e impacchettamento insieme. Costo zero adesso. |
-| SwiftUI nativo | **escluso** | È solo Apple, e l'app deve girare anche su Linux. La decisione si è sciolta da sola quando è entrato quel vincolo. |
-| Interfaccia | **HTML/CSS/JS** | È già dimostrato: la pagina del recap è quella lingua lì. E rende il guscio sostituibile. |
-| Chi parla col modello | **l'app, via API** | Fa sparire il copia-incolla, cioè il difetto di §1. Costo stimato ≈ $0.30–0.60 a recap, ~$2/mese sopra l'attuale ~$1 di raccolta. |
-| Il motore | **consegna dati, non stampa** | Vedi §7. |
+| Decisione             | Scelta                        | Perché                                                                                                                                             |
+| --------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guscio finale         | **Tauri**                     | Il difficile del multipiattaforma non è la finestra, è la distribuzione: Tauri impacchetta `.dmg`, `.deb`, `.AppImage` e ha l'aggiornatore dentro. |
+| Guscio v1             | **browser senza barra**       | Se la meta è Tauri, non ha senso comprare la finestra due volte: Tauri porta finestra e impacchettamento insieme. Costo zero adesso.               |
+| SwiftUI nativo        | **escluso**                   | È solo Apple, e l'app deve girare anche su Linux. La decisione si è sciolta da sola quando è entrato quel vincolo.                                 |
+| Interfaccia           | **HTML/CSS/JS**               | È già dimostrato: la pagina del recap è quella lingua lì. E rende il guscio sostituibile.                                                          |
+| Chi parla col modello | **l'app, via API**            | Fa sparire il copia-incolla, cioè il difetto di §1. Costo stimato ≈ $0.30–0.60 a recap, ~$2/mese sopra l'attuale ~$1 di raccolta.                  |
+| Il motore             | **consegna dati, non stampa** | Vedi §7.                                                                                                                                           |
 
 ⚠️ **L'unica decisione irreversibile è quella dell'interfaccia web.** Il guscio si
 sostituisce; il paradigma dell'interfaccia no. Se un giorno la meta diventasse
@@ -126,13 +126,13 @@ solo se lanci `winnow status` — cioè, per un utente dell'app, **mai**.
 
 ## 6. Ciclo di vita
 
-| Quando | Cosa succede |
-|---|---|
-| Doppio click | Si apre la finestra; sotto parte il motore su una porta locale. |
-| Chiudi la finestra | Il motore si spegne con lei. Niente resta acceso. |
-| 13:00, app chiusa | Il servizio di sistema raccoglie lo stesso. Riaprendo trovi i post pronti. |
-| 13:00, app aperta | Vedi la raccolta scorrere in diretta. |
-| Riapri mentre è aperta | Torna la finestra esistente, non una seconda. |
+| Quando                 | Cosa succede                                                               |
+| ---------------------- | -------------------------------------------------------------------------- |
+| Doppio click           | Si apre la finestra; sotto parte il motore su una porta locale.            |
+| Chiudi la finestra     | Il motore si spegne con lei. Niente resta acceso.                          |
+| 13:00, app chiusa      | Il servizio di sistema raccoglie lo stesso. Riaprendo trovi i post pronti. |
+| 13:00, app aperta      | Vedi la raccolta scorrere in diretta.                                      |
+| Riapri mentre è aperta | Torna la finestra esistente, non una seconda.                              |
 
 ---
 
@@ -207,10 +207,10 @@ non c'è niente da testare nel browser.**
 `week_files()` seleziona **gli ultimi 7 giorni di calendario**, e non esiste da
 nessuna parte uno stato *"fin dove ho già giudicato"*. Due conseguenze:
 
-| | |
-|---|---|
-| Due recap ravvicinati | Domenica giudichi lun–dom; mercoledì rigiudichi mar–mer **più** gio–dom già visti. Rileggi e ripaghi. |
-| Salti dieci giorni | I giorni 8, 9 e 10 escono dalla finestra e **non li vede più nessuno**: pagati, raccolti, mai giudicati. |
+|                       |                                                                                                          |
+| --------------------- | -------------------------------------------------------------------------------------------------------- |
+| Due recap ravvicinati | Domenica giudichi lun–dom; mercoledì rigiudichi mar–mer **più** gio–dom già visti. Rileggi e ripaghi.    |
+| Salti dieci giorni    | I giorni 8, 9 e 10 escono dalla finestra e **non li vede più nessuno**: pagati, raccolti, mai giudicati. |
 
 Il secondo è quello grave: winnow esiste perché i post salvati non si riguardano
 mai, e qui è il tool stesso a perderne un pezzo in silenzio.
@@ -252,15 +252,15 @@ dopo N settimane senza perdere niente.
 
 ## 9. Errori e casi limite
 
-| Situazione | Cosa fa l'app |
-|---|---|
-| Sessione Instagram scaduta | Stato ⚠ sulla casa, bottone che apre la finestra di login. |
-| Freno di spesa tirato | Stato ⛔, con quanto e perché, e il bottone per ripartire. |
-| Il modello non risponde / chiave scaduta | Il lavoro fallisce e lo dice; **il pacchetto resta su disco** e si può ritentare senza ricostruirlo. |
-| Risposta del modello non valida | Salvata comunque, come già fa `render_clipboard`. La pagina non si apre, l'errore mostra la riga. |
-| Porta locale occupata | Ne prova un'altra. La finestra non deve mai aprirsi su una pagina bianca. |
-| Nessuna rete | `/api/state` risponde lo stesso con quello che sa da disco, e dichiara cosa non ha potuto chiedere. Mai «tutto a posto» per silenzio. |
-| Primo avvio, Chromium da scaricare | ~150 MB. Va **raccontato** con una barra vera, non lasciato a una finestra ferma. |
+| Situazione                               | Cosa fa l'app                                                                                                                         |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Sessione Instagram scaduta               | Stato ⚠ sulla casa, bottone che apre la finestra di login.                                                                            |
+| Freno di spesa tirato                    | Stato ⛔, con quanto e perché, e il bottone per ripartire.                                                                             |
+| Il modello non risponde / chiave scaduta | Il lavoro fallisce e lo dice; **il pacchetto resta su disco** e si può ritentare senza ricostruirlo.                                  |
+| Risposta del modello non valida          | Salvata comunque, come già fa `render_clipboard`. La pagina non si apre, l'errore mostra la riga.                                     |
+| Porta locale occupata                    | Ne prova un'altra. La finestra non deve mai aprirsi su una pagina bianca.                                                             |
+| Nessuna rete                             | `/api/state` risponde lo stesso con quello che sa da disco, e dichiara cosa non ha potuto chiedere. Mai «tutto a posto» per silenzio. |
+| Primo avvio, Chromium da scaricare       | ~150 MB. Va **raccontato** con una barra vera, non lasciato a una finestra ferma.                                                     |
 
 ---
 
