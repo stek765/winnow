@@ -130,6 +130,27 @@ def load_days(files: list[Path]) -> list[dict]:
     return days
 
 
+def entered_package(files: list[Path]) -> list[Path]:
+    """Of the candidate files, the ones that actually reached the model.
+
+    `load_days` reports a corrupt day and skips it — but returns only the
+    parsed dicts, with no way back to which path was dropped. Marking
+    `files[-1]` blindly used to close a day the bundle never contained,
+    which is worse than not marking it: every future recap would then skip
+    a day it never judged. Same check `load_days` makes, kept separate so a
+    caller that only needs "did this one make it" is not handed a parsed
+    dict it has no use for.
+    """
+    good = []
+    for f in files:
+        try:
+            json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        good.append(f)
+    return good
+
+
 def build_bundle(prompt: str, profile: str, files: list[Path],
                  mentality: str = "", today: str = "") -> str:
     """The four blocks, in the order the reader needs them.
@@ -339,8 +360,22 @@ def run_recap(now: datetime | None = None, open_file: bool = True,
     say("rendered", path=str(out))
 
     # The marker moves only now: marking as judged a day whose recap failed
-    # would lose it forever.
-    window.mark_judged(judged, files[-1].stem)
+    # would lose it forever. Two more conditions on top of that:
+    #
+    # - Never today's own file (`f.stem != stem`). `collect()` always writes
+    #   into `findings/<today>.json`; a backlog run (`winnow collect --posts
+    #   30`, which the CLI documents for exactly this) can still append to it
+    #   later the same day. `window.pending_files` only ever returns a day
+    #   once — `stem > after`, strictly — so closing today here would hide
+    #   that later growth from every recap that follows, forever: entities
+    #   paid for and collected, never judged. Today closes itself the first
+    #   time a *later* day's recap runs and finds `stem < that day` true.
+    # - Only a file that actually parsed (`entered_package`), not `files[-1]`
+    #   blindly: a corrupt day is skipped by `load_days`, so `files[-1]`
+    #   could be a day the bundle never contained.
+    closed = [f for f in entered_package(files) if f.stem != stem]
+    if closed:
+        window.mark_judged(judged, closed[-1].stem)
 
     if open_file and sys.stdout.isatty():
         import webbrowser

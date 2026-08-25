@@ -467,9 +467,17 @@ def test_a_truncated_reply_is_saved_before_it_fails(tmp_path, monkeypatch):
 
 def test_a_second_run_with_nothing_new_says_so_and_costs_nothing(
         tmp_path, monkeypatch):
+    """`now` is fixed a day after the findings, not left to `datetime.now()`:
+    the marker only closes a day once it is no longer "today" (see the
+    same-day backlog test below), so a run for a day that has already ended
+    must say so — and this must hold on every date it happens to run, not
+    only on the one date the findings file's name was written down."""
+    from datetime import datetime
+
     from winnow.recap import run_recap
     _fixture(tmp_path, monkeypatch)
-    run_recap(open_file=False, ask=lambda *a, **k: (ANSWER, 100, 50))
+    later = datetime(2026, 8, 26, 9, 0)
+    run_recap(now=later, open_file=False, ask=lambda *a, **k: (ANSWER, 100, 50))
 
     calls = []
 
@@ -477,7 +485,7 @@ def test_a_second_run_with_nothing_new_says_so_and_costs_nothing(
         calls.append(1)
         return ANSWER, 100, 50
 
-    assert run_recap(open_file=False, ask=counted) == 0
+    assert run_recap(now=later, open_file=False, ask=counted) == 0
     assert calls == []
 
 
@@ -554,6 +562,78 @@ def test_a_tripped_brake_stops_the_recap_before_it_asks(tmp_path, monkeypatch):
 
     assert run_recap(open_file=False, ask=counted) == 1
     assert calls == []
+
+
+# --- a day is not closed for good until it stops being today --------------
+
+def test_a_same_day_backlog_collect_is_not_lost(tmp_path, monkeypatch):
+    """The defect `window.py` exists to close, reopened by another door.
+    `winnow collect --posts 30` — the CLI's own documented way to clear a
+    backlog — writes into `findings/<today>.json`, same file the morning's
+    recap already read. `pending_files` only ever returns a day once
+    (`stem > after`, strictly): if that day got closed while it was still
+    today, the afternoon's new posts would never be looked at by anyone,
+    silently, forever — collected, paid for, judged by nobody."""
+    from datetime import datetime
+
+    from winnow.recap import run_recap
+    from winnow.window import last_judged
+    findings = _fixture(tmp_path, monkeypatch)
+    morning = datetime(2026, 8, 25, 9, 0)
+    next_day = datetime(2026, 8, 26, 9, 0)
+
+    bundles = []
+
+    def capture(bundle, *a, **k):
+        bundles.append(bundle)
+        return ANSWER, 100, 50
+
+    # The morning recap: one day, its own findings, nothing else pending yet.
+    assert run_recap(now=morning, open_file=False, ask=capture) == 0
+    assert "BACKLOG-THING" not in bundles[0]
+    # Still today when it ran: not closed yet, on purpose.
+    assert last_judged(tmp_path / "judged.json") is None
+
+    # The afternoon's backlog collect: same file, one more post.
+    (findings / "2026-08-25.json").write_text(json.dumps(
+        {"spend_usd": 0.02,
+         "posts": [{"shortcode": "A", "shape": "news", "entities": []},
+                   {"shortcode": "BACKLOG", "shape": "repo", "account": "x",
+                    "caption": "", "url": "", "entities": [
+                        {"name": "BACKLOG-THING", "kind": "repo",
+                         "verification": {"checked": True, "exists": True}}]}]}),
+        encoding="utf-8")
+
+    # The next recap, the following day: the file is pending again — it was
+    # never closed — and this time the new post is in the bundle.
+    assert run_recap(now=next_day, open_file=False, ask=capture) == 0
+    assert "BACKLOG-THING" in bundles[1]
+    # Now that the day has actually ended, it closes.
+    assert last_judged(tmp_path / "judged.json") == "2026-08-25"
+
+
+def test_a_corrupt_day_is_not_marked_as_judged(tmp_path, monkeypatch):
+    """The marker used to move to `files[-1].stem` without asking whether
+    that file made it into the bundle. If the most recent pending day is the
+    corrupt one, `load_days` reports it and drops it — but the old code still
+    told every future recap to skip that day, having judged none of it."""
+    from datetime import datetime
+
+    from winnow.recap import run_recap
+    from winnow.window import last_judged
+    findings = _fixture(tmp_path, monkeypatch)
+    (findings / "2026-08-23.json").write_text(json.dumps(
+        {"spend_usd": 0.0,
+         "posts": [{"shortcode": "A", "shape": "news", "entities": []}]}),
+        encoding="utf-8")
+    (findings / "2026-08-24.json").write_text("{{{not json", encoding="utf-8")
+    now = datetime(2026, 8, 25, 9, 0)   # the fixture's own day is "today"
+
+    assert run_recap(now=now, open_file=False,
+                     ask=lambda *a, **k: (ANSWER, 100, 50)) == 0
+    # Not "2026-08-24" (corrupt, never entered the bundle) and not
+    # "2026-08-25" (today — see the test above).
+    assert last_judged(tmp_path / "judged.json") == "2026-08-23"
 
 
 def test_the_readme_does_not_describe_a_flow_that_is_gone():
