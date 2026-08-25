@@ -385,12 +385,31 @@ def _fixture(tmp_path, monkeypatch, days=("2026-08-25",)):
              "posts": [{"shortcode": "A", "shape": "news", "entities": []}]}),
             encoding="utf-8")
     (tmp_path / "profile.md").write_text("# io", encoding="utf-8")
+    # A config.toml of our own, minimal but complete: `load_config` requires
+    # every one of these keys, and without this the test only passes because
+    # a real ~/.config/winnow/config.toml happens to exist on this machine —
+    # on a clean checkout or in CI it would raise FileNotFoundError instead.
+    (tmp_path / "config.toml").write_text(
+        'folders = []\n\n'
+        '[instagram]\n'
+        'username = "x"\n'
+        f'browser_profile = "{tmp_path / "browser-profile"}"\n\n'
+        '[api]\n'
+        'model = "claude-haiku-4-5"\n\n'
+        '[limits]\n'
+        'warn_eur_week = 1.0\n'
+        'halt_eur_week = 2.0\n'
+        'posts_per_run = 5\n'
+        'max_slides = 6\n'
+        'eur_per_usd = 1.0\n',
+        encoding="utf-8")
     monkeypatch.setattr(R.paths, "findings_dir", lambda: findings)
     monkeypatch.setattr(R.paths, "recap_dir", lambda: tmp_path / "recap")
     monkeypatch.setattr(R.paths, "profile_file", lambda: tmp_path / "profile.md")
     monkeypatch.setattr(R.paths, "judged_file", lambda: tmp_path / "judged.json")
     monkeypatch.setattr(R.paths, "shots_dir", lambda: tmp_path / "shots")
     monkeypatch.setattr(R.paths, "state_dir", lambda: tmp_path)
+    monkeypatch.setattr(R.paths, "config_file", lambda: tmp_path / "config.toml")
     return findings
 
 
