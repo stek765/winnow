@@ -308,24 +308,6 @@ def test_the_comment_is_asked_to_point_somewhere():
     assert "Never restate a number" in body
 
 
-def test_the_recap_says_how_to_get_the_answer_back(capsys, tmp_path, monkeypatch):
-    """A bundle handed over with no way back is half a loop. The last thing
-    printed has to be the next command, or the answer stays in a chat window."""
-    import winnow.recap as R
-    monkeypatch.setattr(R, "copy_to_clipboard", lambda t: "pbcopy")
-    from datetime import date
-    findings = tmp_path / "f"; findings.mkdir()
-    (findings / f"{date.today().isoformat()}.json").write_text(
-        json.dumps({"spend_usd": 0.01, "posts": [
-            {"shortcode": "A", "entities": []}]}), encoding="utf-8")
-    monkeypatch.setattr(R.paths, "findings_dir", lambda: findings)
-    monkeypatch.setattr(R.paths, "recap_dir", lambda: tmp_path)
-    monkeypatch.setattr(R.paths, "profile_file", lambda: tmp_path / "p.md")
-    (tmp_path / "p.md").write_text("# io", encoding="utf-8")
-    R.run_recap(open_file=False)
-    assert "winnow render" in capsys.readouterr().out
-
-
 def test_the_prompt_makes_each_line_stand_on_its_own():
     """Measured 2026-08-24, from a reader: «devo usare il titolo per dare un
     senso alla frase». Every `why` that week opened on a pronoun — «È l'unica
@@ -386,3 +368,92 @@ def test_the_prompt_forbids_resolving_an_unchecked_thing_from_memory():
     from winnow.recap import package_file, prompt_body
     body = prompt_body(package_file("recap-prompt.md"))
     assert "never becomes `LO CONOSCI`" in body
+
+
+# --- one command -----------------------------------------------------
+
+def _fixture(tmp_path, monkeypatch, days=("2026-08-25",)):
+    """A fake, complete winnow: findings, profile, folders."""
+    import json as _json
+
+    import winnow.recap as R
+    findings = tmp_path / "findings"
+    findings.mkdir()
+    for d in days:
+        (findings / f"{d}.json").write_text(_json.dumps(
+            {"spend_usd": 0.01,
+             "posts": [{"shortcode": "A", "shape": "news", "entities": []}]}),
+            encoding="utf-8")
+    (tmp_path / "profile.md").write_text("# io", encoding="utf-8")
+    monkeypatch.setattr(R.paths, "findings_dir", lambda: findings)
+    monkeypatch.setattr(R.paths, "recap_dir", lambda: tmp_path / "recap")
+    monkeypatch.setattr(R.paths, "profile_file", lambda: tmp_path / "profile.md")
+    monkeypatch.setattr(R.paths, "judged_file", lambda: tmp_path / "judged.json")
+    monkeypatch.setattr(R.paths, "shots_dir", lambda: tmp_path / "shots")
+    monkeypatch.setattr(R.paths, "state_dir", lambda: tmp_path)
+    return findings
+
+
+ANSWER = '```json\n{"week": "2026-08-25", "counts": {"kept": 1}, ' \
+         '"categories": [], "discarded": []}\n```'
+
+
+def test_one_command_bundles_asks_and_renders(tmp_path, monkeypatch):
+    """The three steps of before — prepare, paste, resume — become one."""
+    from winnow.recap import run_recap
+    _fixture(tmp_path, monkeypatch)
+    assert run_recap(open_file=False,
+                     ask=lambda *a, **k: (ANSWER, 100, 50)) == 0
+    pages = list((tmp_path / "recap").glob("*.html"))
+    assert len(pages) == 1
+
+
+def test_the_marker_moves_only_after_the_page_exists(tmp_path, monkeypatch):
+    """Marking as judged a day whose recap failed loses it forever: the next
+    run will never look at it again."""
+    from winnow.judge import Fatal
+    from winnow.recap import run_recap
+    from winnow.window import last_judged
+    _fixture(tmp_path, monkeypatch)
+
+    def dead(*a, **k):
+        raise Fatal("401 invalid api key")
+
+    assert run_recap(open_file=False, ask=dead) == 1
+    assert last_judged(tmp_path / "judged.json") is None
+
+
+def test_a_second_run_with_nothing_new_says_so_and_costs_nothing(
+        tmp_path, monkeypatch):
+    from winnow.recap import run_recap
+    _fixture(tmp_path, monkeypatch)
+    run_recap(open_file=False, ask=lambda *a, **k: (ANSWER, 100, 50))
+
+    calls = []
+
+    def counted(*a, **k):
+        calls.append(1)
+        return ANSWER, 100, 50
+
+    assert run_recap(open_file=False, ask=counted) == 0
+    assert calls == []
+
+
+def test_the_answer_is_written_down_before_it_is_parsed(tmp_path, monkeypatch):
+    """A judgement costs real money. If the JSON is broken it gets fixed by
+    hand — but only if it still exists."""
+    from winnow.recap import run_recap
+    _fixture(tmp_path, monkeypatch)
+    assert run_recap(open_file=False,
+                     ask=lambda *a, **k: ("not json", 100, 50)) == 1
+    saved = list((tmp_path / "recap").glob("*.answer*.md"))
+    assert saved and "not json" in saved[0].read_text(encoding="utf-8")
+
+
+def test_it_reports_as_it_goes(tmp_path, monkeypatch):
+    from winnow.recap import run_recap
+    _fixture(tmp_path, monkeypatch)
+    seen = []
+    run_recap(open_file=False, ask=lambda *a, **k: (ANSWER, 100, 50),
+              on_event=lambda e, d: seen.append(e))
+    assert "bundling" in seen and "judged" in seen and "rendered" in seen

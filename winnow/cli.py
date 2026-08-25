@@ -86,8 +86,15 @@ def _cmd_init(args) -> int:
 
 
 def _cmd_recap(args) -> int:
+    from winnow.progress import line
     from winnow.recap import run_recap
-    return run_recap(args.days, open_file=not args.no_open)
+
+    def show(event: str, data: dict) -> None:
+        text = line(event, data)
+        if text:
+            print(text, flush=True)
+
+    return run_recap(open_file=not args.no_open, on_event=show)
 
 
 def _cmd_update(args) -> int:

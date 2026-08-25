@@ -21,7 +21,8 @@ import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from winnow import digest, paths
+from winnow import config, digest, paths, providers
+from winnow.render import extract_json
 
 DAYS = 7
 
@@ -125,7 +126,7 @@ def load_days(files: list[Path]) -> list[dict]:
         try:
             days.append(json.loads(f.read_text(encoding="utf-8")))
         except (OSError, json.JSONDecodeError) as exc:
-            print(f"  \u26a0\ufe0f  {f.name} could not be read ({exc}): "
+            print(f"  ⚠️  {f.name} could not be read ({exc}): "
                   "that day is not in the recap.")
     return days
 
@@ -187,82 +188,92 @@ def ask_confirm(prompt: str) -> bool:
     return ask(prompt).lower() in ("y", "yes", "s", "si")
 
 
-def run_recap(days: int = DAYS, now: datetime | None = None,
-              open_file: bool = True) -> int:
+def run_recap(now: datetime | None = None, open_file: bool = True,
+              on_event=None, ask=None) -> int:
+    """Prepare, ask, write the page. One run instead of three.
+
+    There used to be three — `winnow recap`, paste into a model, `winnow
+    render` — and the step in between was the one place things could fail
+    without anyone understanding why. On 2026-08-25 it ate a real response.
+    """
+    from winnow import judge, window
+    from winnow.render import render_file
+
     now = now or datetime.now()
+
+    def say(event: str, **data) -> None:
+        if on_event:
+            on_event(event, data)
+
     profile_path = paths.profile_file()
     if not profile_path.exists():
         print(f"  ❌ no profile: {profile_path}")
         print("     run 'winnow init', it creates one to fill in.")
         return 1
 
-    files = week_files(paths.findings_dir(), now.date(), days)
+    judged = paths.judged_file()
+    files = window.pending_files(paths.findings_dir(),
+                                 window.last_judged(judged))
     if not files:
-        day = "day" if days == 1 else "days"
-        print(f"  no findings in the last {days} {day}. Try 'winnow status'.")
-        return 1
+        print("  Nothing new since the last recap.")
+        return 0
 
-    profile, missing = resolve_includes(
-        profile_path.read_text(encoding="utf-8"), profile_path.parent)
-    for path in missing:
-        print(f"  ⚠️  the profile points at {path}, which cannot be read: "
-              "that context is not in the recap.")
+    days = [json.loads(f.read_text(encoding="utf-8")) for f in files]
+    profile = profile_path.read_text(encoding="utf-8")
+    profile, missing = resolve_includes(profile, profile_path.parent)
+    for m in missing:
+        print(f"  ⚠️  the profile points at {m}, which cannot be read.")
 
-    if len(profile) > PROFILE_BUDGET:
-        print(f"\n  \u26a0\ufe0f  your profile is {len(profile):,} characters. The "
-              "recap only needs\n      who you are and what you are after — "
-              "a plan, a portfolio or a\n      year of notes will drown the "
-              f"week's findings.\n      {profile_path}\n")
-
-    leaks = find_secrets(profile)
-    if leaks:
-        print("\n  ⚠️  WARNING: the profile (or a file it includes) holds")
-        print("      something that looks like a credential, and the recap")
-        print("      goes to your clipboard and then into a chat:\n")
-        for hint in leaks[:5]:
-            print(f"        {hint}")
-        print("\n      Remove it, or point at a file that does not hold it.")
-        if ask_confirm("  Carry on anyway? [y/N] ") is False:
-            return 1
-
+    facts = digest.gather(days, now.date().isoformat())
+    # build_bundle wants the PATHS, not the days already read into memory.
     bundle = build_bundle(prompt_body(package_file("recap-prompt.md")),
                           profile, files, package_file("mentality.md"),
                           now.date().isoformat())
-    out = paths.recap_dir() / f"{now.date().isoformat()}.md"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(bundle, encoding="utf-8")
+    say("bundling", days=len(files), posts=facts["posts"],
+        things=len(facts["things"]))
 
-    day = "day" if len(files) == 1 else "days"
-    posts = sum(len(json.loads(f.read_text(encoding="utf-8")).get("posts", []))
-                for f in files)
-    print(f"  {len(files)} {day} · {posts} posts · ~{len(bundle) // 4000}k tokens")
-    print(f"  {out}")
+    # `config.py` exposes flat fields (`.provider`, `.model`, `.base_url`),
+    # not a nested `.api` namespace — kept in step with the rest of the repo.
+    cfg = config.load_config(paths.config_file())
+    try:
+        text, tin, tout = (ask or judge.ask)(
+            bundle, cfg.provider, cfg.model, cfg.base_url,
+            on_event=on_event)
+    except judge.Fatal as e:
+        print(f"  ❌ {e}")
+        return 1
 
-    # "Paste it into a model" told nobody anything. Say what to press, and say
-    # that the instructions are already inside — otherwise the reader starts
-    # writing a prompt that has been written for them.
-    if copy_to_clipboard(bundle):
-        print("\n  ✅ On your clipboard: the instructions, your profile and "
-              "the week, in one piece.\n")
-        print("  1.  Paste it into a model (Claude, ChatGPT, ...) and send.")
-    else:
-        print(f"\n  Copy the whole of {out} and paste it into a model.\n")
-        print("  1.  Paste and send.")
-    print("      You do not write a prompt — the file ends with the ask.")
-    # The loop has to close here or the judgement dies in a chat window. Two
-    # lines, and neither of them asks anybody to save a file: the bundle went
-    # out through the clipboard and the answer comes back the same way.
-    print("  2.  Copy its whole answer, ```json block included.")
-    print("  3.  Run  winnow render  — the page opens by itself.")
-    if len(bundle) > 300_000:
-        print(f"         ⚠️  ~{len(bundle) // 4000}k tokens: it needs a large "
-              "context window.")
-        print("             `winnow recap --days 1` makes a smaller one.")
+    # Written before it is read: a judgement costs real money, and a broken
+    # answer on disk gets fixed by hand — a lost one does not.
+    recap_dir = paths.recap_dir()
+    recap_dir.mkdir(parents=True, exist_ok=True)
+    stem = now.date().isoformat()
+    src = recap_dir / f"{stem}.answer.md"
+    n = 2
+    while src.exists():
+        src = recap_dir / f"{stem}.answer-{n}.md"
+        n += 1
+    src.write_text(text, encoding="utf-8")
 
-    # Opened, not just written: a path printed in a terminal is a path you look
-    # at tomorrow. The clipboard already holds the text, so this is for reading
-    # it — and for the case where the clipboard has been overwritten since.
+    usd = providers.cost(cfg.provider, cfg.model, tin, tout)
+    try:
+        out = render_file(src, embed_shots=True)
+    except json.JSONDecodeError as e:
+        print(f"  ❌ the answer is not valid JSON: {e.msg}")
+        print(f"     saved anyway: {src}")
+        return 1
+
+    data = extract_json(text)
+    say("judged", kept=(data.get("counts") or {}).get("kept", 0),
+        of=len(facts["things"]), usd=usd)
+    say("rendered", path=str(out))
+
+    # The marker moves only now: marking as judged a day whose recap failed
+    # would lose it forever.
+    window.mark_judged(judged, files[-1].stem)
+
+    print(f"  → {out}")
     if open_file and sys.stdout.isatty():
-        from winnow.setup import open_in_editor
-        open_in_editor(out)
+        import webbrowser
+        webbrowser.open(f"file://{out.resolve()}")
     return 0
