@@ -66,8 +66,8 @@ def test_the_bundle_says_what_went_in():
 
 
 def test_asking_names_the_attempt_only_when_it_is_not_the_first():
-    """«tentativo 1 di 5» sul primo giro è rumore: dice che qualcosa è
-    andato storto quando non è successo niente."""
+    """Saying 'attempt 1 of 5' on the first run is noise: it signals something
+    went wrong when nothing happened."""
     first = line("asking", {"attempt": 1, "of": 5})
     again = line("asking", {"attempt": 2, "of": 5})
     assert "1" not in first
@@ -91,6 +91,6 @@ def test_the_page_says_where_it_is():
 
 
 def test_an_event_from_a_newer_version_is_ignored_and_not_a_crash():
-    """Una corsa che è già costata soldi non deve morire perché un chiamante
-    più nuovo ha emesso un evento che questa versione non ha mai visto."""
+    """A run that already cost money must not die because a newer caller
+    emitted an event this version never saw."""
     assert line("something_new", {"whatever": 1}) == ""

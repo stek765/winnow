@@ -70,8 +70,8 @@ def line(event: str, data: dict) -> str:
                 f"posts · {data.get('things', 0)} things")
     if event == "asking":
         attempt = data.get("attempt", 1)
-        # Il numero del tentativo solo quando non è il primo: dirlo sempre
-        # segnala un problema che al primo giro non è successo.
+        # Show attempt number only when it is not the first: saying it always
+        # signals a problem that did not happen on the first run.
         if attempt <= 1:
             return "  asking     the model is reading it…"
         return f"  asking     attempt {attempt} of {data.get('of', '?')}"
