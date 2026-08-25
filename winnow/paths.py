@@ -51,7 +51,7 @@ def state_dir() -> Path:
 
 
 def judged_file() -> Path:
-    """Fin dove il giudizio è arrivato. Come seen.json, ma per i recap."""
+    """How far the judgement has progressed. Like seen.json, but for recaps."""
     return state_dir() / "judged.json"
 
 

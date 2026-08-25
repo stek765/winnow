@@ -74,3 +74,20 @@ def test_a_corrupt_marker_is_a_shrug_and_not_a_crash(tmp_path):
     f = tmp_path / "judged.json"
     f.write_text("{{{", encoding="utf-8")
     assert last_judged(f) is None
+
+
+def test_valid_json_but_wrong_type_is_a_shrug(tmp_path):
+    """JSON valido ma di tipo sbagliato: int, list, str, null non vanno in crash."""
+    f = tmp_path / "judged.json"
+
+    f.write_text("0", encoding="utf-8")
+    assert last_judged(f) is None
+
+    f.write_text("[]", encoding="utf-8")
+    assert last_judged(f) is None
+
+    f.write_text('"x"', encoding="utf-8")
+    assert last_judged(f) is None
+
+    f.write_text("null", encoding="utf-8")
+    assert last_judged(f) is None

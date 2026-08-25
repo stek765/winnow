@@ -1,17 +1,16 @@
-"""Quali findings devono ancora essere giudicati.
+"""Which findings still need to be judged.
 
-`week_files()` prendeva gli ultimi sette giorni di calendario, e da nessuna
-parte esisteva uno stato "fin dove ho già giudicato". Due conseguenze, e la
-seconda è quella grave: due recap ravvicinati rileggono e ripagano gli stessi
-giorni; dieci giorni di pausa e tre giorni di findings escono dalla finestra e
-non li vede mai più nessuno — pagati, raccolti, mai giudicati.
+`week_files()` used to grab the last seven calendar days with no state for "how
+far the judgement has progressed". Two consequences, the second one severe: two
+back-to-back recaps re-read and re-pay for the same days; ten days of downtime
+and three days of findings slide out of the window — paid for, collected, never
+judged.
 
-winnow esiste perché i post salvati non si riguardano mai: perderne un pezzo in
-silenzio è esattamente il difetto che dovrebbe curare.
+winnow exists because saved posts never get reviewed again: silently losing a
+piece of it is exactly the defect it should prevent.
 
-Il marcatore è un file solo, come `seen.json` per i post, e si muove solo in
-avanti: rigiudicare una settimana vecchia non deve far dimenticare quelle già
-fatte dopo.
+The marker is a single file, like `seen.json` for posts, and moves forward only:
+re-judging an old week must not make you forget ones already done after it.
 """
 from __future__ import annotations
 
@@ -23,17 +22,19 @@ DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def last_judged(path: Path) -> str | None:
-    """L'ultimo giorno giudicato, o None se non è mai stato fatto un recap."""
+    """The last day judged, or None if no recap has ever been done."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
         return None
     day = data.get("last_judged")
     return day if isinstance(day, str) and DAY_RE.match(day) else None
 
 
 def mark_judged(path: Path, day: str) -> None:
-    """Sposta il segno in avanti. Mai indietro."""
+    """Move the marker forward. Never backward."""
     if not DAY_RE.match(day):
         return
     if (last_judged(path) or "") >= day:
@@ -44,10 +45,10 @@ def mark_judged(path: Path, day: str) -> None:
 
 
 def pending_files(findings_dir: Path, after: str | None) -> list[Path]:
-    """I findings da giudicare, dal più vecchio.
+    """Findings that need to be judged, oldest first.
 
-    Selezionati per la data nel nome, non per mtime: un file riscritto da una
-    corsa successiva dello stesso giorno non deve sembrare un giorno diverso.
+    Selected by the date in the filename, not by mtime: a file rewritten by a
+    later run of the same day must not look like a different day.
     """
     if not findings_dir.is_dir():
         return []
