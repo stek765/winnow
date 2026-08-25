@@ -64,8 +64,7 @@ def ask(bundle: str, provider: str, model: str, base_url: str | None,
 
     last: Exception | None = None
     for attempt in range(1, attempts + 1):
-        if attempt > 1:
-            say("asking", attempt=attempt, of=attempts)
+        say("asking", attempt=attempt, of=attempts)
         try:
             return call(provider=provider, model=model, base_url=base_url,
                         system="", text=bundle, images=[],

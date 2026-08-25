@@ -67,10 +67,11 @@ def test_it_waits_and_tries_again_when_the_network_is_gone():
 def test_it_says_it_is_waiting_instead_of_going_quiet():
     """A frozen screen for forty-five seconds is indistinguishable from a
     crashed program."""
-    seen = []
+    seen, calls = [], []
 
     def flaky(**kw):
-        if len(seen) < 1:
+        calls.append(1)
+        if len(calls) < 2:
             raise httpx.ConnectError("down")
         return "ok", 1, 1
 
@@ -101,3 +102,13 @@ def test_it_gives_up_after_the_last_attempt_and_says_so():
     with pytest.raises(Fatal, match="3"):
         ask("p", "anthropic", "m", None, complete=always,
             sleep=lambda s: None, attempts=3)
+
+
+def test_a_first_attempt_still_says_it_is_working():
+    """A call that succeeds immediately must still announce itself: the model
+    spends a minute reading forty thousand tokens, and a silent screen is
+    indistinguishable from a hung one."""
+    seen = []
+    ask("p", "anthropic", "m", None, complete=lambda **k: ("ok", 1, 1),
+        on_event=lambda e, d: seen.append(e))
+    assert seen == ["asking"]
