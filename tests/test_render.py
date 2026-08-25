@@ -581,3 +581,27 @@ def test_the_cost_is_a_stat_like_the_others():
     neighbours."""
     out = counts_html({"posts": 30, "usd": 0.13})
     assert "<b>$0.13</b>" in out and "spesi" in out
+
+
+def test_an_unparsable_answer_is_still_written_down(monkeypatch, tmp_path):
+    """`render_clipboard` used to validate before saving, so a JSON error
+    destroyed the answer instead of the page: the model's reply is gone from
+    the clipboard the moment anything else is copied — including the error
+    message you copy to ask for help, which is exactly what happened on
+    2026-08-25. Save first, parse second: a broken answer on disk can be
+    fixed by hand, a lost one cannot."""
+    import winnow.render as R
+    monkeypatch.setattr(R, "paste_from_clipboard", lambda: '{\n  week: "x"\n}')
+    with pytest.raises(json.JSONDecodeError):
+        R.render_clipboard(tmp_path)
+    saved = list(tmp_path.glob("*.answer*.md"))
+    assert saved and "week" in saved[0].read_text(encoding="utf-8")
+
+
+def test_the_parse_error_points_at_the_line_that_broke():
+    """«Expecting property name enclosed in double quotes: line 2 column 3»
+    tells you the grammar rule and not the text. Printing the line is what
+    turns it into something you can fix."""
+    from winnow.render import blame_json
+    err = json.JSONDecodeError("Expecting property name", '{\n  week: 1\n}', 4)
+    assert "week: 1" in blame_json('{\n  week: 1\n}', err)

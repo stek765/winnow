@@ -340,3 +340,49 @@ def test_the_prompt_makes_each_line_stand_on_its_own():
     assert "Never open on a pronoun" in body
     assert "stand on its own without the heading" in body
     assert "Whole sentences" in body
+
+
+def test_a_json_error_is_not_swallowed_by_the_empty_clipboard_handler(
+        monkeypatch, tmp_path, capsys):
+    """`json.JSONDecodeError` **inherits from `ValueError`**, so an
+    `except ValueError` written above it catches every parse error first and
+    the JSON branch becomes dead code. Measured 2026-08-25: a broken answer
+    printed the bare grammar message and none of the help — the specific
+    handler never ran."""
+    import winnow.cli as C
+    import winnow.render as R
+    monkeypatch.setattr(R, "paste_from_clipboard", lambda: '{\n  week: 1\n}')
+    monkeypatch.setattr(C.paths, "recap_dir", lambda: tmp_path)
+    monkeypatch.setattr(C.paths, "shots_dir", lambda: tmp_path / "shots")
+    monkeypatch.setattr(C.paths, "findings_dir", lambda: tmp_path / "f")
+
+    class Args:
+        file = None
+    assert C._cmd_render(Args()) == 2
+    err = capsys.readouterr().err
+    assert "not valid JSON" in err
+    assert "week: 1" in err          # the line that broke, not just the rule
+    assert "Saved anyway" in err     # and where to find the answer
+
+
+def test_the_prompt_forbids_a_reason_that_fits_twenty_things():
+    """Measured twice on 2026-08-25, by two different models on the same
+    bundle: «one line per thing» was honoured typographically and gutted in
+    substance. One run put the reason in the group heading and left the names
+    bare; the other wrote `"why": "famoso"` twenty times. A word that fits
+    twenty things is the group's name written again — and it cannot be
+    argued with, which is the only reason the bin exists."""
+    from winnow.recap import package_file, prompt_body
+    body = prompt_body(package_file("recap-prompt.md"))
+    # Checked on a fragment that survives line wrapping.
+    assert "twenty things is not a reason" in body
+
+
+def test_the_prompt_forbids_resolving_an_unchecked_thing_from_memory():
+    """`Home Assistant` came back as LO CONOSCI, «famoso» — while the data
+    said `checked: false`. The model answered from what it knew instead of
+    from what was verified, which is the one thing the mentality forbids, and
+    saying it there was not enough."""
+    from winnow.recap import package_file, prompt_body
+    body = prompt_body(package_file("recap-prompt.md"))
+    assert "never becomes `LO CONOSCI`" in body

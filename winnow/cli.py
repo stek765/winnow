@@ -108,14 +108,30 @@ def _cmd_render(args) -> int:
     try:
         out = (render_file(src) if src is not None
                else render_clipboard(paths.recap_dir()))
+    # JSONDecodeError first: it *inherits from ValueError*, so an
+    # `except ValueError` above it would swallow every parse error and leave
+    # this branch as dead code — which is exactly what happened once.
+    except _json.JSONDecodeError as e:
+        from winnow.render import blame_json
+        # The answer is on disk either way — render_clipboard writes before it
+        # parses — so say where, or the reader thinks it is gone.
+        saved = sorted(paths.recap_dir().glob("*.answer*.md"))
+        raw = saved[-1].read_text(encoding="utf-8") if saved else ""
+        spot = blame_json(raw, e) if raw else ""
+        print(f"  The answer is not valid JSON: {e.msg}.", file=sys.stderr)
+        if spot:
+            print("\n" + spot + "\n", file=sys.stderr)
+        if saved:
+            print(f"  Saved anyway: {saved[-1]}", file=sys.stderr)
+            print("  Fix that file and run:  winnow render "
+                  f"{saved[-1].name}", file=sys.stderr)
+        print("\n  Most often: the answer was copied out of a terminal, which\n"
+              "  wraps and truncates long lines. Copy it from the chat window,\n"
+              "  or have the model write the JSON straight to a file.",
+              file=sys.stderr)
+        return 2
     except ValueError as e:
         print(f"  {e}", file=sys.stderr)
-        return 2
-    except _json.JSONDecodeError:
-        where = str(src) if src is not None else "what you copied"
-        print(f"  No JSON block in {where}.", file=sys.stderr)
-        print("  Copy the model's whole answer, ```json fence included.",
-              file=sys.stderr)
         return 2
     except (KeyError, TypeError, AttributeError) as e:
         print(f"{src} is JSON but not the shape winnow expects ({e}).",

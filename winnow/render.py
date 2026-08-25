@@ -941,7 +941,11 @@ def render_clipboard(recap_dir: Path, shots: Path | None = None,
     if not text.strip():
         raise ValueError("the clipboard is empty — copy the model's answer "
                          "first, all of it, including the ```json block")
-    data = extract_json(text)           # raises before anything is written
+    # Written down *before* it is parsed. Validating first meant a JSON error
+    # destroyed the answer instead of the page: the reply leaves the clipboard
+    # the moment anything else is copied — including the error message you
+    # copy in order to ask for help, which is how one was lost on 2026-08-25.
+    # A broken answer on disk can be repaired by hand; a lost one cannot.
     recap_dir.mkdir(parents=True, exist_ok=True)
     stem = (now or date.today()).isoformat()
     src = recap_dir / f"{stem}.answer.md"
@@ -950,7 +954,24 @@ def render_clipboard(recap_dir: Path, shots: Path | None = None,
         src = recap_dir / f"{stem}.answer-{n}.md"
         n += 1
     src.write_text(text, encoding="utf-8")
-    return render_file(src, shots=shots, findings=findings, data=data)
+    return render_file(src, shots=shots, findings=findings)
+
+
+def blame_json(text: str, err: json.JSONDecodeError) -> str:
+    """The line that broke, not the grammar rule that noticed.
+
+    «Expecting property name enclosed in double quotes: line 2 column 3» names
+    a rule and hides the text. Showing the line is what makes it fixable —
+    and the usual cause is visible the moment you see it: an answer copied out
+    of a terminal pane, where long lines were wrapped and truncated on screen.
+    """
+    lines = text.splitlines()
+    n = getattr(err, "lineno", 0) or 0
+    if not (1 <= n <= len(lines)):
+        return ""
+    line = lines[n - 1]
+    caret = " " * max(0, (getattr(err, "colno", 1) or 1) - 1) + "^"
+    return f"riga {n}:  {line[:160]}\n         {caret[:160]}"
 
 
 def render_file(src: Path, out: Path | None = None,
