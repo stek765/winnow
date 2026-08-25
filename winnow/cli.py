@@ -31,7 +31,7 @@ them to your profile to be filtered.
   winnow status        is it alive? what did it find? what has it cost?
   winnow recap         the week + your profile on your clipboard, ready to
                        paste into a model
-  winnow render FILE   turn the model's answer into a page you click
+  winnow render        the answer you just copied, as a page you click
   winnow config        change folders, model, posts per run, hour, profile
   winnow reset-halt    restart after the spend brake stopped it
 
@@ -95,20 +95,26 @@ def _cmd_render(args) -> int:
 
     from winnow.render import render_file
 
-    if not args.file:
-        print("usage: winnow render <file>", file=sys.stderr)
-        print("  save the model's whole answer to a file, then render it.",
-              file=sys.stderr)
-        return 2
-    src = Path(args.file)
-    if not src.exists():
+    from winnow import paths
+    from winnow.render import render_clipboard
+
+    # No argument means "the answer I just copied". `winnow recap` put the
+    # bundle on the clipboard; taking the answer back off it is the same
+    # gesture in reverse, and it removes the one step that was pure filing.
+    src = Path(args.file) if args.file else None
+    if src is not None and not src.exists():
         print(f"{src} does not exist.", file=sys.stderr)
         return 2
     try:
-        out = render_file(src)
-    except _json.JSONDecodeError as e:
-        print(f"{src} is not valid JSON: {e}", file=sys.stderr)
-        print("  no JSON block found: ask the model for the ```json fence.",
+        out = (render_file(src) if src is not None
+               else render_clipboard(paths.recap_dir()))
+    except ValueError as e:
+        print(f"  {e}", file=sys.stderr)
+        return 2
+    except _json.JSONDecodeError:
+        where = str(src) if src is not None else "what you copied"
+        print(f"  No JSON block in {where}.", file=sys.stderr)
+        print("  Copy the model's whole answer, ```json fence included.",
               file=sys.stderr)
         return 2
     except (KeyError, TypeError, AttributeError) as e:

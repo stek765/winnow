@@ -17,13 +17,24 @@ block 4.
 >
 > Produce it in this shape, in this order. Nothing else.
 >
-> **1 — The pile, in one paragraph.** What you notice looking at all of it at
-> once: what it is mostly made of, what is conspicuously missing, who benefits.
-> One paragraph. Not one comment per entry.
+> **1 — The pile. Two short paragraphs, and they have to earn their place.**
+> The page already prints the counts. **Never restate a number I can see** —
+> «thirty posts, fifteen kept, one unreadable» is the header, not a thought.
+>
+> Say the thing the numbers cannot: what the pile is mostly made of, what is
+> conspicuously *missing*, who benefits. Then end on something I can act on —
+> a knob to turn, a folder to change, a habit that is costing me. If the
+> paragraph could have been written without reading this particular week,
+> delete it and write the one that could not.
 >
 > **2 — What is worth my time**, split into a handful of **sections that come
 > out of this week's pile**, not a fixed list — name them after what they are
 > about. Inside a section, most worth my time first.
+>
+> **Section names are at most three words** — «Reverse engineering»,
+> «Self-hosting», «Trading». They become filter buttons on a page, and a name
+> that wraps onto two lines is not a button. Put the argument in the entries,
+> never in the heading. **No emoji anywhere in the recap**, headings included.
 >
 > Every entry is four lines, always in this order:
 >
@@ -35,6 +46,21 @@ block 4.
 > - **What it answers of mine** — which question of mine it touches, or, when
 >   it touches nothing of mine, why it stands up on its own anyway.
 > - **The doubt**, when there is one worth passing on. Skip the line otherwise.
+>
+> **How those lines have to read.** The prose is where this stops being
+> pleasant to use, and three rules kill the whole problem:
+>
+> - **Never open on a pronoun.** «È l'unica cosa che…», «Questo fa…», «Serve
+>   a…» all force me back up to the heading to find out what «it» is — on
+>   every single entry. Name the thing, or name what it does: «Bumblebee
+>   guarda i pacchetti che hai su disco…».
+> - **One idea per sentence, two sentences per line.** A sentence carrying a
+>   main clause, a subordinate and an aside is one I have to read twice.
+> - **Whole sentences.** «Nessuno dai dati.» is a note to yourself, not a
+>   sentence — write «Dai dati non emerge nessun dubbio.» or drop the line.
+>
+> The test: each line must **stand on its own without the heading above it**.
+> If it does not, it is not written yet.
 >
 > Two things earn a place in that list, and **both lanes stay open**:
 >
@@ -62,6 +88,39 @@ block 4.
 > Binning something for being famous is a fine reason. Binning it *invisibly*,
 > because it was travelling inside a list, is not.
 >
+> **Every binned thing also carries a `verdict`: two or three words, in
+> capitals, naming the single reason it stopped.** The page groups by verdict
+> and prints the count beside each, and that count is the part I read first —
+> it is the shape of how you are thinking, and it is what lets me say «thirty-
+> one for out-of-scope is too many, show me those thirty-one». A hundred and
+> twenty-nine prose lines cannot be argued with; ten counted groups can.
+>
+> Reuse these wherever they fit, so that one week can be compared with the
+> next. The first six say something about **the feed**, the last four about
+> **me** — that division is the useful one, and it is why they are ordered so:
+>
+> | verdict | when |
+> |---|---|
+> | `NON ESISTE` | no source has anything under that name |
+> | `FERMO DA ANNI` | real, and untouched — while the post calls it current |
+> | `NOME FRAGILE` | several projects answer to the name, or the source replied under a different owner: the numbers may not be its own |
+> | `CHI CI GUADAGNA` | the only beneficiary is whoever is selling it |
+> | `SOLO ANNUNCIO` | news with no artefact behind it |
+> | `NON VERIFICATO` | no public registry to ask. **Not** the same as absent |
+> | `DOPPIONE` | the caption's spelling of something already listed |
+> | `GIA' TUO` | I already have it installed |
+> | `LO CONOSCI` | true, alive, and famous enough that I already know it |
+> | `FUORI BERSAGLIO` | true and alive, and touches nothing I do |
+>
+> Invent a new one when none of these is honest — a forced fit is worse than a
+> new word. Do not invent one to avoid saying `FUORI BERSAGLIO`.
+>
+> **Write `post` and `slide` on the binned things too, not only on the kept
+> ones.** The page uses them to print, beside each thing that got through, the
+> other things that were on that same slide and what stopped each of them —
+> which is the answer to the question I actually ask looking at a wall of
+> fifty links: *why this one and not the other forty-nine?*
+>
 > ---
 >
 > **Then, last, repeat the whole thing as one JSON block** in a ```json fence.
@@ -78,9 +137,9 @@ block 4.
 > {
 >   "week": "2026-08-23",
 >   "counts": {"posts": 15, "kept": 9, "failed": 0, "usd": 0.08},
->   "comment": "the paragraph from 1, blank line between paragraphs",
+>   "comment": "the paragraphs from 1, blank line between them",
 >   "categories": [
->     {"name": "the section name from 2", "icon": "one emoji", "items": [
+>     {"name": "Reverse engineering", "items": [
 >       {"title": "Sei parole, non di piu'",
 >        "does": "the plain sentence — what it does",
 >        "why": "what it answers of mine",
@@ -92,7 +151,8 @@ block 4.
 >        "state": "alive|stale|unknown|absent"}
 >     ]}
 >   ],
->   "discarded": [{"name": "owner/repo", "why": "the reason",
->                   "post": "DcNOt8mkugc", "slide": 3}]
+>   "discarded": [{"name": "owner/repo", "verdict": "LO CONOSCI",
+>                  "why": "the reason",
+>                  "post": "DcNOt8mkugc", "slide": 3}]
 > }
 > ```

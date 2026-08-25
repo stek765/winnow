@@ -266,3 +266,77 @@ def test_the_mentality_says_the_container_does_not_decide():
     from winnow.recap import package_file
     text = package_file("mentality.md")
     assert "The container does not decide" in text
+
+
+def test_the_prompt_asks_for_the_verdict_that_stopped_each_thing():
+    """The page groups rejects by verdict and counts them — that is how the
+    reader sees the filter's shape instead of 129 prose lines. Invented by
+    hand once on 2026-08-24 and not asked for anywhere, the next recap would
+    have come back without them and the section would render as one flat
+    heap."""
+    from winnow.recap import package_file, prompt_body
+    body = prompt_body(package_file("recap-prompt.md"))
+    assert '"verdict"' in body
+    for verdict in ("NON ESISTE", "FERMO DA ANNI", "LO CONOSCI",
+                    "FUORI BERSAGLIO", "CHI CI GUADAGNA"):
+        assert verdict in body, verdict
+
+
+def test_the_prompt_keeps_section_names_short():
+    """Long section names are unreadable as filter chips — measured at eleven
+    words on the first run, wrapping over two lines each."""
+    from winnow.recap import package_file, prompt_body
+    body = prompt_body(package_file("recap-prompt.md"))
+    assert "at most three words" in body
+
+
+def test_the_prompt_asks_for_no_emoji():
+    """The schema used to carry `"icon": "one emoji"`, which is an instruction
+    to put one there."""
+    from winnow.recap import package_file, prompt_body
+    body = prompt_body(package_file("recap-prompt.md"))
+    assert "No emoji" in body
+    assert '"icon"' not in body
+
+
+def test_the_comment_is_asked_to_point_somewhere():
+    """First run came back with five paragraphs restating the counts printed
+    directly above it. A comment earns its place by saying the thing the
+    numbers cannot."""
+    from winnow.recap import package_file, prompt_body
+    body = prompt_body(package_file("recap-prompt.md"))
+    assert "Never restate a number" in body
+
+
+def test_the_recap_says_how_to_get_the_answer_back(capsys, tmp_path, monkeypatch):
+    """A bundle handed over with no way back is half a loop. The last thing
+    printed has to be the next command, or the answer stays in a chat window."""
+    import winnow.recap as R
+    monkeypatch.setattr(R, "copy_to_clipboard", lambda t: "pbcopy")
+    from datetime import date
+    findings = tmp_path / "f"; findings.mkdir()
+    (findings / f"{date.today().isoformat()}.json").write_text(
+        json.dumps({"spend_usd": 0.01, "posts": [
+            {"shortcode": "A", "entities": []}]}), encoding="utf-8")
+    monkeypatch.setattr(R.paths, "findings_dir", lambda: findings)
+    monkeypatch.setattr(R.paths, "recap_dir", lambda: tmp_path)
+    monkeypatch.setattr(R.paths, "profile_file", lambda: tmp_path / "p.md")
+    (tmp_path / "p.md").write_text("# io", encoding="utf-8")
+    R.run_recap(open_file=False)
+    assert "winnow render" in capsys.readouterr().out
+
+
+def test_the_prompt_makes_each_line_stand_on_its_own():
+    """Measured 2026-08-24, from a reader: «devo usare il titolo per dare un
+    senso alla frase». Every `why` that week opened on a pronoun — «È l'unica
+    cosa della settimana...» — so the reader had to look back up at the
+    heading to learn what «it» was, on every entry. And a doubt read «Nessuno
+    dai dati.», which is not a sentence at all.
+
+    Three rules kill the whole class: name the subject, one idea per sentence,
+    and no fragments."""
+    from winnow.recap import package_file, prompt_body
+    body = prompt_body(package_file("recap-prompt.md"))
+    assert "Never open on a pronoun" in body
+    assert "stand on its own without the heading" in body
+    assert "Whole sentences" in body

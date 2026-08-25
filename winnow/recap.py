@@ -244,11 +244,16 @@ def run_recap(days: int = DAYS, now: datetime | None = None,
     if copy_to_clipboard(bundle):
         print("\n  ✅ On your clipboard: the instructions, your profile and "
               "the week, in one piece.\n")
-        print("  Next:  paste it into a model (Claude, ChatGPT, ...) and send.")
+        print("  1.  Paste it into a model (Claude, ChatGPT, ...) and send.")
     else:
         print(f"\n  Copy the whole of {out} and paste it into a model.\n")
-        print("  Next:  paste and send.")
-    print("         You do not write a prompt — the file ends with the ask.")
+        print("  1.  Paste and send.")
+    print("      You do not write a prompt — the file ends with the ask.")
+    # The loop has to close here or the judgement dies in a chat window. Two
+    # lines, and neither of them asks anybody to save a file: the bundle went
+    # out through the clipboard and the answer comes back the same way.
+    print("  2.  Copy its whole answer, ```json block included.")
+    print("  3.  Run  winnow render  — the page opens by itself.")
     if len(bundle) > 300_000:
         print(f"         ⚠️  ~{len(bundle) // 4000}k tokens: it needs a large "
               "context window.")
