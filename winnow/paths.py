@@ -50,6 +50,11 @@ def state_dir() -> Path:
     return data_dir() / "state"
 
 
+def judged_file() -> Path:
+    """Fin dove il giudizio è arrivato. Come seen.json, ma per i recap."""
+    return state_dir() / "judged.json"
+
+
 def findings_dir() -> Path:
     return data_dir() / "findings"
 
