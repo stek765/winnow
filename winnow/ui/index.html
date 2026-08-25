@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>winnow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* The same light table as the recap page: the app and the page it produces
+   have to read as one product, not two that happen to ship together. */
+:root{
+  --glass:#e9eced; --lit:#fbfcfc; --ink:#10141a; --soft:#4d565f;
+  --faint:#8b949c; --rule:#d7dcde; --grease:#ce3a24; --amber:#a8710f;
+  --good:#2f7d5b;
+  --display:"Familjen Grotesk","Helvetica Neue",Arial,sans-serif;
+  --body:"Instrument Sans",-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --pad:clamp(1.5rem,5vw,3.5rem);
+  --lift:0 1px 2px rgba(16,20,26,.14), 0 14px 34px -22px rgba(16,20,26,.5);
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0; color:var(--ink); font-family:var(--body); font-size:16px;
+  -webkit-font-smoothing:antialiased; overflow:hidden;
+  background:radial-gradient(120% 80% at 50% -20%, #fff 0%, rgba(255,255,255,0) 62%), var(--glass);
+}
+button{font:inherit; cursor:pointer; border:0; background:none; color:inherit;}
+a{color:inherit;}
+
+/* --- chrome ------------------------------------------------------------ */
+.app{display:flex; flex-direction:column; height:100%;}
+.bar{
+  display:flex; align-items:center; gap:.6rem; flex:none;
+  padding:1rem var(--pad) .9rem; -webkit-app-region:drag;
+}
+.mark{color:var(--grease); flex:none; transform:translateY(2px);}
+.mark .grain{fill:var(--grease); animation:drift 5s ease-in-out infinite;
+  animation-delay:calc(var(--i) * .4s);}
+@keyframes drift{0%,100%{transform:translate(0,0);} 50%{transform:translate(2px,-1.6px);}}
+.name{font-family:var(--display); font-weight:700; font-size:1.15rem;
+  letter-spacing:-.02em;}
+.tabs{margin-left:auto; display:flex; gap:.25rem; -webkit-app-region:no-drag;}
+.tab{font-family:var(--mono); font-size:.66rem; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--faint); padding:.45rem .8rem;
+  border-radius:999px; transition:background .18s, color .18s;}
+.tab:hover{color:var(--ink);}
+.tab.on{background:var(--ink); color:var(--lit);}
+
+.screen{flex:1; overflow-y:auto; padding:0 var(--pad) var(--pad);}
+.screen[hidden]{display:none;}
+
+/* --- home -------------------------------------------------------------- */
+.home{display:flex; flex-direction:column; justify-content:center;
+  min-height:100%; max-width:44rem;}
+.dot{display:inline-flex; align-items:center; gap:.5rem;
+  font-family:var(--mono); font-size:.66rem; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--faint); margin-bottom:1.1rem;}
+.dot::before{content:""; width:8px; height:8px; border-radius:50%;
+  background:var(--faint);}
+.s-ready .dot::before{background:var(--good);}
+.s-busy .dot::before{background:var(--amber); animation:pulse 1.4s ease-in-out infinite;}
+.s-brake .dot::before,.s-logged_out .dot::before{background:var(--grease);}
+@keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.25;}}
+
+h1{font-family:var(--display); font-weight:700;
+  font-size:clamp(1.8rem,4.4vw,2.9rem); line-height:1.06;
+  letter-spacing:-.03em; margin:0 0 .6rem; max-width:18ch;}
+.detail{color:var(--soft); margin:0 0 clamp(1.6rem,4vw,2.3rem); max-width:46ch;}
+.go{
+  display:inline-flex; align-items:center; gap:.7rem; align-self:flex-start;
+  background:var(--grease); color:#fff; font-family:var(--mono);
+  font-size:.76rem; letter-spacing:.12em; text-transform:uppercase;
+  padding:1rem 1.6rem; border-radius:999px;
+  box-shadow:0 2px 6px rgba(206,58,36,.22), 0 12px 26px -14px rgba(206,58,36,.6);
+  transition:transform .16s cubic-bezier(.2,.8,.3,1), box-shadow .16s, background .16s;
+}
+.go:hover{transform:translateY(-1px); background:#b8331f;}
+.go:active{transform:translateY(0);}
+.go[disabled]{background:var(--faint); box-shadow:none; cursor:default;
+  transform:none;}
+.go .arrow{transition:transform .16s;}
+.go:hover .arrow{transform:translateX(3px);}
+
+.stats{display:flex; flex-wrap:wrap; align-items:baseline; gap:1.6rem;
+  margin-top:clamp(2rem,5vw,3rem); padding-top:1.3rem;
+  border-top:1px solid var(--rule);}
+.stat{display:flex; align-items:baseline; gap:.4rem;
+  font-family:var(--mono); font-size:.68rem; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--faint);}
+.stat b{font-family:var(--display); font-size:1.15rem; font-weight:600;
+  letter-spacing:-.02em; color:var(--ink);}
+.warn{color:var(--amber);}
+
+/* --- the live log ------------------------------------------------------ */
+.log{margin-top:1.4rem; border-left:2px solid var(--rule);
+  padding-left:1rem; max-height:14rem; overflow-y:auto;}
+.log p{margin:0 0 .4rem; font-family:var(--mono); font-size:.76rem;
+  color:var(--soft); animation:in .3s ease both;}
+.log p:last-child{color:var(--ink);}
+@keyframes in{from{opacity:0; transform:translateX(-5px);} to{opacity:1; transform:none;}}
+.log .bad{color:var(--grease);}
+
+/* --- archive ----------------------------------------------------------- */
+.eyebrow{font-family:var(--mono); font-size:.66rem; letter-spacing:.2em;
+  text-transform:uppercase; color:var(--faint); margin:1.5rem 0 1rem;}
+.cards{display:grid; gap:1px; background:var(--rule);
+  border:1px solid var(--rule); border-radius:3px; overflow:hidden;
+  max-width:44rem;}
+.card{display:flex; align-items:center; gap:1rem; width:100%; text-align:left;
+  background:var(--lit); padding:1rem 1.2rem; transition:background .16s;}
+.card:hover{background:#fff;}
+.card b{font-family:var(--display); font-size:1.05rem; font-weight:600;
+  letter-spacing:-.01em;}
+.card span{font-family:var(--mono); font-size:.7rem; color:var(--faint);
+  margin-left:auto;}
+.empty{color:var(--soft); max-width:40ch;}
+
+/* --- settings ---------------------------------------------------------- */
+.rows{max-width:44rem;}
+.row{display:flex; align-items:baseline; gap:1rem; padding:.85rem 0;
+  border-bottom:1px solid var(--rule);}
+.row .k{font-family:var(--mono); font-size:.7rem; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--faint); width:9rem; flex:none;}
+.row .v{font-family:var(--mono); font-size:.82rem; word-break:break-word;}
+.pill{display:inline-block; font-family:var(--mono); font-size:.66rem;
+  padding:.2rem .5rem; border-radius:2px; margin-right:.35rem;
+  border:1px solid var(--rule); color:var(--soft);}
+.pill.on{border-color:var(--good); color:var(--good);}
+
+@media (prefers-reduced-motion:reduce){*{animation:none !important; transition:none !important;}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="bar">
+    <svg class="mark" viewBox="11 0 49 49" width="26" height="26" role="img" aria-label="winnow">
+      <ellipse cx="22" cy="5.5" rx="3" ry="5.7" fill="currentColor"/>
+      <ellipse cx="17.9" cy="13" rx="3" ry="5.7" transform="rotate(-28 17.9 13)" fill="currentColor"/>
+      <ellipse cx="26.1" cy="13" rx="3" ry="5.7" transform="rotate(28 26.1 13)" fill="currentColor"/>
+      <ellipse cx="17.2" cy="21" rx="3" ry="5.7" transform="rotate(-30 17.2 21)" fill="currentColor"/>
+      <ellipse cx="26.8" cy="21" rx="3" ry="5.7" transform="rotate(30 26.8 21)" fill="currentColor"/>
+      <ellipse cx="16.6" cy="29" rx="3" ry="5.7" transform="rotate(-32 16.6 29)" fill="currentColor"/>
+      <ellipse cx="27.4" cy="29" rx="3" ry="5.7" transform="rotate(32 27.4 29)" fill="currentColor"/>
+      <ellipse cx="38" cy="21" rx="2.5" ry="3.9" class="grain" style="--i:0" transform="rotate(-46 38 21)"/>
+      <ellipse cx="47" cy="13" rx="2.5" ry="3.9" class="grain" style="--i:1" transform="rotate(-30 47 13)"/>
+      <ellipse cx="56" cy="6"  rx="2.5" ry="3.9" class="grain" style="--i:2" transform="rotate(-16 56 6)"/>
+      <path d="M22 34 V47" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+    </svg>
+    <span class="name">winnow</span>
+    <nav class="tabs">
+      <button class="tab on" data-go="home">Casa</button>
+      <button class="tab" data-go="archive">Archivio</button>
+      <button class="tab" data-go="settings">Impostazioni</button>
+    </nav>
+  </header>
+
+  <section class="screen" id="home">
+    <div class="home" id="face">
+      <span class="dot" id="dot">…</span>
+      <h1 id="headline">Sto guardando</h1>
+      <p class="detail" id="detail"></p>
+      <button class="go" id="act" disabled>attendi</button>
+      <div class="log" id="log" hidden></div>
+      <div class="stats" id="stats"></div>
+    </div>
+  </section>
+
+  <section class="screen" id="archive" hidden>
+    <p class="eyebrow">Le settimane già giudicate</p>
+    <div id="archive-body"></div>
+  </section>
+
+  <section class="screen" id="settings" hidden>
+    <p class="eyebrow">Com'è configurato</p>
+    <div id="settings-body"></div>
+  </section>
+
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let job = null, timer = null;
+
+async function api(path, method = "GET") {
+  const r = await fetch(path, { method });
+  return { code: r.status, body: await r.json().catch(() => ({})) };
+}
+
+// --- home ------------------------------------------------------------------
+function paintHome(s) {
+  $("face").className = "home s-" + s.state;
+  $("dot").textContent = {
+    ready: "pronto", nothing_new: "niente di nuovo", busy: "sta lavorando",
+    logged_out: "sconnesso", brake: "fermo",
+  }[s.state] || s.state;
+  $("headline").textContent = s.headline;
+  $("detail").textContent = s.detail || "";
+
+  const act = $("act");
+  act.disabled = false;
+  act.dataset.action = s.action;
+  act.innerHTML = s.button + '<span class="arrow">&rarr;</span>';
+
+  const stale = s.stale
+    ? '<span class="stat warn"><b>!</b>l\'ultima raccolta è vecchia</span>' : "";
+  $("stats").innerHTML =
+    `<span class="stat"><b>${s.pending_posts}</b>post in coda</span>` +
+    `<span class="stat"><b>${s.pending_days}</b>giorni</span>` +
+    `<span class="stat"><b>$${(s.spend_usd || 0).toFixed(2)}</b>questa settimana</span>` +
+    stale;
+}
+
+async function refresh() {
+  const { body } = await api("/api/state");
+  if (!job) paintHome(body);
+}
+
+// --- a run in flight -------------------------------------------------------
+async function follow(id) {
+  const { body } = await api("/api/jobs/" + id);
+  const log = $("log");
+  log.hidden = false;
+  log.innerHTML = body.events
+    .filter((e) => e.line)
+    .map((e) => `<p>${e.line}</p>`).join("");
+  log.scrollTop = log.scrollHeight;
+
+  if (body.done) {
+    clearInterval(timer);
+    job = null;
+    if (body.error) {
+      log.innerHTML += `<p class="bad">${body.error}</p>`;
+    } else if (body.code === 0 && body.kind === "recap") {
+      const page = body.events.find((e) => e.kind === "rendered");
+      if (page) window.open("/recap/" + page.data.path.split("/").pop(), "_blank");
+      loadArchive();
+    }
+    refresh();
+  }
+}
+
+$("act").addEventListener("click", async () => {
+  const action = $("act").dataset.action;
+  $("act").disabled = true;
+  if (action === "stop" && job) {
+    await api("/api/jobs/" + job + "/stop", "POST");
+    return;
+  }
+  const { code, body } = await api("/api/" + action, "POST");
+  if (code === 202) {
+    job = body.id;
+    $("log").innerHTML = "";
+    $("face").className = "home s-busy";
+    $("dot").textContent = "sta lavorando";
+    $("headline").textContent = action === "recap"
+      ? "Sto facendo il recap" : "Sto raccogliendo";
+    $("detail").textContent = "";
+    $("act").innerHTML = "Ferma";
+    $("act").dataset.action = "stop";
+    $("act").disabled = false;
+    timer = setInterval(() => follow(job), 700);
+  } else {
+    $("act").disabled = false;
+    alert(body.error || "non è partito");
+  }
+});
+
+// --- archive ---------------------------------------------------------------
+async function loadArchive() {
+  const { body } = await api("/api/recaps");
+  $("archive-body").innerHTML = body.recaps.length
+    ? '<div class="cards">' + body.recaps.map((r) =>
+        `<button class="card" data-file="${r.file}">` +
+        `<b>${r.week}</b><span>${r.size_kb} KB</span></button>`).join("") + "</div>"
+    : '<p class="empty">Ancora nessuna settimana giudicata. ' +
+      'Il primo recap comparirà qui, e resterà apribile per sempre.</p>';
+  document.querySelectorAll(".card").forEach((c) =>
+    c.addEventListener("click", () =>
+      window.open("/recap/" + c.dataset.file, "_blank")));
+}
+
+// --- settings --------------------------------------------------------------
+async function loadSettings() {
+  const { code, body } = await api("/api/config");
+  if (code !== 200) {
+    $("settings-body").innerHTML =
+      '<p class="empty">Nessuna configurazione ancora.</p>';
+    return;
+  }
+  const folders = (body.folders || []).map((f) =>
+    `<span class="pill${f.active ? " on" : ""}">${f.name}</span>`).join("") ||
+    "<span class='pill'>nessuna</span>";
+  $("settings-body").innerHTML = '<div class="rows">' +
+    `<div class="row"><span class="k">Modello</span><span class="v">${body.model}</span></div>` +
+    `<div class="row"><span class="k">Fornitore</span><span class="v">${body.provider}</span></div>` +
+    `<div class="row"><span class="k">Cartelle</span><span class="v">${folders}</span></div>` +
+    "</div>";
+}
+
+// --- tabs ------------------------------------------------------------------
+document.querySelectorAll(".tab").forEach((t) =>
+  t.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((x) => x.classList.remove("on"));
+    t.classList.add("on");
+    ["home", "archive", "settings"].forEach((s) =>
+      ($(s).hidden = s !== t.dataset.go));
+    if (t.dataset.go === "archive") loadArchive();
+    if (t.dataset.go === "settings") loadSettings();
+  }));
+
+refresh();
+setInterval(() => { if (!job) refresh(); }, 4000);
+</script>
+</body>
+</html>

@@ -32,6 +32,7 @@ them to your profile to be filtered.
   winnow recap         judge the days not judged yet, and open the page
   winnow render        an answer you saved by hand, as a page you click
   winnow config        change folders, model, posts per run, hour, profile
+  winnow app           open winnow as a window
   winnow update        pull the newest winnow, if there is one
   winnow reset-halt    restart after the spend brake stopped it
 
@@ -56,7 +57,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument(
         "command", nargs="?",
         choices=["init", "login", "collect", "status", "recap", "render",
-                 "config", "schedule", "update", "reset-halt", "where"],
+                 "config", "schedule", "update", "reset-halt", "where",
+                 "app"],
         metavar="COMMAND",
     )
     p.add_argument("--version", action="version",
@@ -92,6 +94,32 @@ def _cmd_recap(args) -> int:
             print(text, flush=True)
 
     return run_recap(open_file=not args.no_open, on_event=show)
+
+
+def _cmd_app(args) -> int:
+    """`winnow app` — the window, and the engine behind it.
+
+    The port is picked by the OS: a fixed one is a crash waiting for the day
+    something else already holds it, and an app must never open on a blank
+    page because of that.
+    """
+    import webbrowser
+
+    from winnow.api import serve
+
+    httpd, port = serve()
+    url = f"http://127.0.0.1:{port}/"
+    print(f"  winnow is running at {url}")
+    print("  close this window — or press ctrl-C — to stop it.")
+    webbrowser.open(url)
+    try:
+        while True:
+            import time
+            time.sleep(3600)
+    except KeyboardInterrupt:
+        print("\n  stopped.")
+        httpd.shutdown()
+    return 0
 
 
 def _cmd_update(args) -> int:
@@ -349,6 +377,7 @@ def _dispatch(args) -> int:
         "recap": _cmd_recap,
         "render": _cmd_render,
         "update": _cmd_update,
+        "app": _cmd_app,
         "config": _cmd_config,
         "schedule": _cmd_schedule,
         "init": _cmd_init,
