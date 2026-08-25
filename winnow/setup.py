@@ -543,7 +543,7 @@ def link_profile(profile_file: Path, target: Path) -> bool:
         print(f"\n  \u26a0\ufe0f  {target} holds something that looks like a credential:\n")
         for hint in leaks[:5]:
             print(f"        {hint}")
-        print("\n      The recap goes to your clipboard, then into a chat.")
+        print("\n      The recap goes straight to your model provider's API.")
         if ask("  Link it anyway? [y/N] ").lower() not in ("y", "yes", "s", "si"):
             return False
 
