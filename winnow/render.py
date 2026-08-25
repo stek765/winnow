@@ -945,11 +945,12 @@ def render_clipboard(recap_dir: Path, shots: Path | None = None,
                      now: date | None = None) -> Path:
     """The model's answer, straight from the clipboard to a page.
 
-    `winnow recap` puts the bundle *on* the clipboard; this takes the answer
-    *off* it, and the loop closes with no file handling in between. "Save the
-    model's whole answer to a file, then render it" was one instruction too
-    many for a thing done once a week on a Sunday — and the step where it
-    stops being done at all.
+    `winnow recap` never puts anything on the clipboard any more — it writes
+    the answer to disk itself. This is the escape hatch for someone who ran
+    the judgement outside that command (pasted the bundle into a chat by
+    hand, copied the reply back): "save the model's whole answer to a file,
+    then render it" was one instruction too many, and the step where it
+    stopped being done at all.
 
     The answer is written down before it is rendered, and never over an
     earlier one: re-asking the model after correcting it is the normal way to

@@ -30,7 +30,7 @@ them to your profile to be filtered.
   winnow collect       one pass now, instead of waiting for the next
   winnow status        is it alive? what did it find? what has it cost?
   winnow recap         judge the days not judged yet, and open the page
-  winnow render        the answer you just copied, as a page you click
+  winnow render        an answer you saved by hand, as a page you click
   winnow config        change folders, model, posts per run, hour, profile
   winnow update        pull the newest winnow, if there is one
   winnow reset-halt    restart after the spend brake stopped it
@@ -110,9 +110,10 @@ def _cmd_render(args) -> int:
     from winnow import paths
     from winnow.render import render_clipboard
 
-    # No argument means "the answer I just copied". `winnow recap` put the
-    # bundle on the clipboard; taking the answer back off it is the same
-    # gesture in reverse, and it removes the one step that was pure filing.
+    # No argument means "the answer I just copied" — the escape hatch for
+    # anyone who ran the judgement by hand (pasted the bundle into a chat,
+    # copied the reply back) rather than through `winnow recap`, which never
+    # touches the clipboard: it writes the answer straight to disk itself.
     src = Path(args.file) if args.file else None
     if src is not None and not src.exists():
         print(f"{src} does not exist.", file=sys.stderr)
