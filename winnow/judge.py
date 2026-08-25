@@ -13,7 +13,6 @@ once and say why.
 from __future__ import annotations
 
 import time
-from pathlib import Path
 
 from winnow import providers
 
