@@ -33,6 +33,7 @@ them to your profile to be filtered.
                        paste into a model
   winnow render        the answer you just copied, as a page you click
   winnow config        change folders, model, posts per run, hour, profile
+  winnow update        pull the newest winnow, if there is one
   winnow reset-halt    restart after the spend brake stopped it
 
 less used:
@@ -56,7 +57,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument(
         "command", nargs="?",
         choices=["init", "login", "collect", "status", "recap", "render",
-                 "config", "schedule", "reset-halt", "where"],
+                 "config", "schedule", "update", "reset-halt", "where"],
         metavar="COMMAND",
     )
     p.add_argument("--version", action="version",
@@ -87,6 +88,13 @@ def _cmd_init(args) -> int:
 def _cmd_recap(args) -> int:
     from winnow.recap import run_recap
     return run_recap(args.days, open_file=not args.no_open)
+
+
+def _cmd_update(args) -> int:
+    """`winnow update` — `pipx upgrade` lies about git installs, so this
+    checks the commit itself before touching anything."""
+    from winnow.update import run_update
+    return run_update()
 
 
 def _cmd_render(args) -> int:
@@ -332,6 +340,7 @@ def _dispatch(args) -> int:
         "collect": _cmd_collect,
         "recap": _cmd_recap,
         "render": _cmd_render,
+        "update": _cmd_update,
         "config": _cmd_config,
         "schedule": _cmd_schedule,
         "init": _cmd_init,

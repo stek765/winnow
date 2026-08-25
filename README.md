@@ -87,6 +87,20 @@ to argue with: if *31 out of scope* looks wrong, you can see which 31.
 
 `winnow render answer.md` still takes a file, if you would rather keep one.
 
+### Keeping it current
+
+```bash
+winnow update
+```
+
+⚠️ **`pipx upgrade winnow` does not work here, and does not say so.** It
+compares version strings, the version does not move between commits, and it
+answers *"already at latest version"* without fetching anything — `--force`
+included. `winnow update` reads the commit it was built from, asks the remote
+what it has, and reinstalls only when those differ. It also puts back anything
+you had injected into the venv, which `pipx install --force` removes without a
+word.
+
 ## Commands
 
 Six. Everything else `init` does for you.
@@ -99,6 +113,7 @@ Six. Everything else `init` does for you.
 | `winnow recap` | the week + your profile, on your clipboard and open on screen |
 | `winnow render` | the answer you just copied, as a page that opens itself |
 | `winnow config` | change folders, model, posts per run, hour, profile |
+| `winnow update` | pull the newest winnow, if there is one |
 | `winnow reset-halt` | restart after the spend brake stopped it |
 
 
