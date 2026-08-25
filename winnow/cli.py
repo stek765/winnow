@@ -118,7 +118,10 @@ def _cmd_render(args) -> int:
         print(f"{src} does not exist.", file=sys.stderr)
         return 2
     try:
-        out = (render_file(src) if src is not None
+        # embed_shots=True: this is the page made by hand after repairing a
+        # judgement, which means it is the one that outlives `state/shots/` —
+        # the archive copy, not a disposable one made from the day's slides.
+        out = (render_file(src, embed_shots=True) if src is not None
                else render_clipboard(paths.recap_dir()))
     # JSONDecodeError first: it *inherits from ValueError*, so an
     # `except ValueError` above it would swallow every parse error and leave
