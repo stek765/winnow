@@ -30,7 +30,7 @@ those facts meet **your profile**, and what comes back is about you.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/diagrams/winnow-flow-dark.png">
-  <img src="assets/diagrams/winnow-flow.png" alt="Once: winnow init, five minutes. Every day, on its own via launchd: winnow collect writes one findings file. Every week, two commands from you: winnow recap puts everything on your clipboard, you paste it into a model, and winnow render turns the answer into a page that opens itself.">
+  <img src="assets/diagrams/winnow-flow.png" alt="Once: winnow init, five minutes. Every day, on its own via launchd: winnow collect writes one findings file. Every week, one command from you: winnow recap sends the week to your model and opens the page itself.">
 </picture>
 
 ## Start to finish
@@ -64,28 +64,26 @@ post**, and it stops itself for good past €10 in a week.
 
 Nothing to do. `winnow status` tells you it is alive.
 
-### Every week — two commands, with a paste in between
+### Every week — one command
 
 ```bash
-winnow recap                 # 1
-                             # 2 · paste into a model, send
-                             # 3 · copy its whole answer
-winnow render                # 4 · no arguments
+winnow recap
 ```
 
-| | |
-|---|---|
-| **1** | `winnow recap` puts four blocks on your clipboard: the week's facts, how to read a pile like this, your profile, and the ask. It also writes them to `recap/` and opens the file. |
-| **2** | Paste into a model and send. **You write no prompt** — the bundle ends with the ask. |
-| **3** | **Copy the model's whole answer**, the <code>&#96;&#96;&#96;json</code> block included. That block is what the page is built from. |
-| **4** | `winnow render`, **with no arguments**: it reads the clipboard, writes the answer down (never over an earlier one), and opens the page. |
+It bundles the days you have not judged yet, sends them to your model, and
+opens the page. Nothing to copy, nothing to paste.
+
+If the network drops it waits and tries again — 5s, 15s, 45s, 120s — and says
+so while it waits. If the key is dead it stops at once, because that one does
+not fix itself.
 
 The page shows what got through — each with the slide you would have seen on
 Instagram — and, under it, **every single thing that did not**, grouped by the
 verdict that stopped it, with the count beside each. That last part is the one
 to argue with: if *31 out of scope* looks wrong, you can see which 31.
 
-`winnow render answer.md` still takes a file, if you would rather keep one.
+`winnow render answer.md` still turns a saved answer into a page, for when you
+want to fix one by hand.
 
 ### Keeping it current
 
@@ -110,8 +108,8 @@ Six. Everything else `init` does for you.
 | `winnow init` | set up, or fix whatever is missing |
 | `winnow collect` | one pass now, instead of waiting for the next run |
 | `winnow status` | is it alive, what did it find, what has it cost |
-| `winnow recap` | the week + your profile, on your clipboard and open on screen |
-| `winnow render` | the answer you just copied, as a page that opens itself |
+| `winnow recap` | the week judged and opened as a page — one command |
+| `winnow render` | a saved answer, turned into a page that opens itself |
 | `winnow config` | change folders, model, posts per run, hour, profile |
 | `winnow update` | pull the newest winnow, if there is one |
 | `winnow reset-halt` | restart after the spend brake stopped it |
@@ -165,15 +163,14 @@ still there for when you want them directly.
 </tr>
 </table>
 
-### `winnow recap` puts the prompt, your profile and the week's findings on the clipboard. Paste them into a model and ask.
+### `winnow recap` sends the prompt, your profile and the week's findings to your model, and judges the week in one call.
 
-Then **copy the answer back** and run `winnow render` — no arguments, it takes
-it off the clipboard and opens the page. The bundle goes out through the
-clipboard and the judgement comes back the same way: there is no file to save
-in between.
+The answer is saved to `recap/` before anything is built from it, then turned
+straight into the page and opened. Nothing to copy, nothing to paste, nothing
+lost if a browser tab was already closed.
 
 <details>
-<summary><b>What is actually in that clipboard</b> — four blocks, in this order</summary>
+<summary><b>What actually goes to the model</b> — four blocks, in this order</summary>
 
 <br>
 
@@ -277,9 +274,10 @@ Nothing sits next to the code, so the command works from any directory.
 
 ~/.local/share/winnow/
 ├── findings/2026-08-21.json    what a run found, one file per day
-├── recap/2026-08-21.md         what `winnow recap` bundled for you
+├── recap/2026-08-21.answer.md  what the model answered, saved before it is read
 ├── state/
 │   ├── seen.json               posts already paid for
+│   ├── judged.json             the last day already judged — recap picks up after it
 │   ├── spend.json              the ledger
 │   ├── collect.log             what the last runs did
 │   └── HALTED                  present = stopped on spend
@@ -345,10 +343,10 @@ so the profile follows the file as you edit it. If that file ever goes missing,
 `winnow status` and `winnow recap` say so instead of quietly filtering with
 nothing.
 
-> ⚠️ **The bundle ends up in your clipboard and then in a chat window.** So
-> `init` and `recap` scan the profile for things shaped like credentials — API
-> keys, tokens, private keys — and stop to ask. A personal notes file is exactly
-> the kind of place where one is sitting forgotten.
+> ⚠️ **The bundle goes straight to your model provider's API.** So `init` and
+> `recap` scan the profile for things shaped like credentials — API keys,
+> tokens, private keys — and stop to ask. A personal notes file is exactly the
+> kind of place where one is sitting forgotten.
 
 **Step 5 is the one that matters** — the rest is plumbing. So `init` asks
 instead of leaving you homework:

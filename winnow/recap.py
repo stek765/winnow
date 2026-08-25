@@ -65,9 +65,9 @@ SECRET_RE = re.compile(
 def find_secrets(text: str) -> list[str]:
     """Lines that look like they hold a credential.
 
-    The bundle ends up in a clipboard and then in somebody's chat window. A
-    profile that points at a personal notes file can carry an API key along
-    with it — and the person pointing at it will not remember it is in there.
+    The bundle goes straight to the model provider's API. A profile that
+    points at a personal notes file can carry an API key along with it — and
+    the person pointing at it will not remember it is in there.
     """
     out = []
     for n, line in enumerate(text.splitlines(), 1):

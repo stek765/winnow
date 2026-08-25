@@ -498,3 +498,13 @@ def test_a_leaked_profile_stops_before_it_is_sent(tmp_path, monkeypatch):
     assert run_recap(open_file=False, ask=counted,
                      confirm=lambda prompt: False) == 1
     assert calls == []
+
+
+def test_the_readme_does_not_describe_a_flow_that_is_gone():
+    """Il copia-incolla non esiste più: un README che lo racconta manda
+    l'utente a cercare un passaggio che non c'è."""
+    import pathlib
+    text = pathlib.Path("README.md").read_text(encoding="utf-8")
+    body = text.lower()
+    assert "copy the model's whole answer" not in body
+    assert "winnow recap" in body
