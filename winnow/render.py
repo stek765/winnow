@@ -502,13 +502,17 @@ FONTS = ("https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400"
 
 CSS = """
 :root{
-  --glass:#e9eced; --lit:#fbfcfc; --mount:#191d21; --ink:#10141a;
-  --soft:#4d565f; --faint:#8b949c; --rule:#d7dcde;
-  --grease:#ce3a24; --amber:#a8710f;
+  /* The ground is darker than the paper by a real step, not a hair. A page
+     that sits *inside* another window has to announce itself as a separate
+     surface, and the only way a white card reads as paper is if what it lies
+     on is visibly not paper. */
+  --glass:#dde2e5; --lit:#ffffff; --mount:#14181c; --ink:#0c1014;
+  --soft:#454e57; --faint:#7e878f; --rule:#c9d0d4;
+  --grease:#c53420; --amber:#9a6708;
   --display:"Familjen Grotesk","Helvetica Neue",Arial,sans-serif;
   --body:"Instrument Sans",-apple-system,"Segoe UI",sans-serif;
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
-  --lift:0 1px 2px rgba(16,20,26,.16), 0 12px 28px -18px rgba(16,20,26,.5);
+  --lift:0 1px 3px rgba(12,16,20,.22), 0 18px 38px -20px rgba(12,16,20,.62);
   --pad:clamp(1.25rem,5vw,5rem);
 }
 *{box-sizing:border-box;}
@@ -633,12 +637,18 @@ img{max-width:100%; display:block;}
   background:transparent; border:1px solid var(--rule); border-radius:999px;
   padding:.5rem .95rem; transition:background .18s, color .18s, border-color .18s;
 }
-.cf:hover, .vf:hover{border-color:var(--ink); color:var(--ink);}
+.cf, .vf{background:var(--lit);}
+.cf:hover, .vf:hover{border-color:var(--ink); color:var(--ink);
+  box-shadow:0 1px 2px rgba(12,16,20,.12);}
 .cf.on, .vf.on{background:var(--ink); border-color:var(--ink); color:var(--lit);}
 .vf b{font-weight:500; margin-left:.5rem; opacity:.6;}
 
 .list{display:flex; flex-direction:column; gap:1px; background:var(--lit);
-  border:1px solid var(--rule); max-width:78rem;}
+  border:1px solid var(--rule); max-width:78rem; border-radius:6px;
+  overflow:hidden;
+  /* Lifted off the ground rather than drawn on it: this is the part the
+     reader came for, and it should look like it is on top of the page. */
+  box-shadow:0 1px 2px rgba(12,16,20,.1), 0 26px 60px -34px rgba(12,16,20,.55);}
 .pass{
   display:grid; grid-template-columns:minmax(0,15rem) minmax(0,1fr);
   gap:clamp(1.25rem,3vw,2.75rem); align-items:start;

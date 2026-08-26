@@ -288,7 +288,11 @@ h1{font-family:var(--display); font-weight:700;
    where it works, a recap that opens in a browser leaves the app behind. */
 .reader{display:flex; flex-direction:column; padding:0; overflow:hidden;}
 .readbar{display:flex; align-items:baseline; gap:1rem; flex:none;
-  padding:0 var(--pad) .9rem;}
+  padding:0 var(--pad) .9rem; position:relative; z-index:1;
+  /* The recap slides *under* the bar. A hairline alone made the two look
+     printed on the same sheet; a shadow falling onto the page is what says
+     one thing is on top of another. */
+  box-shadow:0 8px 16px -12px rgba(12,16,20,.55);}
 .readbar b{font-family:var(--display); font-size:1rem;}
 .readbar span{font-family:var(--mono); font-size:.7rem; color:var(--faint);}
 .back{font-family:var(--mono); font-size:.68rem; letter-spacing:.12em;
@@ -297,7 +301,7 @@ h1{font-family:var(--display); font-weight:700;
 .back::before{content:"\2039"; margin-right:.5rem; font-size:1.1rem;
   line-height:0;}
 .back:hover{color:var(--grease);}
-#page{flex:1; width:100%; border:0; background:#fff;
+#page{flex:1; width:100%; border:0; background:#dde2e5;
   border-top:1px solid var(--rule);}
 .empty{color:var(--soft); max-width:40ch;}
 
