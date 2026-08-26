@@ -184,38 +184,13 @@ h1{font-family:var(--display); font-weight:700;
   letter-spacing:-.02em; color:var(--ink);}
 .warn{color:var(--amber);}
 
-/* The last recap, on the home. A card, because it is a thing you open — and
-   the only thing on this screen that is not about what happens next. */
-.last{margin-top:clamp(1.8rem,4vw,2.6rem); max-width:38rem; width:100%;
-  text-align:left; background:var(--lit); border:1px solid var(--rule);
-  border-radius:5px; padding:1.15rem 1.3rem; cursor:pointer;
-  transition:background .16s, border-color .16s, transform .16s;
-  box-shadow:0 1px 2px rgba(12,16,20,.06);}
-.last:hover{background:#fff; border-color:var(--soft);
-  transform:translateY(-1px);}
-.last[hidden]{display:none;}
-.last .lab{display:flex; align-items:baseline; gap:.7rem;
-  font-family:var(--mono); font-size:.64rem; letter-spacing:.16em;
-  text-transform:uppercase; color:var(--faint);}
-.last .lab b{font-family:var(--display); font-size:1.05rem; font-weight:600;
-  letter-spacing:-.01em; text-transform:none; color:var(--ink);}
-.last .lab .ratio{color:var(--soft); letter-spacing:.06em;}
-.last .lab .ratio b{font-family:var(--mono); font-size:.72rem;
-  color:var(--grease);}
-.last p{margin:.55rem 0 0; font-size:.86rem; color:var(--faint);
-  line-height:1.45; display:-webkit-box; -webkit-line-clamp:2;
-  -webkit-box-orient:vertical; overflow:hidden;}
-
-/* What the app is for. Three lines of small grey body copy read as a
-   footnote to the numbers above them; the thing they say is the reason the
-   window exists, so it is set as a statement — display face, two beats, the
-   second one carrying the name the tool is named after. Still under the
-   numbers: someone who already knows can ignore it every day. */
-.purpose{margin:1.8rem 0 0; max-width:34ch; font-family:var(--display);
-  font-size:clamp(1.05rem,1.5vw,1.25rem); line-height:1.4;
-  letter-spacing:-.01em; color:var(--ink); font-weight:500;}
-.purpose span{display:block; color:var(--faint); font-weight:400;}
-.purpose b{font-weight:700; color:var(--grease);}
+/* What the app is for, said once and quietly. It sits under the numbers
+   rather than over the headline: a reader who already knows should be able
+   to ignore it every day without it ever being in the way, and a reader who
+   does not should find it without asking. */
+.purpose{margin:1.6rem 0 0; max-width:42ch; font-size:.86rem; line-height:1.5;
+  color:var(--faint);}
+.purpose b{font-weight:600; color:var(--soft);}
 
 /* --- the live log ------------------------------------------------------ */
 .log{margin-top:1.4rem; border-left:2px solid var(--rule);
@@ -567,13 +542,9 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
       <button class="go" id="act" disabled>attendi</button>
       <div class="log" id="log" hidden></div>
       <div class="stats" id="stats"></div>
-      <p class="purpose"><span>Tutto quello che salvi, e non riapri più.</span>
-        Una volta a settimana, <b>il grano dalla pula</b>.</p>
-      <!-- What the tool last said. On a large window the home was a headline
-           and a button in a lot of air; the honest thing to put in it is not
-           decoration but the last thing produced — which is also the shortest
-           way back to it. -->
-      <div class="last" id="last" hidden></div>
+      <p class="purpose">I post che salvi e non riapri mai. Una volta a
+        settimana <b>winnow</b> li legge, controlla alla fonte i nomi che
+        ci trova, e separa il grano dalla pula.</p>
     </div>
   </section>
 
@@ -737,32 +708,6 @@ async function refresh() {
   if (!job) paintHome(body);
 }
 
-// The newest thing in the archive, drawn on the home. Read from the same
-// route the archive uses: one place decides what an item is and what it says
-// about itself, and the home borrows it rather than inventing a second shape.
-async function paintLast() {
-  const { body } = await api("/api/recaps");
-  const it = (body.items || [])[0];
-  const box = $("last");
-  if (!it) { box.hidden = true; return; }
-
-  const title = it.kind === "merge" ? esc(it.label) : sayDay(it.week);
-  const ratio = it.kind === "merge"
-    ? (it.things ? `<span class="ratio"><b>${it.things}</b> cose</span>` : "")
-    : (it.kept === null || it.things === null ? ""
-       : `<span class="ratio"><b>${it.kept}</b> tenute su ${it.things}</span>`);
-  box.innerHTML =
-    `<span class="lab">${it.kind === "merge" ? "Ultima unione" : "Ultimo recap"}` +
-    `<b>${title}</b>${ratio}</span>` +
-    (it.comment ? `<p>${esc(firstSentence(it.comment))}</p>` : "");
-  box.hidden = false;
-  box.onclick = () => {
-    openRecap(it.file, it.week, "", it.kind === "merge" ? it.label : "");
-    document.querySelectorAll(".tab").forEach(
-      (t) => t.classList.toggle("on", t.dataset.go === "archive"));
-  };
-}
-
 // --- a run in flight -------------------------------------------------------
 async function follow(id) {
   const { body } = await api("/api/jobs/" + id);
@@ -787,7 +732,6 @@ async function follow(id) {
           (t) => t.classList.toggle("on", t.dataset.go === "archive"));
       }
       loadArchive();
-      paintLast();
     }
     refresh();
   }
@@ -1537,7 +1481,6 @@ document.querySelectorAll(".tab").forEach((t) =>
   }));
 
 refresh();
-paintLast();
 setInterval(() => { if (!job) refresh(); }, 4000);
 </script>
 </body>
