@@ -28,3 +28,7 @@ assets/demo/frames.html
 build/
 dist/
 *.egg-info/
+
+# --- Tauri: build artefatti, non versionati ---
+app/src-tauri/target/
+app/src-tauri/gen/

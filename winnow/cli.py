@@ -49,6 +49,7 @@ def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="winnow", usage=argparse.SUPPRESS, description=USAGE,
         formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--port", default=0, type=int, help=argparse.SUPPRESS)
     p.add_argument("--state-dir", default=None, type=Path,
                    help=argparse.SUPPRESS)
     p.add_argument("--findings-dir", default=None, type=Path,
@@ -58,7 +59,7 @@ def _parser() -> argparse.ArgumentParser:
         "command", nargs="?",
         choices=["init", "login", "collect", "status", "recap", "render",
                  "config", "schedule", "update", "reset-halt", "where",
-                 "app"],
+                 "app", "serve"],
         metavar="COMMAND",
     )
     p.add_argument("--version", action="version",
@@ -94,6 +95,28 @@ def _cmd_recap(args) -> int:
             print(text, flush=True)
 
     return run_recap(open_file=not args.no_open, on_event=show)
+
+
+def _cmd_serve(args) -> int:
+    """`winnow serve` — the engine alone, for a shell to drive.
+
+    Prints the port it took on the first line and then stays up. The native
+    window reads that line instead of guessing: a hard-coded port is a crash
+    waiting for the day something else already holds it.
+    """
+    import time
+
+    from winnow.api import serve
+
+    httpd, port = serve(port=args.port or 0)
+    # First line, flushed: the shell blocks on it before opening the window.
+    print(f"WINNOW_PORT={port}", flush=True)
+    try:
+        while True:
+            time.sleep(3600)
+    except KeyboardInterrupt:
+        httpd.shutdown()
+    return 0
 
 
 def _cmd_app(args) -> int:
@@ -378,6 +401,7 @@ def _dispatch(args) -> int:
         "render": _cmd_render,
         "update": _cmd_update,
         "app": _cmd_app,
+        "serve": _cmd_serve,
         "config": _cmd_config,
         "schedule": _cmd_schedule,
         "init": _cmd_init,

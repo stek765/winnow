@@ -1,0 +1,28 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "winnow",
+  "version": "1.0.0",
+  "identifier": "dev.stek765.winnow",
+  "build": {
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "dmg",
+      "app"
+    ],
+    "icon": [
+      "icons/icon.png"
+    ],
+    "category": "Productivity",
+    "shortDescription": "The posts you saved, judged once a week.",
+    "longDescription": "winnow reads the posts you save on Instagram, opens every slide of the carousel, checks each name it finds at the source, and once a week hands the facts to a model together with your profile. What comes back is a page: what got through, and everything that did not, with the reason."
+  }
+}
