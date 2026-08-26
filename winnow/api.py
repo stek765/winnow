@@ -103,7 +103,7 @@ def _config_dict() -> dict:
     return {"model": cfg.model, "provider": cfg.provider,
             "base_url": cfg.base_url,
             "posts_per_run": cfg.limits.posts_per_run,
-            "folders": [{"name": f.name, "active": f.active, "holds": f.holds}
+            "folders": [{"name": f.name, "active": f.active}
                         for f in cfg.folders]}
 
 

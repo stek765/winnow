@@ -8,23 +8,23 @@ from pathlib import Path
 from winnow import paths
 
 
-# Long enough for a sentence, short enough that it is not an essay: it is
-# pasted into the extraction prompt for every post in the folder, so it is
-# paid for on every single one.
-HOLDS_MAX = 200
-
-
 @dataclass(frozen=True)
 class Folder:
+    """A saved folder: its name, where it is, and whether winnow reads it.
+
+    There used to be a third thing — `kind`, then `holds` — meant to tell the
+    extractor what the folder was about. Both are gone, and the reason is
+    worth keeping: `kind` was validated, stored and exposed for months and
+    read by nobody, and `holds` was measured on 2026-08-26 against a control
+    arm. A description that actively *contradicted* a folder's contents moved
+    the extraction 5 times in 12, while the same post run twice with no
+    description at all moved 4 times in 12 — indistinguishable from noise, and
+    not one thing changed its kind. A field that survives only because nobody
+    checked is the kind this repo keeps finding.
+    """
     name: str
     url: str
     active: bool
-    # What the reader keeps in here, in their own words. It used to be `kind`,
-    # a two-value enum — "repo" or "news" — which was one person's way of
-    # sorting their saved posts, and explained nothing to anyone else. A name
-    # is ambiguous without a subject, and the reader is the only one who knows
-    # what theirs is about.
-    holds: str = ""
 
 
 @dataclass(frozen=True)
@@ -64,16 +64,12 @@ def load_config(path: Path) -> Config:
     folders = []
     for f in raw["folders"]:
         f = dict(f)
-        # `kind` is in every config written before this. Carried over rather
-        # than dropped: blanking it would silently throw away an answer people
-        # gave a question to fill.
-        holds = f.pop("holds", None) or f.pop("kind", "") or ""
+        # Every config written so far carries one of these. Ignored, not
+        # rejected: a key that stopped meaning anything must not stop somebody
+        # else's tool from starting.
         f.pop("kind", None)
-        if len(holds) > HOLDS_MAX:
-            raise ValueError(
-                f"la descrizione della cartella {f.get('name')!r} è troppo "
-                f"lunga: {len(holds)} caratteri, il massimo è {HOLDS_MAX}")
-        folders.append(Folder(**f, holds=holds))
+        f.pop("holds", None)
+        folders.append(Folder(**f))
 
     instagram = raw["instagram"]
     # Il profilo browser sta di default sotto la cartella dati: un comando

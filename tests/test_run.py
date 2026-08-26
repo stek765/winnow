@@ -88,15 +88,14 @@ def test_one_broken_post_does_not_kill_the_whole_run(tmp_path, monkeypatch):
 
     cfg = Config(
         username="tizio", browser_profile=tmp_path / "prof",
-        folders=[Folder("github", "/tizio/saved/github/111/", True, "repo")],
+        folders=[Folder("github", "/tizio/saved/github/111/", True)],
         limits=Limits(3.0, 10.0, 5, 15, 0.92), model="claude-haiku-4-5",
     )
     monkeypatch.setattr(run, "list_shortcodes", lambda page, url, **kw: ["AAA", "BBB", "CCC"])
     monkeypatch.setattr(run, "capture_post",
                         lambda *a, **k: ("cap", "acct", [], False))
 
-    def fake_extract(cfg, code, account, caption, shots, is_video=False,
-                     holds=""):
+    def fake_extract(cfg, code, account, caption, shots, is_video=False):
         if code == "BBB":
             raise ValueError("risposta non JSON dal modello")
         return PostExtraction(code, account, caption, [], 0.001)
@@ -126,7 +125,7 @@ def test_a_failed_post_is_still_marked_seen(tmp_path, monkeypatch):
 
     cfg = Config(
         username="tizio", browser_profile=tmp_path / "prof",
-        folders=[Folder("github", "/tizio/saved/github/111/", True, "repo")],
+        folders=[Folder("github", "/tizio/saved/github/111/", True)],
         limits=Limits(3.0, 10.0, 5, 15, 0.92), model="claude-haiku-4-5",
     )
     monkeypatch.setattr(run, "list_shortcodes", lambda page, url, **kw: ["BBB"])
@@ -153,7 +152,7 @@ def test_collect_reports_each_step_while_it_runs(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(
         run, "extract_post",
-        lambda cfg, code, account, caption, shots, is_video=False, holds="":
+        lambda cfg, code, account, caption, shots, is_video=False:
         PostExtraction(
             shortcode=code, account=account, caption=caption,
             entities=[Entity("repo", "a/b", "", 1)], usd=0.004,
@@ -165,7 +164,7 @@ def test_collect_reports_each_step_while_it_runs(tmp_path, monkeypatch):
     )
 
     cfg = Config(
-        username="u", folders=[Folder("Salvati", "https://x/", True, "saved")],
+        username="u", folders=[Folder("Salvati", "https://x/", True)],
         model="m", limits=Limits(warn_eur_week=1.0, halt_eur_week=10.0,
                                  posts_per_run=10, max_slides=4, eur_per_usd=0.92),
         browser_profile=tmp_path / "prof",
@@ -227,8 +226,8 @@ def test_a_full_run_does_not_list_the_folders_below(tmp_path, monkeypatch):
 
     cfg = Config(
         username="tizio", browser_profile=tmp_path / "prof",
-        folders=[Folder("uno", "/tizio/saved/uno/111/", True, "repo"),
-                 Folder("due", "/tizio/saved/due/222/", True, "repo")],
+        folders=[Folder("uno", "/tizio/saved/uno/111/", True),
+                 Folder("due", "/tizio/saved/due/222/", True)],
         limits=Limits(3.0, 10.0, 2, 15, 0.92), model="claude-haiku-4-5",
     )
     http = httpx.Client(transport=httpx.MockTransport(
@@ -273,7 +272,7 @@ def test_a_key_without_credit_stops_the_run_and_marks_nothing(tmp_path, monkeypa
 
     cfg = Config(
         username="tizio", browser_profile=tmp_path / "prof",
-        folders=[Folder("github", "/tizio/saved/github/111/", True, "repo")],
+        folders=[Folder("github", "/tizio/saved/github/111/", True)],
         limits=Limits(3.0, 10.0, 8, 15, 0.92), model="claude-haiku-4-5",
     )
     http = httpx.Client(transport=httpx.MockTransport(

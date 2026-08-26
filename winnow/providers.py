@@ -83,6 +83,35 @@ def _data_url(path: Path) -> str:
             + base64.standard_b64encode(path.read_bytes()).decode("utf-8"))
 
 
+def accepts_temperature(create) -> bool:
+    """Does this SDK's `create` still take a temperature?
+
+    anthropic 1.0.0 dropped the argument. Sent blind it is a TypeError before
+    a single post is read; dropped blind it silently turns off the
+    determinism extraction depends on. So it is asked.
+
+    A signature we cannot read — `**kwargs`, a C function, a wrapper — is
+    answered "yes": guessing "no" would quietly disable determinism on an SDK
+    that supports it, while guessing "yes" fails loudly and gets fixed.
+
+    ⚠️ Sending it no longer buys reproducibility, and nothing here can get it
+    back. Measured 2026-08-26 on claude-haiku-4-5: with temperature 0 forced
+    through `extra_body` — the API accepts it — two of four posts still came
+    back different. Anything that compares two extractions (the bench, most of
+    all) has to treat a difference as evidence only when it is bigger than
+    that noise floor.
+    """
+    import inspect
+
+    try:
+        params = inspect.signature(create).parameters
+    except (TypeError, ValueError):
+        return True
+    if "temperature" in params:
+        return True
+    return any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+
+
 def _anthropic(model: str, system: str, text: str, images: list[Path],
                max_tokens: int, temperature: float) -> tuple[str, int, int]:
     import anthropic
@@ -93,9 +122,11 @@ def _anthropic(model: str, system: str, text: str, images: list[Path],
                             "data": base64.standard_b64encode(
                                 p.read_bytes()).decode("utf-8")}}
                 for p in images]
-    r = anthropic.Anthropic().messages.create(
-        model=model, max_tokens=max_tokens, system=system,
-        temperature=temperature,
+    messages = anthropic.Anthropic().messages
+    extra = {"temperature": temperature} if accepts_temperature(
+        messages.create) else {}
+    r = messages.create(
+        model=model, max_tokens=max_tokens, system=system, **extra,
         messages=[{"role": "user", "content": content}])
     reply = next((b.text for b in r.content if b.type == "text"), "[]")
     if r.stop_reason == "max_tokens":

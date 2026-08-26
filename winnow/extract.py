@@ -79,28 +79,6 @@ VIDEO_TEMPLATE = (
 )
 
 
-def context_line(holds: str | None) -> str:
-    """What the reader keeps in this folder, handed over as subject matter.
-
-    A name means nothing without one: "Arduino" filed under electronics is a
-    board, filed under repositories it is an organisation on GitHub, and the
-    extractor cannot guess which — while the reader who saved the post always
-    knew. This is the only thing the reader gets to say to the collector, and
-    it says what a post is *about*, never what is worth keeping. The sentence
-    spells that out, or the model reads it as an instruction to filter and the
-    collector starts judging.
-    """
-    holds = (holds or "").strip()
-    if not holds:
-        # An empty description must not become "This folder holds: ." — noise,
-        # paid for on every post in the folder.
-        return ""
-    return ("The reader files posts like this one in a folder they describe "
-            f"as: {holds}. That is the subject matter, to help you read names "
-            "correctly. It does not tell you what is worth keeping, and you "
-            "still do not judge.")
-
-
 @dataclass(frozen=True)
 class Entity:
     kind: str
@@ -205,23 +183,22 @@ def extract_post(
     caption: str,
     slide_paths: list[Path],
     is_video: bool = False,
-    holds: str = "",
 ) -> PostExtraction:
     """Read one post. Which model does the reading is `cfg`'s business."""
     from winnow import providers
 
     template = VIDEO_TEMPLATE if (is_video and not slide_paths) else USER_TEMPLATE
     text = template.format(account=account, caption=caption, n=len(slide_paths))
-    # After the caption, before the slides: it is background, and putting it
-    # first would make the post read as an answer to it.
-    context = context_line(holds)
-    if context:
-        text = f"{text}\n\n{context}"
 
     reply, in_tokens, out_tokens = providers.complete(
         cfg.provider, cfg.model, cfg.base_url, SYSTEM_PROMPT, text, slide_paths,
-        # Extraction is not a creative task: the same post must yield the same
-        # list twice. The default (1.0) made runs differ from each other.
+        # Extraction is not a creative task, so it asks for temperature 0 —
+        # but it no longer *gets* determinism, and saying otherwise here would
+        # be the kind of comment that sends somebody hunting for a bug that is
+        # not theirs. Measured 2026-08-26 on claude-haiku-4-5: the same post,
+        # the same slides, run twice, came back different 4 times in 12. The
+        # argument survives because it costs nothing and still helps; the
+        # guarantee does not. See the note in providers.accepts_temperature.
         temperature=0.0,
     )
     shape, entities = parse_extraction(reply)

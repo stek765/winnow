@@ -41,10 +41,6 @@ CONFIG_TEMPLATE = CONFIG_HEAD + """
 name = "example"
 url = "/YOUR_USERNAME/saved/example/000000000000000/"
 active = true
-# What you keep in here, in your own words. It reaches the model as subject
-# matter, so it reads names the way you would — "Arduino" means one thing in a
-# folder about electronics and another in a folder about repositories.
-holds = "repos and tools worth trying"
 """
 
 
@@ -225,25 +221,24 @@ def run_login(profile: Path) -> bool:
 
 
 
-def render_config(username: str, folders: list[tuple[str, str, bool, str]]) -> str:
+def render_config(username: str, folders: list[tuple[str, str, bool]]) -> str:
     """Build config.toml from what was discovered. Inactive folders are kept:
     turning one on later is editing a flag, not hunting for a URL again."""
     body = CONFIG_HEAD.replace("YOUR_USERNAME", username)
     return body + _folder_blocks(folders)
 
 
-def _folder_blocks(folders: list[tuple[str, str, bool, str]]) -> str:
+def _folder_blocks(folders: list[tuple[str, str, bool]]) -> str:
     """One shape for both renderers, so they cannot write different files."""
     out = ""
-    for name, url, active, holds in folders:
+    for name, url, active in folders:
         out += (f'\n[[folders]]\nname = "{name}"\nurl = "{url}"\n'
-                f'active = {str(active).lower()}\n'
-                f'holds = "{(holds or "").replace(chr(34), chr(39))}"\n')
+                f'active = {str(active).lower()}\n')
     return out
 
 
 def render_folders_section(text: str, username: str,
-                           folders: list[tuple[str, str, bool, str]]) -> str:
+                           folders: list[tuple[str, str, bool]]) -> str:
     """Replace the folder blocks, keep everything else byte for byte.
 
     `render_config` rebuilds the file from the template, which is right for a
@@ -339,16 +334,8 @@ def configure_folders(config_file: Path, profile: Path) -> bool:
         ask("\n  Which ones should winnow read? (e.g. 1,3-4) "), len(found))
     if not picked:
         print("  nothing picked: writing them all off, turn them on whenever.")
-    print("\n  For each one, say what you keep in it — a few words is enough.")
-    print("  It goes to the model as subject matter, so it reads names the")
-    print("  way you would. Enter to skip.\n")
-    holds = {}
-    for i, (name, _) in enumerate(found, 1):
-        if i in picked:
-            holds[i] = ask(f"    {name}: ").strip()[:200]
-
     folders = [
-        (name, url, i in picked, holds.get(i, ""))
+        (name, url, i in picked)
         for i, (name, url) in enumerate(found, 1)
     ]
     if config_file.exists() and "YOUR_USERNAME" not in config_file.read_text(
@@ -481,30 +468,17 @@ def apply_config_patch(text: str, patch: dict) -> str:
     if "folders" in patch:
         # Order is the config's, then anything new at the end: a list that
         # reshuffles itself every time it is saved is a list nobody can read.
-        out = [(f["name"], f["url"], f["active"],
-                f.get("holds") or f.get("kind") or "")
+        out = [(f["name"], f["url"], f["active"])
                for f in current.get("folders", [])]
         at = {name: i for i, (name, *_) in enumerate(out)}
 
-        from winnow.config import HOLDS_MAX
-
         for item in patch["folders"] or []:
             name = item.get("name")
-            holds = item.get("holds")
-            if holds is not None:
-                if not isinstance(holds, str):
-                    raise ValueError(f"{name!r}: la descrizione è testo")
-                holds = " ".join(holds.split())     # no newlines into a TOML string
-                if len(holds) > HOLDS_MAX:
-                    raise ValueError(
-                        f"{name!r}: tienila più corta di {HOLDS_MAX} caratteri "
-                        "— finisce nel prompt di ogni post di quella cartella")
             active = bool(item.get("active"))
 
             if name in at:
-                old_name, url, _, old_holds = out[at[name]]
-                out[at[name]] = (old_name, url, active,
-                                 old_holds if holds is None else holds)
+                old_name, url, _ = out[at[name]]
+                out[at[name]] = (old_name, url, active)
                 continue
 
             # New. The window may add a folder it went and found, but not one
@@ -515,7 +489,7 @@ def apply_config_patch(text: str, patch: dict) -> str:
             if not is_saved_folder_url(url):
                 raise ValueError(f"{name!r}: indirizzo non valido per una "
                                  "cartella dei salvati")
-            out.append((name, url, active, holds or ""))
+            out.append((name, url, active))
 
         text = render_folders_section(
             text, current["instagram"]["username"], out)
