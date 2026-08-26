@@ -127,7 +127,11 @@ a{color:inherit;}
    Padding on the left would have been shorter, and wrong: it would push the
    wheat ear out of line with the headline underneath it, and a logo that does
    not share the page's left edge reads as a mistake from across the room. */
-.native .bar{padding-top:2.6rem;}
+/* The band that drags is the band that *looks* like a title bar. At 84px
+   it stopped just under the wordmark, so the obvious place to grab — the
+   empty air below it — did nothing, and only a thin strip up top worked.
+   The bar now owns the whole top of the window. */
+.native .bar{padding-top:2.6rem; padding-bottom:2rem;}
 
 .screen{flex:1; overflow-y:auto; padding:0 var(--pad) var(--pad);}
 .screen[hidden]{display:none;}
@@ -511,7 +515,9 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
       <path d="M22 34 V47" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/>
     </svg>
     <span class="name">winnow</span>
-    <nav class="tabs">
+    <!-- The gaps between the tabs drag too; the buttons are their own event
+         targets, so they still click. -->
+    <nav class="tabs" data-tauri-drag-region>
       <button class="tab on" data-go="home">Casa</button>
       <button class="tab" data-go="archive">Archivio</button>
       <button class="tab" data-go="settings">Impostazioni</button>
@@ -552,7 +558,7 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
   </section>
 
   <section class="screen reader" id="reader" hidden>
-    <div class="readbar">
+    <div class="readbar" data-tauri-drag-region>
       <button class="back" id="back">Archivio</button>
       <b id="read-week"></b>
       <span id="read-count"></span>
