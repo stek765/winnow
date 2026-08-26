@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 
 import pytest
 
@@ -643,3 +644,33 @@ def test_a_missing_slide_does_not_break_an_embedded_page(tmp_path):
         {"title": "t", "post": "NOPE", "slide": 1}]}]},
         shots=tmp_path, out_dir=tmp_path, embed_shots=True)
     assert "<html" in page and "data:image/png" not in page
+
+
+# --- the slides have to survive leaving the folder --------------------------
+
+def test_a_page_written_from_the_clipboard_carries_its_slides(
+        tmp_path, monkeypatch):
+    """It did not, and every image in it was broken the moment the page was
+    read anywhere but from its own folder — over the app's own reader, for
+    instance, where a relative `../state/shots/...` resolves to nothing.
+
+    The comment on the other call site already said embedding is what makes a
+    page outlive `state/shots/`. The clipboard path — the documented one —
+    simply did not do it."""
+    import winnow.render as R
+
+    shots = tmp_path / "shots"
+    shots.mkdir()
+    (shots / "ABC_01.png").write_bytes(b"\x89PNG\r\n\x1a\nnot really a png")
+    answer = json.dumps({
+        "week": "2026-08-24", "counts": {"posts": 1, "kept": 1, "usd": 0.01},
+        "comment": "x", "categories": [{"name": "X", "items": [
+            {"name": "a/b", "why": "perché", "post": "ABC", "slide": 1}]}],
+        "discarded": []})
+    monkeypatch.setattr(R, "paste_from_clipboard", lambda: answer)
+
+    out = R.render_clipboard(tmp_path / "recap", shots=shots,
+                             now=date(2026, 8, 24))
+    html = out.read_text(encoding="utf-8")
+    assert "../state/shots/" not in html
+    assert "data:image/png;base64," in html

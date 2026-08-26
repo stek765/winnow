@@ -974,7 +974,13 @@ def render_clipboard(recap_dir: Path, shots: Path | None = None,
         src = recap_dir / f"{stem}.answer-{n}.md"
         n += 1
     src.write_text(text, encoding="utf-8")
-    return render_file(src, shots=shots, findings=findings)
+    # Slides embedded, always. This is the archive copy — the same reasoning
+    # the other call site already carried, and the one place that did not do
+    # it. A page with `../state/shots/...` in it is broken the moment it is
+    # read from anywhere but its own folder (the app's reader serves it over
+    # HTTP, where that path resolves to nothing) and broken for good once
+    # `state/shots/` is cleaned, which it has to be or it grows to tens of GB.
+    return render_file(src, shots=shots, findings=findings, embed_shots=True)
 
 
 def blame_json(text: str, err: json.JSONDecodeError) -> str:

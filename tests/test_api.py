@@ -612,3 +612,28 @@ def test_a_week_is_placed_by_when_its_page_was_written(tmp_path, monkeypatch):
     b.write_text("<html>", encoding="utf-8"); os.utime(b, (5000, 5000))
     _, body = route("GET", "/api/recaps", {}, Jobs())
     assert [i["week"] for i in body["items"]] == ["2026-01-05", "2026-08-24"]
+
+
+def test_the_slides_are_served_so_older_pages_still_show_them(
+        tmp_path, monkeypatch):
+    """Pages written before the slides were embedded carry
+    `../state/shots/NAME.png`, which from `/recap/x.html` asks the server for
+    `/state/shots/NAME.png`. New pages carry the image inside them and never
+    ask; the old ones on disk would otherwise be a wall of broken frames."""
+    import winnow.api as A
+    from winnow.api import Jobs, make_handler
+    shots = tmp_path / "shots"
+    shots.mkdir()
+    (shots / "ABC_01.png").write_bytes(b"\x89PNG\r\n")
+    monkeypatch.setattr(A.paths, "state_dir", lambda: tmp_path)
+    assert make_handler(Jobs(), tmp_path)          # the route exists to build
+    assert A.shot_path("/state/shots/ABC_01.png") == shots / "ABC_01.png"
+
+
+def test_a_slide_request_cannot_climb_out_of_the_shots_folder(
+        tmp_path, monkeypatch):
+    """The name arrives in a URL, like every other one here."""
+    import winnow.api as A
+    monkeypatch.setattr(A.paths, "state_dir", lambda: tmp_path)
+    assert A.shot_path("/state/shots/../../secret.png") is None
+    assert A.shot_path("/state/shots/notes.txt") is None

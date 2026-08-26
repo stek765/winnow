@@ -130,6 +130,10 @@ fn main() {
                 // The bar with the wheat ear is the app's own: the system one
                 // on top of it would be two titles for one window.
                 .title_bar_style(tauri::TitleBarStyle::Overlay)
+                // Overlay only makes the title bar transparent: macOS keeps
+                // drawing the window title over the page, and on this light
+                // bar it reads as a white smudge next to the wheat ear.
+                .hidden_title(true)
                 .build()?;
             Ok(())
         })

@@ -98,6 +98,24 @@ def _facts(jobs: Jobs) -> dict:
                  "done": len(running["events"]), "of": 0} if running else None)
 
 
+# Pages written before the slides were embedded carry `../state/shots/NAME.png`,
+# which from `/recap/x.html` asks for this. New pages carry the image inside
+# them and never come here.
+SHOTS_PREFIX = "/state/shots/"
+
+
+def shot_path(path: str) -> Path | None:
+    """The slide a page is asking for, or None if it is asking for anything
+    else. The name comes from a URL, so it is a name and not a path."""
+    if not path.startswith(SHOTS_PREFIX):
+        return None
+    name = Path(path[len(SHOTS_PREFIX):]).name
+    if not name or Path(name).suffix.lower() != ".png":
+        return None
+    f = paths.state_dir() / "shots" / name
+    return f if f.is_file() else None
+
+
 def _keys_present() -> dict:
     """Which providers have a key on disk. Booleans, never values."""
     from winnow.providers import KEY_ENV
@@ -571,6 +589,15 @@ def make_handler(jobs: Jobs, ui_dir: Path):
                 self.send_header("Content-Type", "image/jpeg")
                 self.send_header("Content-Length", str(len(data)))
                 self.send_header("Cache-Control", "max-age=86400")
+                self.end_headers()
+                self.wfile.write(data)
+                return
+            shot = shot_path(self.path)
+            if shot is not None:
+                data = shot.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png")
+                self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
                 return
