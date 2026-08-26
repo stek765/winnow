@@ -121,3 +121,96 @@ def test_reading_a_corrupt_findings_file_does_not_crash(tmp_path):
                        browser_profile=tmp_path / "nope",
                        now=datetime(2026, 8, 26, 10, 0))
     assert facts["pending_posts"] == 0
+
+
+# --- what the screen has to be able to say ---------------------------------
+#
+# A home screen that reads "30 post da giudicare" over a button says how much
+# work is waiting and nothing about what the work is. The numbers below are
+# what the chain is made of — collected, checked at the source, judged — and
+# the middle one is the whole reason winnow is not a bookmark folder.
+
+def test_the_facts_carry_how_many_names_were_checked(tmp_path):
+    """Posts are the container; the things named inside them are the product.
+    Counting only posts hides the step nobody else performs."""
+    from winnow.appstate import read_facts
+    findings = tmp_path / "findings"
+    findings.mkdir()
+    (findings / "2026-08-25.json").write_text(json.dumps({"posts": [
+        {"shortcode": "A", "entities": [
+            {"name": "one", "verification": {"checked": True, "exists": True}},
+            {"name": "two", "verification": {"checked": False}}]},
+        {"shortcode": "B", "entities": [
+            {"name": "three", "verification": {"checked": True, "exists": True}}]},
+    ]}), encoding="utf-8")
+    facts = read_facts(state_dir=tmp_path, findings_dir=findings,
+                       judged=tmp_path / "j.json",
+                       browser_profile=tmp_path / "nope",
+                       now=datetime(2026, 8, 26, 10, 0))
+    assert facts["pending_things"] == 3
+    assert facts["pending_checked"] == 2
+
+
+def test_a_post_with_no_entities_counts_zero_things_and_does_not_crash(tmp_path):
+    from winnow.appstate import read_facts
+    findings = tmp_path / "findings"
+    findings.mkdir()
+    (findings / "2026-08-25.json").write_text(
+        json.dumps({"posts": [{"shortcode": "A"}]}), encoding="utf-8")
+    facts = read_facts(state_dir=tmp_path, findings_dir=findings,
+                       judged=tmp_path / "j.json",
+                       browser_profile=tmp_path / "nope",
+                       now=datetime(2026, 8, 26, 10, 0))
+    assert facts["pending_things"] == 0 and facts["pending_checked"] == 0
+
+
+def test_the_last_recap_is_named_by_its_week_and_not_by_its_mtime(tmp_path):
+    """The file name is the week that was judged. The modification time is
+    when the file happened to be written, which is a different fact and the
+    wrong one to show beside 'ultimo giudizio'."""
+    from winnow.appstate import read_facts
+    recaps = tmp_path / "recap"
+    recaps.mkdir()
+    for day in ("2026-08-16", "2026-08-24"):
+        (recaps / f"{day}.answer.html").write_text("<html>", encoding="utf-8")
+    facts = read_facts(state_dir=tmp_path, findings_dir=tmp_path / "f",
+                       judged=tmp_path / "j.json",
+                       browser_profile=tmp_path / "nope", recaps=recaps,
+                       now=datetime(2026, 8, 26, 10, 0))
+    assert facts["last_recap"] == "2026-08-24"
+
+
+def test_never_having_judged_is_a_state_and_not_a_missing_field(tmp_path):
+    from winnow.appstate import read_facts
+    facts = read_facts(state_dir=tmp_path, findings_dir=tmp_path / "f",
+                       judged=tmp_path / "j.json",
+                       browser_profile=tmp_path / "nope",
+                       recaps=tmp_path / "nothing-here",
+                       now=datetime(2026, 8, 26, 10, 0))
+    assert facts["last_recap"] is None
+
+
+def test_the_home_hands_the_chain_to_the_window(tmp_path):
+    from winnow.appstate import home
+    s = home({"pending_posts": 30, "pending_days": 3, "pending_things": 144,
+              "pending_checked": 128, "last_recap": "2026-08-24",
+              "logged_in": True})
+    assert s["pending_things"] == 144 and s["pending_checked"] == 128
+    assert s["last_recap"] == "2026-08-24"
+
+
+def test_every_face_says_what_pressing_the_button_will_do():
+    """The button names an action; it does not say what comes out of it. A
+    reader who has not built this tool cannot guess that a recap is a page."""
+    from winnow.appstate import home
+    faces = [
+        {"logged_in": True, "pending_posts": 30, "pending_days": 3},
+        {"logged_in": True, "pending_posts": 0},
+        {"logged_in": False},
+        {"logged_in": True, "halted": True},
+        {"logged_in": True, "running": {"done": 4, "of": 30}},
+    ]
+    for facts in faces:
+        s = home(facts)
+        assert s["consequence"], f"no consequence for {s['state']}"
+        assert s["consequence"][-1] == ".", "it is a sentence, not a label"

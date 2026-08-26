@@ -87,6 +87,7 @@ def _facts(jobs: Jobs) -> dict:
     return appstate.read_facts(
         state_dir=paths.state_dir(), findings_dir=paths.findings_dir(),
         judged=paths.judged_file(), browser_profile=paths.browser_profile(),
+        recaps=paths.recap_dir(),
         running={"kind": running["kind"],
                  "done": len(running["events"]), "of": 0} if running else None)
 

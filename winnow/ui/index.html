@@ -58,6 +58,14 @@ a{color:inherit;}
    not share the page's left edge reads as a mistake from across the room. */
 .native .bar{padding-top:2.6rem;}
 
+/* What the product is, said once and always. A window whose first screen is a
+   count of pending work assumes the reader built the thing; this line is for
+   the reader who did not. */
+.tagline{font-size:.82rem; color:var(--faint); padding-left:.9rem;
+  border-left:1px solid var(--rule); margin-left:.2rem; max-width:32ch;
+  line-height:1.3;}
+@media (max-width:900px){.tagline{display:none;}}
+
 .screen{flex:1; overflow-y:auto; padding:0 var(--pad) var(--pad);}
 .screen[hidden]{display:none;}
 
@@ -92,10 +100,42 @@ h1{font-family:var(--display); font-weight:700;
   transform:none;}
 .go .arrow{transition:transform .16s;}
 .go:hover .arrow{transform:translateX(3px);}
+/* A verb is not a consequence. "Fai il recap" names the action; this says
+   what comes out of it, which is the part a first-time reader cannot guess. */
+.after{margin:.85rem 0 0; font-size:.85rem; color:var(--soft); max-width:46ch;
+  line-height:1.4;}
+
+/* --- the chain ---------------------------------------------------------
+   Three steps because there are three, and the middle one is the reason the
+   tool exists: anybody can keep a folder of saved posts, nobody else goes and
+   asks the source whether the names in them are real.
+
+   Numbered because this genuinely is a sequence — the button performs one of
+   these steps, and which one depends on where the material has got to. */
+.chain{display:grid; grid-template-columns:repeat(3,1fr); gap:1px;
+  background:var(--rule); border:1px solid var(--rule); border-radius:3px;
+  margin-top:clamp(2rem,5vw,2.8rem); overflow:hidden; max-width:52rem;}
+@media (max-width:760px){.chain{grid-template-columns:1fr;}}
+.step{background:var(--lit); padding:1.05rem 1.15rem 1.15rem;
+  position:relative; transition:background .2s;}
+.step .n{font-family:var(--mono); font-size:.62rem; color:var(--faint);}
+.step .lbl{font-family:var(--mono); font-size:.62rem; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--faint); margin-left:.5rem;}
+.step .big{font-family:var(--display); font-weight:600; font-size:1.25rem;
+  letter-spacing:-.02em; margin:.55rem 0 .25rem;}
+.step .sub{margin:0; font-size:.8rem; color:var(--soft); line-height:1.35;}
+/* The step the button is about. Marked, because "what do I do" is answered by
+   showing where in the chain the material has stopped. */
+.step.on{background:#fff;}
+.step.on::before{content:""; position:absolute; left:0; top:0; bottom:0;
+  width:3px; background:var(--grease);}
+.step.on .lbl,.step.on .n{color:var(--grease);}
+.step a{font-family:var(--mono); font-size:.72rem; color:var(--grease);
+  text-decoration:none; border-bottom:1px solid transparent;}
+.step a:hover{border-bottom-color:var(--grease);}
 
 .stats{display:flex; flex-wrap:wrap; align-items:baseline; gap:1.6rem;
-  margin-top:clamp(2rem,5vw,3rem); padding-top:1.3rem;
-  border-top:1px solid var(--rule);}
+  margin-top:1.2rem;}
 .stat{display:flex; align-items:baseline; gap:.4rem;
   font-family:var(--mono); font-size:.68rem; letter-spacing:.1em;
   text-transform:uppercase; color:var(--faint);}
@@ -160,6 +200,8 @@ h1{font-family:var(--display); font-weight:700;
       <path d="M22 34 V47" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/>
     </svg>
     <span class="name">winnow</span>
+    <span class="tagline">Quello che salvi su Instagram e non riapri mai.
+      Setacciato una volta a settimana.</span>
     <nav class="tabs">
       <button class="tab on" data-go="home">Casa</button>
       <button class="tab" data-go="archive">Archivio</button>
@@ -173,7 +215,9 @@ h1{font-family:var(--display); font-weight:700;
       <h1 id="headline">Sto guardando</h1>
       <p class="detail" id="detail"></p>
       <button class="go" id="act" disabled>attendi</button>
+      <p class="after" id="after"></p>
       <div class="log" id="log" hidden></div>
+      <div class="chain" id="chain"></div>
       <div class="stats" id="stats"></div>
     </div>
   </section>
@@ -221,13 +265,57 @@ function paintHome(s) {
   act.dataset.action = s.action;
   act.innerHTML = s.button + '<span class="arrow">&rarr;</span>';
 
+  $("after").textContent = s.consequence || "";
+  paintChain(s);
+
   const stale = s.stale
     ? '<span class="stat warn"><b>!</b>l\'ultima raccolta è vecchia</span>' : "";
   $("stats").innerHTML =
-    `<span class="stat"><b>${s.pending_posts}</b>post in coda</span>` +
-    `<span class="stat"><b>${s.pending_days}</b>giorni</span>` +
     `<span class="stat"><b>$${(s.spend_usd || 0).toFixed(2)}</b>questa settimana</span>` +
     stale;
+}
+
+const MONTHS = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+  "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
+
+// "2026-08-24" reads as a serial number. "24 agosto" reads as a day.
+function sayDay(iso) {
+  if (!iso) return null;
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  return `${d} ${MONTHS[m - 1]}`;
+}
+
+// The three steps, with this week's own numbers in them. Which one is marked
+// follows the button: the chain is where the material has stopped, and the
+// button is the thing that moves it on from there.
+function paintChain(s) {
+  const here = { collect: 0, login: 0, recap: 2 }[s.action];
+  const collected = sayDay(s.last_collect);
+  const judged = sayDay(s.last_recap);
+
+  const steps = [
+    ["Raccolto", `${s.pending_posts} post`,
+     collected ? `salvati su Instagram, aperti slide per slide — ultima raccolta ${collected}`
+               : "nessuna raccolta ancora"],
+    ["Verificato", `${s.pending_checked} nomi su ${s.pending_things}`,
+     s.pending_things
+       ? "cercati alla fonte: GitHub, HuggingFace. Il resto resta “non verificato”, mai “non esiste”"
+       : "niente da cercare finché non arrivano post"],
+    // The step the material has *not* reached yet must not show the date of
+    // the last time it did. A marked step captioned "24 agosto" reads as done,
+    // which is the opposite of what the mark means.
+    ["Giudicato", here === 2 ? "non ancora" : (judged || "mai"),
+     (judged ? `ultimo recap ${judged} — ` : "") +
+     (judged
+       ? `<a href="/recap/${s.last_recap}.answer.html" target="_blank">riapri quella pagina</a>`
+       : "il modello legge i fatti e il tuo profilo, e ne tiene pochi")],
+  ];
+
+  $("chain").innerHTML = steps.map(([label, big, sub], i) =>
+    `<div class="step${i === here ? " on" : ""}">` +
+      `<span class="n">${i + 1}</span><span class="lbl">${label}</span>` +
+      `<p class="big">${big}</p><p class="sub">${sub}</p>` +
+    `</div>`).join("");
 }
 
 async function refresh() {
