@@ -48,32 +48,34 @@ html,body{height:100%;}
 
 /* Millet's winnower, veiled.
 
-   The picture fills this box — `cover` — and the box is what gets faded. The
-   earlier version did the opposite: the image was sized by its own height
-   inside a full-width element, so it simply *stopped* somewhere in the
-   middle, and that stop was a straight vertical cut. Fading it needed a mask
-   whose percentages happened to line up with where the edge fell, and they
-   only lined up at one window shape: at nearly full screen the edge slid past
-   the fade and the line came back.
+   Two elements, one mask each, instead of one element with two masks
+   composited. `mask-composite` was supposed to intersect them; measured, it
+   did not — sampling a row of the rendered window found a slope break of 10
+   levels exactly at the box's left edge, which is the line that kept coming
+   back. Nesting composites by rendering, which always works.
 
-   Nothing here depends on the window's proportions any more. There is no
-   edge to hide, because the image has none inside its own frame. */
+   The frame is anchored right and the picture fills it with `cover`, so the
+   image has no edge of its own inside it. There is nothing to hide: the
+   outer box fades sideways, the inner one carries the vignette. */
 .art{
   position:absolute; top:-6%; bottom:-6%; right:-3%;
   width:clamp(26rem, 56%, 74rem);
+  -webkit-mask-image:linear-gradient(to right, transparent 0%,
+    rgba(0,0,0,.10) 22%, rgba(0,0,0,.34) 42%, rgba(0,0,0,.66) 62%,
+    rgba(0,0,0,.9) 80%, #000 94%);
+  mask-image:linear-gradient(to right, transparent 0%,
+    rgba(0,0,0,.10) 22%, rgba(0,0,0,.34) 42%, rgba(0,0,0,.66) 62%,
+    rgba(0,0,0,.9) 80%, #000 94%);
+  animation:breathe 68s ease-in-out infinite;
+}
+.art i{
+  display:block; position:absolute; inset:0;
   background:url("/winnower.jpg") no-repeat 62% 42%/cover;
   opacity:.29; filter:saturate(.78) contrast(1.06);
-  -webkit-mask-image:linear-gradient(to right, transparent 0%,
-      rgba(0,0,0,.5) 34%, #000 72%),
-    radial-gradient(120% 86% at 62% 50%, #000 0%, rgba(0,0,0,.72) 62%,
-      transparent 100%);
-  -webkit-mask-composite:source-in;
-  mask-image:linear-gradient(to right, transparent 0%,
-      rgba(0,0,0,.5) 34%, #000 72%),
-    radial-gradient(120% 86% at 62% 50%, #000 0%, rgba(0,0,0,.72) 62%,
-      transparent 100%);
-  mask-composite:intersect;
-  animation:breathe 68s ease-in-out infinite;
+  -webkit-mask-image:radial-gradient(130% 90% at 62% 50%, #000 0%,
+    rgba(0,0,0,.86) 55%, rgba(0,0,0,.4) 85%, transparent 100%);
+  mask-image:radial-gradient(130% 90% at 62% 50%, #000 0%,
+    rgba(0,0,0,.86) 55%, rgba(0,0,0,.4) 85%, transparent 100%);
 }
 @keyframes breathe{
   0%,100%{transform:scale(1.03) translate3d(0,0,0);}
@@ -511,7 +513,7 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
 <body>
 
 <div class="veil" aria-hidden="true">
-  <div class="art"></div>
+  <div class="art"><i></i></div>
   <div class="glow g1"></div>
   <div class="glow g2"></div>
   <div class="chaff" id="chaff"></div>
