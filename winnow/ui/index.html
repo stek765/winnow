@@ -190,16 +190,44 @@ h1{font-family:var(--display); font-weight:700;
 /* --- archive ----------------------------------------------------------- */
 .eyebrow{font-family:var(--mono); font-size:.66rem; letter-spacing:.2em;
   text-transform:uppercase; color:var(--faint); margin:1.5rem 0 1rem;}
+.lead-in{margin:-.4rem 0 1.6rem; max-width:52ch; color:var(--soft);
+  font-size:.9rem; line-height:1.5;}
 .cards{display:grid; gap:1px; background:var(--rule);
-  border:1px solid var(--rule); border-radius:3px; overflow:hidden;
-  max-width:44rem;}
-.card{display:flex; align-items:center; gap:1rem; width:100%; text-align:left;
-  background:var(--lit); padding:1rem 1.2rem; transition:background .16s;}
+  border:1px solid var(--rule); border-radius:4px; overflow:hidden;
+  max-width:54rem;}
+.card{display:block; width:100%; text-align:left; background:var(--lit);
+  padding:1.15rem 1.3rem; transition:background .16s;}
 .card:hover{background:#fff;}
-.card b{font-family:var(--display); font-size:1.05rem; font-weight:600;
-  letter-spacing:-.01em;}
-.card span{font-family:var(--mono); font-size:.7rem; color:var(--faint);
+.card .top{display:flex; align-items:baseline; gap:.9rem;}
+.card b{font-family:var(--display); font-size:1.15rem; font-weight:600;
+  letter-spacing:-.02em;}
+/* The ratio is the product, so it is the line under the date and not a
+   number in the corner — "186 KB" was a fact about a disk. */
+.card .score{font-family:var(--mono); font-size:.72rem; color:var(--soft);}
+.card .score b{font-family:var(--mono); font-size:.72rem; color:var(--grease);}
+.card .cost{font-family:var(--mono); font-size:.7rem; color:var(--faint);
   margin-left:auto;}
+.card .said{margin:.5rem 0 0; font-size:.85rem; color:var(--faint);
+  line-height:1.45; display:-webkit-box; -webkit-line-clamp:2;
+  -webkit-box-orient:vertical; overflow:hidden;}
+
+/* --- the reader ---------------------------------------------------------
+   The page opens inside the app. `window.open` does nothing in this webview
+   — which is why clicking a week appeared to do nothing at all — and even
+   where it works, a recap that opens in a browser leaves the app behind. */
+.reader{display:flex; flex-direction:column; padding:0; overflow:hidden;}
+.readbar{display:flex; align-items:baseline; gap:1rem; flex:none;
+  padding:0 var(--pad) .9rem;}
+.readbar b{font-family:var(--display); font-size:1rem;}
+.readbar span{font-family:var(--mono); font-size:.7rem; color:var(--faint);}
+.back{font-family:var(--mono); font-size:.68rem; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--faint); padding:.4rem .8rem .4rem 0;
+  transition:color .15s;}
+.back::before{content:"\2039"; margin-right:.5rem; font-size:1.1rem;
+  line-height:0;}
+.back:hover{color:var(--grease);}
+#page{flex:1; width:100%; border:0; background:#fff;
+  border-top:1px solid var(--rule);}
 .empty{color:var(--soft); max-width:40ch;}
 
 /* --- settings ---------------------------------------------------------- */
@@ -378,7 +406,19 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
 
   <section class="screen" id="archive" hidden>
     <p class="eyebrow">Le settimane già giudicate</p>
+    <p class="lead-in">Ogni recap resta qui. La pagina è quella di allora,
+      immutata: i numeri che GitHub dava quel giorno, le slide come erano,
+      il perché di ogni cosa scartata.</p>
     <div id="archive-body"></div>
+  </section>
+
+  <section class="screen reader" id="reader" hidden>
+    <div class="readbar">
+      <button class="back" id="back">Archivio</button>
+      <b id="read-week"></b>
+      <span id="read-count"></span>
+    </div>
+    <iframe id="page" title="Il recap"></iframe>
   </section>
 
   <section class="screen" id="settings" hidden>
@@ -481,7 +521,12 @@ async function follow(id) {
       log.innerHTML += `<p class="bad">${body.error}</p>`;
     } else if (body.code === 0 && body.kind === "recap") {
       const page = body.events.find((e) => e.kind === "rendered");
-      if (page) window.open("/recap/" + page.data.path.split("/").pop(), "_blank");
+      if (page) {
+        const file = page.data.path.split("/").pop();
+        openRecap(file, file.replace(".answer.html", ""), "");
+        document.querySelectorAll(".tab").forEach(
+          (t) => t.classList.toggle("on", t.dataset.go === "archive"));
+      }
       loadArchive();
     }
     refresh();
@@ -515,18 +560,64 @@ $("act").addEventListener("click", async () => {
 });
 
 // --- archive ---------------------------------------------------------------
+const MONTHS = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+  "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
+
+// "2026-08-24" is a serial number; "24 agosto" is a day somebody remembers.
+function sayDay(iso) {
+  const [y, m, d] = String(iso).split("-").map(Number);
+  return MONTHS[m - 1] ? `${d} ${MONTHS[m - 1]}` : iso;
+}
+
+// The first sentence of the week's own comment. It is the only opinion in the
+// whole recap, so it is what tells two weeks apart at a glance.
+function firstSentence(text) {
+  const flat = String(text || "").replace(/\*\*/g, "").replace(/\s+/g, " ").trim();
+  const stop = flat.search(/[.!?]\s/);
+  return stop > 0 ? flat.slice(0, stop + 1) : flat;
+}
+
 async function loadArchive() {
   const { body } = await api("/api/recaps");
   $("archive-body").innerHTML = body.recaps.length
-    ? '<div class="cards">' + body.recaps.map((r) =>
-        `<button class="card" data-file="${r.file}">` +
-        `<b>${r.week}</b><span>${r.size_kb} KB</span></button>`).join("") + "</div>"
-    : '<p class="empty">Ancora nessuna settimana giudicata. ' +
-      'Il primo recap comparirà qui, e resterà apribile per sempre.</p>';
+    ? '<div class="cards">' + body.recaps.map((r) => {
+        const score = r.kept === null || r.things === null
+          ? '<span class="score">apri per vedere</span>'
+          : `<span class="score"><b>${r.kept}</b> tenute su ${r.things}` +
+            (r.posts ? ` &middot; ${r.posts} post` : "") + "</span>";
+        const cost = r.usd
+          ? `<span class="cost">$${r.usd.toFixed(2)}</span>` : "";
+        const said = r.comment
+          ? `<p class="said">${esc(firstSentence(r.comment))}</p>` : "";
+        return `<button class="card" data-file="${r.file}" ` +
+          `data-week="${r.week}" data-score="${r.kept === null ? "" :
+            r.kept + " tenute su " + r.things}">` +
+          `<span class="top"><b>${sayDay(r.week)}</b>${score}${cost}</span>` +
+          said + "</button>";
+      }).join("") + "</div>"
+    : '<p class="empty">Ancora nessuna settimana giudicata. Il primo recap ' +
+      'comparirà qui, e resterà apribile per sempre — anche fra un anno, ' +
+      'con i numeri di quel giorno.</p>';
   document.querySelectorAll(".card").forEach((c) =>
-    c.addEventListener("click", () =>
-      window.open("/recap/" + c.dataset.file, "_blank")));
+    c.addEventListener("click", () => openRecap(
+      c.dataset.file, c.dataset.week, c.dataset.score)));
 }
+
+function openRecap(file, week, score) {
+  $("page").src = "/recap/" + file;
+  $("read-week").textContent = week ? sayDay(week) : "";
+  $("read-count").textContent = score || "";
+  show("reader");
+}
+
+$("back").addEventListener("click", () => {
+  // Emptied on the way out: an iframe left loaded keeps a whole second page
+  // in memory behind a screen nobody is looking at.
+  $("page").src = "about:blank";
+  show("archive");
+  document.querySelectorAll(".tab").forEach(
+    (t) => t.classList.toggle("on", t.dataset.go === "archive"));
+});
 
 // --- settings --------------------------------------------------------------
 let models = null, config = null, draft = null;
@@ -1030,12 +1121,17 @@ $("sheet-save").addEventListener("click", async (e) => {
 });
 
 // --- tabs ------------------------------------------------------------------
+const SCREENS = ["home", "archive", "settings", "reader"];
+
+function show(which) {
+  SCREENS.forEach((s) => ($(s).hidden = s !== which));
+}
+
 document.querySelectorAll(".tab").forEach((t) =>
   t.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach((x) => x.classList.remove("on"));
     t.classList.add("on");
-    ["home", "archive", "settings"].forEach((s) =>
-      ($(s).hidden = s !== t.dataset.go));
+    show(t.dataset.go);
     if (t.dataset.go === "archive") loadArchive();
     if (t.dataset.go === "settings") loadSettings();
   }));

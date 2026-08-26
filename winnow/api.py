@@ -14,6 +14,7 @@ the same reason `progress.line` was split out from the runs that emit events.
 from __future__ import annotations
 
 import json
+import re
 import secrets
 import threading
 from datetime import datetime
@@ -157,16 +158,58 @@ CONFIG_PUBLIC = ("model", "provider", "base_url", "posts_per_run",
                  "warn_eur_week", "halt_eur_week", "key_ready", "folders")
 
 
+# The archive is the weeks winnow judged. A page dropped into that folder by
+# hand — a demo, an export — is not one of them, and listing it beside them
+# says it is.
+WEEK_PAGE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.answer\.html$")
+
+
+def _verdict(answer: Path) -> dict:
+    """What that week decided, read back from the reply that produced it.
+
+    A file size is a fact about a disk, not about a week: it gives a reader no
+    way to tell one entry from another. The ratio does — it is the product.
+    """
+    blank = {"kept": None, "things": None, "posts": None, "usd": None,
+             "comment": ""}
+    if not answer.is_file():
+        # The page is the product; this JSON is bookkeeping. Losing it must
+        # not hide a recap that opens perfectly well.
+        return blank
+    try:
+        from winnow.render import extract_json
+        data = extract_json(answer.read_text(encoding="utf-8"))
+    except Exception:                                       # noqa: BLE001
+        return blank
+    if not isinstance(data, dict):
+        return blank
+    counts = data.get("counts") or {}
+    discarded = data.get("discarded")
+    if isinstance(discarded, list):
+        discarded = len(discarded)
+    kept = counts.get("kept")
+    return {
+        "kept": kept,
+        "things": (kept + discarded)
+        if isinstance(kept, int) and isinstance(discarded, int) else None,
+        "posts": counts.get("posts"), "usd": counts.get("usd"),
+        "comment": data.get("comment") or "",
+    }
+
+
 def _archive() -> list[dict]:
-    """The pages already produced, newest first."""
+    """The weeks already judged, newest first."""
     out = []
     d = paths.recap_dir()
     if not d.is_dir():
         return out
-    for f in sorted(d.glob("*.html"), reverse=True):
-        week = f.stem.replace(".answer", "")
+    for f in sorted(d.glob("*.answer.html"), reverse=True):
+        m = WEEK_PAGE.match(f.name)
+        if not m:
+            continue
+        week = m.group(1)
         out.append({"week": week, "file": f.name,
-                    "size_kb": f.stat().st_size // 1024})
+                    **_verdict(d / f"{week}.answer.md")})
     return out
 
 

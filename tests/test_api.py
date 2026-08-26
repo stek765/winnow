@@ -408,3 +408,61 @@ def test_the_config_says_whether_the_chosen_provider_has_its_key(
     env.write_text("ANTHROPIC_API_KEY=sk-ant-x\n", encoding="utf-8")
     _, body = route("GET", "/api/config", {}, Jobs())
     assert body["key_ready"] is True
+
+
+# --- the archive -----------------------------------------------------------
+#
+# It listed a file size. "186 KB" is a fact about a disk, not about a week,
+# and it gave a reader no way to tell one entry from another — so the whole
+# section read as a folder listing that happened to be in the app.
+
+def _answer(week, kept, discarded, posts, usd, comment):
+    return json.dumps({"week": week, "comment": comment,
+                       "counts": {"posts": posts, "kept": kept, "usd": usd},
+                       "discarded": discarded})
+
+
+def test_a_week_is_listed_by_what_it_decided(tmp_path, monkeypatch):
+    import winnow.api as A
+    (tmp_path / "2026-08-24.answer.html").write_text("<html>", encoding="utf-8")
+    (tmp_path / "2026-08-24.answer.md").write_text(
+        _answer("2026-08-24", 15, 129, 30, 0.13, "Il grosso viene da liste."),
+        encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+    _, body = route("GET", "/api/recaps", {}, Jobs())
+    row = body["recaps"][0]
+    assert row["kept"] == 15 and row["things"] == 144      # kept + discarded
+    assert row["posts"] == 30 and row["usd"] == 0.13
+    assert row["comment"].startswith("Il grosso")
+
+
+def test_a_page_whose_answer_was_lost_is_still_listed(tmp_path, monkeypatch):
+    """The page is the product; the JSON beside it is bookkeeping. Dropping
+    the row would hide a recap that opens perfectly well."""
+    import winnow.api as A
+    (tmp_path / "2026-08-20.answer.html").write_text("<html>", encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+    _, body = route("GET", "/api/recaps", {}, Jobs())
+    assert body["recaps"][0]["week"] == "2026-08-20"
+    assert body["recaps"][0]["kept"] is None
+
+
+def test_a_broken_answer_does_not_take_the_archive_down(tmp_path, monkeypatch):
+    import winnow.api as A
+    (tmp_path / "2026-08-20.answer.html").write_text("<html>", encoding="utf-8")
+    (tmp_path / "2026-08-20.answer.md").write_text("{{{", encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+    code, body = route("GET", "/api/recaps", {}, Jobs())
+    assert code == 200 and body["recaps"][0]["kept"] is None
+
+
+def test_only_pages_named_after_a_week_are_listed(tmp_path, monkeypatch):
+    """The archive is the weeks winnow judged. A page dropped in that folder
+    by hand — a demo, an export — is not one of them, and listing it beside
+    them says it is."""
+    import winnow.api as A
+    for name in ("2026-08-24.answer.html", "demo-motore.html", "notes.html"):
+        (tmp_path / name).write_text("<html>", encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+    _, body = route("GET", "/api/recaps", {}, Jobs())
+    assert [r["week"] for r in body["recaps"]] == ["2026-08-24"]
