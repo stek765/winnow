@@ -201,17 +201,33 @@ def _verdict(answer: Path) -> dict:
 MERGE_PAGE = re.compile(r"^unione-[a-z0-9-]+\.html$")
 
 
-def _merges() -> list[dict]:
-    """The pages made by putting weeks together, newest first.
+def _archive() -> list[dict]:
+    """Everything ever produced, newest first — weeks and merges in one list.
 
-    Kept apart from the weeks: a merge is not one, and listing it among them
-    would claim it is.
+    Kept in two lists, a merge made today sat below a week judged in January,
+    and the question a reader actually has — *what did I do last?* — had no
+    answer on the screen. They are different kinds of thing, so each row says
+    which it is and the window can filter; but the order is the order things
+    happened, because that is what a history is.
+
+    A week is placed by when its **page was written**, not by the week it
+    covers: a recap of an old backlog produced today is something done today.
     """
     out = []
     d = paths.recap_dir()
     if not d.is_dir():
         return out
-    for f in sorted(d.glob("unione-*.html"), reverse=True):
+
+    for f in d.glob("*.answer.html"):
+        m = WEEK_PAGE.match(f.name)
+        if not m:
+            continue
+        week = m.group(1)
+        out.append({"kind": "week", "week": week, "file": f.name,
+                    "made": f.stat().st_mtime,
+                    **_verdict(d / f"{week}.answer.md")})
+
+    for f in d.glob("unione-*.html"):
         if not MERGE_PAGE.match(f.name):
             continue
         side = d / (f.stem + ".json")
@@ -221,29 +237,13 @@ def _merges() -> list[dict]:
                 info = json.loads(side.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 info = {}
-        out.append({"file": f.name, "label": info.get("label") or f.stem,
+        out.append({"kind": "merge", "file": f.name, "week": "",
+                    "label": info.get("label") or f.stem,
                     "weeks": info.get("weeks") or [],
-                    "made": info.get("made") or "",
-                    "things": info.get("things")})
-    # Newest first by when it was made, not by file name: a name now carries
-    # what the reader typed, and alphabetical order of that means nothing.
-    out.sort(key=lambda m: m["made"], reverse=True)
-    return out
+                    "things": info.get("things"),
+                    "made": f.stat().st_mtime})
 
-
-def _archive() -> list[dict]:
-    """The weeks already judged, newest first."""
-    out = []
-    d = paths.recap_dir()
-    if not d.is_dir():
-        return out
-    for f in sorted(d.glob("*.answer.html"), reverse=True):
-        m = WEEK_PAGE.match(f.name)
-        if not m:
-            continue
-        week = m.group(1)
-        out.append({"week": week, "file": f.name,
-                    **_verdict(d / f"{week}.answer.md")})
+    out.sort(key=lambda i: i["made"], reverse=True)
     return out
 
 
@@ -258,7 +258,7 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
     if path == "/api/recaps":
         if method != "GET":
             return 405, {"error": "GET only"}
-        return 200, {"recaps": _archive(), "merges": _merges()}
+        return 200, {"items": _archive()}
 
     if path == "/api/models":
         if method != "GET":

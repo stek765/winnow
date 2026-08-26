@@ -194,6 +194,13 @@ h1{font-family:var(--display); font-weight:700;
   font-size:clamp(1.7rem,3.4vw,2.2rem); margin:1.4rem 0 .4rem; line-height:1.1;}
 .lead-in{margin:0 0 1.8rem; max-width:56ch; color:var(--soft);
   font-size:.9rem; line-height:1.5;}
+.filters{display:flex; gap:.2rem; margin:0 0 1.1rem;}
+.f{font-family:var(--mono); font-size:.66rem; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--faint); padding:.4rem .8rem;
+  border-radius:999px; transition:background .15s, color .15s;}
+.f:hover{color:var(--ink);}
+.f.on{background:var(--ink); color:var(--lit);}
+
 .cards{display:grid; gap:1px; background:var(--rule);
   border:1px solid var(--rule); border-radius:4px; overflow:hidden;
   max-width:54rem;}
@@ -218,6 +225,16 @@ h1{font-family:var(--display); font-weight:700;
 .card{display:flex; gap:1rem; cursor:pointer;}
 .card .body{flex:1; min-width:0;}
 .card.picked{background:#fff; box-shadow:inset 3px 0 0 var(--grease);}
+/* A merge is a different kind of thing in the same stack, so it is a
+   different colour rather than a different list — warm, because it is
+   something the reader made rather than something winnow produced. */
+.card.merge{background:#faf3ef; box-shadow:inset 3px 0 0 #e7b9a6;}
+.card.merge:hover{background:#fdf7f4;}
+/* Where the tick would be, so every title starts on the same line. A merge
+   cannot be merged again, so it has no tick — but it must not be indented
+   differently for it. */
+.card .gap{width:17px; flex:none;}
+.card[hidden]{display:none;}
 /* At rest the row is the card that was there before the controls arrived:
    a date, a ratio, a sentence. The tick and the bin appear when the pointer
    does — and the tick stays out for good once anything is chosen, or the
@@ -511,6 +528,11 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
     <h1 class="title">Il raccolto</h1>
     <p class="lead-in">Storico di tutti i recap fatti. Clicca una settimana
       per riaprirla, spuntane due o più per metterle insieme.</p>
+    <nav class="filters" id="filters">
+      <button class="f on" data-only="all">Tutto</button>
+      <button class="f" data-only="week">Recap</button>
+      <button class="f" data-only="merge">Unioni</button>
+    </nav>
     <div id="archive-body"></div>
     <div class="tray" id="tray" hidden>
       <span class="n" id="tray-n"></span>
@@ -519,7 +541,6 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
       <button class="ghost" id="tray-clear">Annulla</button>
       <button class="go" id="tray-go">Unisci</button>
     </div>
-    <div id="merges"></div>
   </section>
 
   <section class="screen reader" id="reader" hidden>
@@ -739,67 +760,83 @@ const TRASH = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" ' +
   'M4.2 4l.6 9.2h6.4L11.8 4"/></svg>';
 
 let picked = new Set();
+let only = "all";
+
+// One row for a week, one for a merge — same shape, so they can live in the
+// same stack and still be told apart at a glance.
+function weekRow(r) {
+  const score = r.kept === null || r.things === null
+    ? '<span class="score">apri per vedere</span>'
+    : `<span class="score"><b>${r.kept}</b> tenute su ${r.things}` +
+      (r.posts ? ` &middot; ${r.posts} post` : "") + "</span>";
+  const cost = r.usd ? `<span class="cost">$${r.usd.toFixed(2)}</span>` : "";
+  const said = r.comment
+    ? `<p class="said">${esc(firstSentence(r.comment))}</p>` : "";
+  return `<div class="card" data-file="${r.file}" data-week="${r.week}" ` +
+    `data-kind="week" data-score="${r.kept === null ? "" :
+      r.kept + " tenute su " + r.things}">` +
+    '<span class="box"></span><span class="body">' +
+    `<span class="top"><b>${sayDay(r.week)}</b>${score}${cost}</span>` +
+    said + "</span>" +
+    `<button class="bin" title="Elimina" aria-label="Elimina">${TRASH}</button>` +
+    "</div>";
+}
+
+function mergeRow(m) {
+  return `<div class="card merge" data-file="${m.file}" data-week="" ` +
+    `data-kind="merge" data-label="${esc(m.label)}" ` +
+    `data-score="${m.things ? m.things + " cose" : ""}">` +
+    '<span class="gap"></span><span class="body"><span class="top">' +
+    `<b>${esc(m.label)}</b>` +
+    (m.things ? `<span class="score"><b>${m.things}</b> cose</span>` : "") +
+    (m.weeks.length
+      ? `<span class="cost">${m.weeks.length} settimane</span>` : "") +
+    "</span>" +
+    (m.weeks.length ? `<p class="said">${esc(weekList(m.weeks))}</p>` : "") +
+    "</span>" +
+    `<button class="bin" title="Elimina" aria-label="Elimina">${TRASH}</button>` +
+    "</div>";
+}
 
 async function loadArchive() {
   const { body } = await api("/api/recaps");
   picked = new Set();
 
-  $("archive-body").innerHTML = body.recaps.length
-    ? '<div class="cards">' + body.recaps.map((r) => {
-        const score = r.kept === null || r.things === null
-          ? '<span class="score">apri per vedere</span>'
-          : `<span class="score"><b>${r.kept}</b> tenute su ${r.things}` +
-            (r.posts ? ` &middot; ${r.posts} post` : "") + "</span>";
-        const cost = r.usd
-          ? `<span class="cost">$${r.usd.toFixed(2)}</span>` : "";
-        const said = r.comment
-          ? `<p class="said">${esc(firstSentence(r.comment))}</p>` : "";
-        return `<div class="card" data-file="${r.file}" data-week="${r.week}" ` +
-          `data-score="${r.kept === null ? "" :
-            r.kept + " tenute su " + r.things}">` +
-          '<span class="box"></span><span class="body">' +
-          `<span class="top"><b>${sayDay(r.week)}</b>${score}${cost}</span>` +
-          said + "</span>" +
-          `<button class="bin" title="Elimina" aria-label="Elimina">${TRASH}</button>` +
-          "</div>";
-      }).join("") + "</div>"
+  $("archive-body").innerHTML = body.items.length
+    ? '<div class="cards">' + body.items.map(
+        (i) => (i.kind === "merge" ? mergeRow(i) : weekRow(i))).join("") + "</div>"
     : '<p class="empty">Ancora nessuna settimana giudicata. Il primo recap ' +
       'comparirà qui, e resterà apribile per sempre — anche fra un anno, ' +
       'con i numeri di quel giorno.</p>';
 
-  $("merges").innerHTML = (body.merges || []).length
-    ? '<p class="eyebrow">Settimane messe insieme</p><div class="cards">' +
-      body.merges.map((m) =>
-        `<div class="card" data-file="${m.file}" data-week="" ` +
-        `data-label="${esc(m.label)}" ` +
-        `data-score="${m.things ? m.things + " cose" : ""}">` +
-        '<span class="body"><span class="top">' +
-        `<b>${esc(m.label)}</b>` +
-        (m.things ? `<span class="score"><b>${m.things}</b> cose</span>` : "") +
-        (m.weeks.length
-          ? `<span class="cost">${m.weeks.length} settimane</span>` : "") +
-        "</span>" +
-        // A page called "Embedded" says nothing about which weeks are behind
-        // it — and that is the question a month later.
-        (m.weeks.length ? `<p class="said">${esc(weekList(m.weeks))}</p>` : "") +
-        "</span>" +
-        `<button class="bin" title="Elimina" aria-label="Elimina">${TRASH}</button>` +
-        "</div>").join("") + "</div>"
-    : "";
-
   document.querySelectorAll(".card").forEach((c) => {
     c.addEventListener("click", (e) => {
       if (e.target.closest(".bin")) return;
-      // The tick selects, the rest of the row opens. Two jobs, two targets.
       if (e.target.closest(".box")) return toggle(c);
       openRecap(c.dataset.file, c.dataset.week, c.dataset.score,
                 c.dataset.label);
     });
-    const bin = c.querySelector(".bin");
-    if (bin) bin.addEventListener("click", () => remove(c));
+    c.querySelector(".bin").addEventListener("click", () => remove(c));
   });
+  applyFilter();
   paintTray();
 }
+
+function applyFilter() {
+  document.querySelectorAll(".card").forEach(
+    (c) => { c.hidden = only !== "all" && c.dataset.kind !== only; });
+  document.querySelectorAll(".f").forEach(
+    (f) => f.classList.toggle("on", f.dataset.only === only));
+}
+
+document.querySelectorAll(".f").forEach((f) =>
+  f.addEventListener("click", () => {
+    only = f.dataset.only;
+    // Filtering away a chosen week would leave it chosen and invisible, and
+    // the merge would then take in something the reader cannot see.
+    if (only === "merge") $("tray-clear").click();
+    applyFilter();
+  }));
 
 function toggle(card) {
   const w = card.dataset.week;
@@ -864,9 +901,9 @@ $("tray-go").addEventListener("click", async () => {
 });
 
 async function remove(card) {
-  const what = card.dataset.week
-    ? "il recap del " + sayDay(card.dataset.week)
-    : "questa unione";
+  const what = card.dataset.kind === "merge"
+    ? `l'unione «${card.dataset.label}»`
+    : "il recap del " + sayDay(card.dataset.week);
   // Said in full before it happens: the page and the judgement behind it go
   // together, and nothing here can bring either one back.
   if (!confirm(`Elimino ${what}? Sparisce la pagina e il giudizio che l'ha ` +

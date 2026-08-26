@@ -114,14 +114,14 @@ def test_the_archive_lists_the_pages_newest_first(tmp_path, monkeypatch):
     monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
     code, body = route("GET", "/api/recaps", {}, Jobs())
     assert code == 200
-    assert [r["week"] for r in body["recaps"]] == ["2026-08-25", "2026-08-20"]
+    assert [r["week"] for r in body["items"]] == ["2026-08-25", "2026-08-20"]
 
 
 def test_an_empty_archive_is_a_list_and_not_an_error(tmp_path, monkeypatch):
     import winnow.api as A
     monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
     code, body = route("GET", "/api/recaps", {}, Jobs())
-    assert code == 200 and body["recaps"] == []
+    assert code == 200 and body["items"] == []
 
 
 def test_the_config_is_readable_and_never_leaks_the_key(tmp_path, monkeypatch):
@@ -430,7 +430,7 @@ def test_a_week_is_listed_by_what_it_decided(tmp_path, monkeypatch):
         encoding="utf-8")
     monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
     _, body = route("GET", "/api/recaps", {}, Jobs())
-    row = body["recaps"][0]
+    row = body["items"][0]
     assert row["kept"] == 15 and row["things"] == 144      # kept + discarded
     assert row["posts"] == 30 and row["usd"] == 0.13
     assert row["comment"].startswith("Il grosso")
@@ -443,8 +443,8 @@ def test_a_page_whose_answer_was_lost_is_still_listed(tmp_path, monkeypatch):
     (tmp_path / "2026-08-20.answer.html").write_text("<html>", encoding="utf-8")
     monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
     _, body = route("GET", "/api/recaps", {}, Jobs())
-    assert body["recaps"][0]["week"] == "2026-08-20"
-    assert body["recaps"][0]["kept"] is None
+    assert body["items"][0]["week"] == "2026-08-20"
+    assert body["items"][0]["kept"] is None
 
 
 def test_a_broken_answer_does_not_take_the_archive_down(tmp_path, monkeypatch):
@@ -453,7 +453,7 @@ def test_a_broken_answer_does_not_take_the_archive_down(tmp_path, monkeypatch):
     (tmp_path / "2026-08-20.answer.md").write_text("{{{", encoding="utf-8")
     monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
     code, body = route("GET", "/api/recaps", {}, Jobs())
-    assert code == 200 and body["recaps"][0]["kept"] is None
+    assert code == 200 and body["items"][0]["kept"] is None
 
 
 def test_only_pages_named_after_a_week_are_listed(tmp_path, monkeypatch):
@@ -465,7 +465,7 @@ def test_only_pages_named_after_a_week_are_listed(tmp_path, monkeypatch):
         (tmp_path / name).write_text("<html>", encoding="utf-8")
     monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
     _, body = route("GET", "/api/recaps", {}, Jobs())
-    assert [r["week"] for r in body["recaps"]] == ["2026-08-24"]
+    assert [r["week"] for r in body["items"]] == ["2026-08-24"]
 
 
 # --- merging, and deleting --------------------------------------------------
@@ -507,7 +507,7 @@ def test_a_merge_can_be_given_a_name_and_keeps_it(tmp_path, monkeypatch):
     # behind it a month later.
     assert "23 agosto" in page and "24 agosto" in page
     _, listing = route("GET", "/api/recaps", {}, Jobs())
-    assert listing["merges"][0]["label"] == "Embedded"
+    assert listing["items"][0]["label"] == "Embedded"
 
 
 def test_a_merge_is_listed_apart_from_the_weeks_it_covers(tmp_path, monkeypatch):
@@ -521,9 +521,10 @@ def test_a_merge_is_listed_apart_from_the_weeks_it_covers(tmp_path, monkeypatch)
          "things": 21}), encoding="utf-8")
     monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
     _, body = route("GET", "/api/recaps", {}, Jobs())
-    assert [r["week"] for r in body["recaps"]] == ["2026-08-24"]
-    assert body["merges"][0]["label"] == "23–24 agosto"
-    assert body["merges"][0]["things"] == 21
+    kinds = {i["kind"] for i in body["items"]}
+    assert kinds == {"week", "merge"}
+    merge = next(i for i in body["items"] if i["kind"] == "merge")
+    assert merge["label"] == "23–24 agosto" and merge["things"] == 21
 
 
 def test_merging_fewer_than_two_weeks_is_refused(tmp_path, monkeypatch):
@@ -571,3 +572,43 @@ def test_a_delete_cannot_reach_outside_the_recap_folder(tmp_path, monkeypatch):
     secret.write_text("x", encoding="utf-8")
     code, _ = route("DELETE", "/api/recaps/../keep-me.html", {}, Jobs())
     assert code == 404 and secret.exists()
+
+
+def test_the_archive_is_one_stack_in_the_order_things_were_made(
+        tmp_path, monkeypatch):
+    """Weeks and merges in one list, newest first. Kept in two, a merge made
+    today sat below a week judged in January, and the question a reader
+    actually has — what did I do last? — had no answer on the screen."""
+    import os
+
+    import winnow.api as A
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+
+    for name, when in (("2026-01-05.answer.html", 1000),
+                       ("unione-x-aaaaaaaa.html", 2000),
+                       ("2026-08-24.answer.html", 3000)):
+        f = tmp_path / name
+        f.write_text("<html>", encoding="utf-8")
+        os.utime(f, (when, when))
+    (tmp_path / "unione-x-aaaaaaaa.json").write_text(json.dumps(
+        {"weeks": ["2026-01-05"], "label": "X"}), encoding="utf-8")
+
+    _, body = route("GET", "/api/recaps", {}, Jobs())
+    assert [i["file"] for i in body["items"]] == [
+        "2026-08-24.answer.html", "unione-x-aaaaaaaa.html",
+        "2026-01-05.answer.html"]
+    assert [i["kind"] for i in body["items"]] == ["week", "merge", "week"]
+
+
+def test_a_week_is_placed_by_when_its_page_was_written(tmp_path, monkeypatch):
+    """Not by the week it covers: a recap of an old backlog produced today is
+    something done today, and that is what a history is for."""
+    import os
+
+    import winnow.api as A
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+    a, b = tmp_path / "2026-08-24.answer.html", tmp_path / "2026-01-05.answer.html"
+    a.write_text("<html>", encoding="utf-8"); os.utime(a, (1000, 1000))
+    b.write_text("<html>", encoding="utf-8"); os.utime(b, (5000, 5000))
+    _, body = route("GET", "/api/recaps", {}, Jobs())
+    assert [i["week"] for i in body["items"]] == ["2026-01-05", "2026-08-24"]
