@@ -162,6 +162,7 @@ CONFIG_PUBLIC = ("model", "provider", "base_url", "posts_per_run",
 # hand — a demo, an export — is not one of them, and listing it beside them
 # says it is.
 WEEK_PAGE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.answer\.html$")
+WEEK_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def _verdict(answer: Path) -> dict:
@@ -197,6 +198,35 @@ def _verdict(answer: Path) -> dict:
     }
 
 
+MERGE_PAGE = re.compile(r"^unione-[\d_-]+\.html$")
+
+
+def _merges() -> list[dict]:
+    """The pages made by putting weeks together, newest first.
+
+    Kept apart from the weeks: a merge is not one, and listing it among them
+    would claim it is.
+    """
+    out = []
+    d = paths.recap_dir()
+    if not d.is_dir():
+        return out
+    for f in sorted(d.glob("unione-*.html"), reverse=True):
+        if not MERGE_PAGE.match(f.name):
+            continue
+        side = d / (f.stem + ".json")
+        info = {}
+        if side.is_file():
+            try:
+                info = json.loads(side.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                info = {}
+        out.append({"file": f.name, "label": info.get("label") or f.stem,
+                    "weeks": info.get("weeks") or [],
+                    "things": info.get("things")})
+    return out
+
+
 def _archive() -> list[dict]:
     """The weeks already judged, newest first."""
     out = []
@@ -224,7 +254,7 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
     if path == "/api/recaps":
         if method != "GET":
             return 405, {"error": "GET only"}
-        return 200, {"recaps": _archive()}
+        return 200, {"recaps": _archive(), "merges": _merges()}
 
     if path == "/api/models":
         if method != "GET":
@@ -343,6 +373,63 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
         except FileNotFoundError:
             return 404, {"error": "no config yet — run the setup"}
         return 200, {k: raw[k] for k in CONFIG_PUBLIC if k in raw}
+
+    if path == "/api/merge":
+        if method != "POST":
+            return 405, {"error": "POST only"}
+        from winnow.harvest import label_for, merge, render_harvest
+        from winnow.render import extract_json
+
+        weeks = sorted({w for w in (payload.get("weeks") or [])
+                        if isinstance(w, str) and WEEK_RE.match(w)})
+        if len(weeks) < 2:
+            return 400, {"error": "servono almeno due settimane"}
+
+        d = paths.recap_dir()
+        answers, missing = [], []
+        for week in weeks:
+            side = d / f"{week}.answer.md"
+            try:
+                answers.append(extract_json(side.read_text(encoding="utf-8")))
+            except Exception:                              # noqa: BLE001
+                # The page can be reopened without its answer, but it cannot
+                # be merged: the answer *is* the content. Producing a page
+                # quietly missing half of what was asked for is the failure
+                # this repo keeps paying for.
+                missing.append(week)
+        if missing:
+            return 400, {"error": "manca il giudizio di " + ", ".join(missing)}
+
+        merged = merge(answers)
+        label = label_for(weeks)
+        stem = f"unione-{weeks[0]}_{weeks[-1]}"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{stem}.html").write_text(render_harvest(merged), encoding="utf-8")
+        (d / f"{stem}.json").write_text(json.dumps(
+            {"weeks": weeks, "label": label,
+             "things": merged["counts"]["things"]},
+            ensure_ascii=False), encoding="utf-8")
+        return 200, {"file": f"{stem}.html", "label": label,
+                     "things": merged["counts"]["things"]}
+
+    if path.startswith("/api/recaps/"):
+        if method != "DELETE":
+            return 405, {"error": "DELETE only"}
+        # The name arrives in a URL: `..` in it must not become a path.
+        name = Path(path[len("/api/recaps/"):]).name
+        d = paths.recap_dir()
+        target = d / name
+        if not name or not target.is_file() or target.suffix != ".html":
+            return 404, {"error": "non esiste"}
+        # The page and the judgement that produced it go together. Leaving the
+        # answer behind is half a delete, and the half that stays is the one
+        # holding the reading.
+        removed = []
+        for f in sorted(d.glob(target.stem.replace(".answer", "") + "*")):
+            if f.is_file():
+                f.unlink()
+                removed.append(f.name)
+        return 200, {"removed": removed}
 
     if path in ("/api/collect", "/api/recap", "/api/folders/scan"):
         if method != "POST":
@@ -492,6 +579,10 @@ def make_handler(jobs: Jobs, ui_dir: Path):
                 self._send(404, {"error": "no such page"})
                 return
             super().do_GET()
+
+        def do_DELETE(self) -> None:
+            if not self._api("DELETE"):
+                self._send(404, {"error": "no such path"})
 
         def do_POST(self) -> None:
             if not self._api("POST"):

@@ -211,6 +211,35 @@ h1{font-family:var(--display); font-weight:700;
   line-height:1.45; display:-webkit-box; -webkit-line-clamp:2;
   -webkit-box-orient:vertical; overflow:hidden;}
 
+/* The row is a div, not a button: it carries two controls of its own, and a
+   button inside a button is invalid markup. */
+.card{display:flex; gap:1rem; cursor:pointer;}
+.card .body{flex:1; min-width:0;}
+.card.picked{background:#fff; box-shadow:inset 3px 0 0 var(--grease);}
+.box{width:17px; height:17px; flex:none; margin-top:.35rem; border-radius:4px;
+  border:1px solid var(--rule); background:#fff; position:relative;
+  transition:border-color .15s, background .15s;}
+.card:hover .box{border-color:var(--soft);}
+.card.picked .box{background:var(--grease); border-color:var(--grease);}
+.card.picked .box::after{content:""; position:absolute; left:5px; top:2px;
+  width:4px; height:9px; border:solid #fff; border-width:0 1.8px 1.8px 0;
+  transform:rotate(42deg);}
+.bin{flex:none; align-self:flex-start; width:30px; height:30px;
+  border-radius:50%; color:var(--faint); display:inline-flex;
+  align-items:center; justify-content:center; transition:.15s;}
+.bin:hover{background:rgba(206,58,36,.1); color:var(--grease);}
+.bin svg{width:14px; height:14px;}
+
+/* Appears only when something is chosen, and says what it will do. */
+.tray{position:sticky; bottom:0; margin-top:1.2rem; max-width:54rem;
+  display:flex; align-items:center; gap:1rem; padding:1rem 1.2rem;
+  background:var(--lit); border:1px solid var(--rule); border-radius:4px;
+  box-shadow:0 -6px 26px -18px rgba(16,20,26,.5);
+  animation:rise .2s cubic-bezier(.2,.8,.3,1) both;}
+.tray[hidden]{display:none;}
+.tray .n{font-family:var(--mono); font-size:.72rem; color:var(--soft);}
+.tray .go{padding:.7rem 1.2rem; font-size:.7rem; margin-left:auto;}
+
 /* --- the reader ---------------------------------------------------------
    The page opens inside the app. `window.open` does nothing in this webview
    — which is why clicking a week appeared to do nothing at all — and even
@@ -406,8 +435,15 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
 
   <section class="screen" id="archive" hidden>
     <p class="eyebrow">Le settimane già giudicate</p>
-    <p class="lead-in">Clicca una settimana per riaprire il suo recap.</p>
+    <p class="lead-in">Clicca una settimana per riaprire il suo recap.
+      Spuntane due o più per metterle insieme.</p>
     <div id="archive-body"></div>
+    <div class="tray" id="tray" hidden>
+      <span class="n" id="tray-n"></span>
+      <button class="ghost" id="tray-clear">Annulla</button>
+      <button class="go" id="tray-go">Unisci</button>
+    </div>
+    <div id="merges"></div>
   </section>
 
   <section class="screen reader" id="reader" hidden>
@@ -470,6 +506,14 @@ let job = null, timer = null;
 
 async function api(path, method = "GET") {
   const r = await fetch(path, { method });
+  return { code: r.status, body: await r.json().catch(() => ({})) };
+}
+
+async function post(path, payload) {
+  const r = await fetch(path, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
   return { code: r.status, body: await r.json().catch(() => ({})) };
 }
 
@@ -575,8 +619,16 @@ function firstSentence(text) {
   return stop > 0 ? flat.slice(0, stop + 1) : flat;
 }
 
+const TRASH = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" ' +
+  'stroke-width="1.3" stroke-linecap="round"><path d="M3 4h10M6.5 4V2.6h3V4' +
+  'M4.2 4l.6 9.2h6.4L11.8 4"/></svg>';
+
+let picked = new Set();
+
 async function loadArchive() {
   const { body } = await api("/api/recaps");
+  picked = new Set();
+
   $("archive-body").innerHTML = body.recaps.length
     ? '<div class="cards">' + body.recaps.map((r) => {
         const score = r.kept === null || r.things === null
@@ -587,18 +639,93 @@ async function loadArchive() {
           ? `<span class="cost">$${r.usd.toFixed(2)}</span>` : "";
         const said = r.comment
           ? `<p class="said">${esc(firstSentence(r.comment))}</p>` : "";
-        return `<button class="card" data-file="${r.file}" ` +
-          `data-week="${r.week}" data-score="${r.kept === null ? "" :
+        return `<div class="card" data-file="${r.file}" data-week="${r.week}" ` +
+          `data-score="${r.kept === null ? "" :
             r.kept + " tenute su " + r.things}">` +
+          '<span class="box"></span><span class="body">' +
           `<span class="top"><b>${sayDay(r.week)}</b>${score}${cost}</span>` +
-          said + "</button>";
+          said + "</span>" +
+          `<button class="bin" title="Elimina" aria-label="Elimina">${TRASH}</button>` +
+          "</div>";
       }).join("") + "</div>"
     : '<p class="empty">Ancora nessuna settimana giudicata. Il primo recap ' +
       'comparirà qui, e resterà apribile per sempre — anche fra un anno, ' +
       'con i numeri di quel giorno.</p>';
-  document.querySelectorAll(".card").forEach((c) =>
-    c.addEventListener("click", () => openRecap(
-      c.dataset.file, c.dataset.week, c.dataset.score)));
+
+  $("merges").innerHTML = (body.merges || []).length
+    ? '<p class="eyebrow">Settimane messe insieme</p><div class="cards">' +
+      body.merges.map((m) =>
+        `<div class="card" data-file="${m.file}" data-week="" ` +
+        `data-score="${m.things ? m.things + " cose" : ""}">` +
+        '<span class="body"><span class="top">' +
+        `<b>${esc(m.label)}</b>` +
+        (m.things ? `<span class="score"><b>${m.things}</b> cose</span>` : "") +
+        (m.weeks.length
+          ? `<span class="cost">${m.weeks.length} settimane</span>` : "") +
+        "</span></span>" +
+        `<button class="bin" title="Elimina" aria-label="Elimina">${TRASH}</button>` +
+        "</div>").join("") + "</div>"
+    : "";
+
+  document.querySelectorAll(".card").forEach((c) => {
+    c.addEventListener("click", (e) => {
+      if (e.target.closest(".bin")) return;
+      // The tick selects, the rest of the row opens. Two jobs, two targets.
+      if (e.target.closest(".box")) return toggle(c);
+      openRecap(c.dataset.file, c.dataset.week, c.dataset.score);
+    });
+    const bin = c.querySelector(".bin");
+    if (bin) bin.addEventListener("click", () => remove(c));
+  });
+  paintTray();
+}
+
+function toggle(card) {
+  const w = card.dataset.week;
+  if (!w) return;                       // a merge is not a week to merge again
+  picked.has(w) ? picked.delete(w) : picked.add(w);
+  card.classList.toggle("picked", picked.has(w));
+  paintTray();
+}
+
+function paintTray() {
+  $("tray").hidden = picked.size === 0;
+  $("tray-n").textContent = picked.size === 1
+    ? "1 scelta — servono almeno due"
+    : `${picked.size} scelte`;
+  $("tray-go").disabled = picked.size < 2;
+}
+
+$("tray-clear").addEventListener("click", () => {
+  picked.clear();
+  document.querySelectorAll(".card").forEach(
+    (c) => c.classList.remove("picked"));
+  paintTray();
+});
+
+$("tray-go").addEventListener("click", async () => {
+  $("tray-go").disabled = true;
+  const { code, body } = await post("/api/merge", { weeks: [...picked] });
+  $("tray-go").disabled = false;
+  if (code !== 200) {
+    $("tray-n").textContent = body.error || "non riuscito";
+    return;
+  }
+  await loadArchive();
+  openRecap(body.file, "", `${body.things} cose`);
+});
+
+async function remove(card) {
+  const what = card.dataset.week
+    ? "il recap del " + sayDay(card.dataset.week)
+    : "questa unione";
+  // Said in full before it happens: the page and the judgement behind it go
+  // together, and nothing here can bring either one back.
+  if (!confirm(`Elimino ${what}? Sparisce la pagina e il giudizio che l'ha ` +
+               "prodotta, per sempre.")) return;
+  await fetch("/api/recaps/" + encodeURIComponent(card.dataset.file),
+              { method: "DELETE" });
+  loadArchive();
 }
 
 function openRecap(file, week, score) {

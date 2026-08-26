@@ -466,3 +466,86 @@ def test_only_pages_named_after_a_week_are_listed(tmp_path, monkeypatch):
     monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
     _, body = route("GET", "/api/recaps", {}, Jobs())
     assert [r["week"] for r in body["recaps"]] == ["2026-08-24"]
+
+
+# --- merging, and deleting --------------------------------------------------
+
+def test_merging_two_weeks_writes_a_page_and_says_where(tmp_path, monkeypatch):
+    import winnow.api as A
+    for week, kept in (("2026-08-23", 9), ("2026-08-24", 15)):
+        (tmp_path / f"{week}.answer.html").write_text("<html>", encoding="utf-8")
+        (tmp_path / f"{week}.answer.md").write_text(json.dumps({
+            "week": week, "counts": {"posts": 10, "kept": kept, "usd": 0.05},
+            "categories": [{"name": "X", "items": [
+                {"name": f"a/{week}", "why": "perché sì"}]}]}), encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+
+    code, body = route("POST", "/api/merge",
+                       {"weeks": ["2026-08-23", "2026-08-24"]}, Jobs())
+    assert code == 200
+    page = tmp_path / body["file"]
+    assert page.is_file() and "23–24 agosto" in page.read_text(encoding="utf-8")
+    assert body["label"] == "23–24 agosto"
+
+
+def test_a_merge_is_listed_apart_from_the_weeks_it_covers(tmp_path, monkeypatch):
+    """It is not a week. Listed among them it would claim to be one."""
+    import winnow.api as A
+    (tmp_path / "2026-08-24.answer.html").write_text("<html>", encoding="utf-8")
+    (tmp_path / "unione-2026-08-23_2026-08-24.html").write_text(
+        "<html>", encoding="utf-8")
+    (tmp_path / "unione-2026-08-23_2026-08-24.json").write_text(json.dumps(
+        {"weeks": ["2026-08-23", "2026-08-24"], "label": "23–24 agosto",
+         "things": 21}), encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+    _, body = route("GET", "/api/recaps", {}, Jobs())
+    assert [r["week"] for r in body["recaps"]] == ["2026-08-24"]
+    assert body["merges"][0]["label"] == "23–24 agosto"
+    assert body["merges"][0]["things"] == 21
+
+
+def test_merging_fewer_than_two_weeks_is_refused(tmp_path, monkeypatch):
+    import winnow.api as A
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+    code, _ = route("POST", "/api/merge", {"weeks": ["2026-08-24"]}, Jobs())
+    assert code == 400
+
+
+def test_a_week_whose_judgement_is_gone_cannot_be_merged_silently(
+        tmp_path, monkeypatch):
+    """The page can be reopened without its answer, but it cannot be merged:
+    the answer *is* the content. Producing a page missing half of what was
+    asked for, without saying so, is the failure this repo keeps paying for."""
+    import winnow.api as A
+    (tmp_path / "2026-08-24.answer.html").write_text("<html>", encoding="utf-8")
+    (tmp_path / "2026-08-23.answer.md").write_text(json.dumps(
+        {"week": "2026-08-23", "categories": []}), encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+    code, body = route("POST", "/api/merge",
+                       {"weeks": ["2026-08-23", "2026-08-24"]}, Jobs())
+    assert code == 400 and "2026-08-24" in body["error"]
+
+
+def test_deleting_a_week_takes_its_page_and_its_judgement(tmp_path, monkeypatch):
+    import winnow.api as A
+    for name in ("2026-08-24.answer.html", "2026-08-24.answer.md",
+                 "2026-08-24.md"):
+        (tmp_path / name).write_text("x", encoding="utf-8")
+    (tmp_path / "2026-08-23.answer.html").write_text("x", encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+
+    code, body = route("DELETE", "/api/recaps/2026-08-24.answer.html", {}, Jobs())
+    assert code == 200 and sorted(body["removed"]) == [
+        "2026-08-24.answer.html", "2026-08-24.answer.md", "2026-08-24.md"]
+    assert not (tmp_path / "2026-08-24.answer.html").exists()
+    assert (tmp_path / "2026-08-23.answer.html").exists()   # nothing else moved
+
+
+def test_a_delete_cannot_reach_outside_the_recap_folder(tmp_path, monkeypatch):
+    """The name arrives in a URL. `../` in it must not become a path."""
+    import winnow.api as A
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+    secret = tmp_path.parent / "keep-me.html"
+    secret.write_text("x", encoding="utf-8")
+    code, _ = route("DELETE", "/api/recaps/../keep-me.html", {}, Jobs())
+    assert code == 404 and secret.exists()
