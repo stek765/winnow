@@ -113,7 +113,7 @@ def test_render_config_is_loadable(tmp_path):
     ]), encoding="utf-8")
     cfg = load_config(f)
     assert cfg.username == "someone"
-    assert [(x.name, x.active, x.kind) for x in cfg.folders] == [
+    assert [(x.name, x.active, x.holds) for x in cfg.folders] == [
         ("github", True, "repo"), ("gym", False, "news")]
 
 
@@ -293,7 +293,7 @@ def test_a_folder_is_switched_on_by_name_and_keeps_its_url():
     by_name = {f["name"]: f for f in _reread(out)["folders"]}
     assert by_name["ai"]["active"] is True
     assert by_name["ai"]["url"].endswith("/ai/2/")
-    assert by_name["ai"]["kind"] == "news"
+    assert by_name["ai"]["holds"] == "news"
     assert by_name["github"]["active"] is True      # untouched
 
 
@@ -378,11 +378,11 @@ def test_a_discovered_folder_can_be_added_with_its_url_and_kind():
     which is exactly what a first version of this check did."""
     from winnow.setup import apply_config_patch
     out = apply_config_patch(CONFIG_SAMPLE, {"folders": [
-        {"name": "elettronica", "active": True, "kind": "repo",
+        {"name": "elettronica", "active": True, "holds": "schede e sensori",
          "url": "/someone/saved/elettronica/999/"}]})
     by_name = {f["name"]: f for f in _reread(out)["folders"]}
     assert by_name["elettronica"]["active"] is True
-    assert by_name["elettronica"]["kind"] == "repo"
+    assert by_name["elettronica"]["holds"] == "schede e sensori"
     # The two it already had are still there, untouched.
     assert by_name["github"]["active"] is True and by_name["ai"]["active"] is False
 
@@ -394,7 +394,7 @@ def test_a_new_folder_without_a_url_is_refused():
     from winnow.setup import apply_config_patch
     with pytest.raises(ValueError, match="indirizzo"):
         apply_config_patch(CONFIG_SAMPLE, {"folders": [
-            {"name": "brand-new", "active": True, "kind": "news"}]})
+            {"name": "brand-new", "active": True, "holds": "roba"}]})
 
 
 def test_a_url_that_is_not_a_saved_folder_is_refused():
@@ -406,21 +406,83 @@ def test_a_url_that_is_not_a_saved_folder_is_refused():
                 "/someone/saved/all-posts/", "not a url", ""):
         with pytest.raises(ValueError, match="indirizzo"):
             apply_config_patch(CONFIG_SAMPLE, {"folders": [
-                {"name": "brand-new", "active": True, "kind": "news",
+                {"name": "brand-new", "active": True, "holds": "roba",
                  "url": bad}]})
 
 
-def test_the_kind_of_a_folder_can_be_corrected():
-    """`kind` decides what the collector pulls out of a post, so getting it
-    wrong is not cosmetic — and the only place it was ever set was init."""
+def test_a_description_can_be_corrected_without_touching_the_switch():
+    """What a folder holds and whether winnow reads it are two decisions, and
+    changing one must not silently make the other."""
     from winnow.setup import apply_config_patch
     out = apply_config_patch(CONFIG_SAMPLE, {"folders": [
-        {"name": "ai", "active": False, "kind": "repo"}]})
-    assert {f["name"]: f["kind"] for f in _reread(out)["folders"]}["ai"] == "repo"
+        {"name": "github", "active": True, "holds": "repo di sicurezza"}]})
+    by_name = {f["name"]: f for f in _reread(out)["folders"]}
+    assert by_name["github"]["holds"] == "repo di sicurezza"
+    assert by_name["github"]["active"] is True
 
 
-def test_an_unknown_kind_is_refused():
+def test_a_description_that_is_not_text_is_refused():
     from winnow.setup import apply_config_patch
-    with pytest.raises(ValueError, match="kind"):
+    with pytest.raises(ValueError, match="testo"):
         apply_config_patch(CONFIG_SAMPLE, {"folders": [
-            {"name": "ai", "active": True, "kind": "whatever"}]})
+            {"name": "ai", "active": True, "holds": 7}]})
+
+
+# --- what a folder holds, in the reader's own words ------------------------
+#
+# `kind` was a two-value taxonomy — "repo" or "news" — and it was somebody's
+# own way of sorting their saved posts. Everyone sorts differently, and the
+# two words explained nothing to a reader who had not written them. It is now
+# a sentence the reader writes, and it reaches the extractor as context about
+# what the folder is about.
+
+def test_a_folder_description_is_free_text_in_the_reader_s_words():
+    from winnow.setup import apply_config_patch
+    out = apply_config_patch(CONFIG_SAMPLE, {"folders": [
+        {"name": "ai", "active": True,
+         "holds": "ricette di cucina e attrezzatura da forno"}]})
+    assert 'holds = "ricette di cucina e attrezzatura da forno"' in out
+    from winnow.config import load_config
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as d:
+        f = pathlib.Path(d) / "c.toml"
+        f.write_text(out, encoding="utf-8")
+        by_name = {x.name: x for x in load_config(f).folders}
+    assert by_name["ai"].holds == "ricette di cucina e attrezzatura da forno"
+
+
+def test_a_description_long_enough_to_be_an_essay_is_refused():
+    """It is pasted into the extraction prompt for every post in that folder.
+    Unbounded, it is paid for on every single one."""
+    from winnow.setup import apply_config_patch
+    with pytest.raises(ValueError, match="corta"):
+        apply_config_patch(CONFIG_SAMPLE, {"folders": [
+            {"name": "ai", "active": True, "holds": "x" * 400}]})
+
+
+def test_a_config_written_before_this_still_loads_and_keeps_its_word():
+    """`kind = "repo"` is in every config written so far. Read as the old key
+    and carried into the new one: dropping it would silently blank a field
+    people had answered a question to fill."""
+    from winnow.config import load_config
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as d:
+        f = pathlib.Path(d) / "c.toml"
+        f.write_text(CONFIG_SAMPLE, encoding="utf-8")
+        by_name = {x.name: x for x in load_config(f).folders}
+    assert by_name["github"].holds == "repo"
+    assert by_name["ai"].holds == "news"
+
+
+def test_any_word_is_allowed_where_only_two_used_to_be():
+    """The whole point: `kind` accepted "repo" or "news" and raised on
+    anything else, which made the field the author's filing system rather
+    than the reader's."""
+    from winnow.config import load_config
+    import tempfile, pathlib
+    text = CONFIG_SAMPLE.replace('kind = "news"', 'holds = "podcast e libri"')
+    with tempfile.TemporaryDirectory() as d:
+        f = pathlib.Path(d) / "c.toml"
+        f.write_text(text, encoding="utf-8")
+        by_name = {x.name: x for x in load_config(f).folders}
+    assert by_name["ai"].holds == "podcast e libri"

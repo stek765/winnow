@@ -222,7 +222,7 @@ def collect(
             enough=lambda cs, n=missing: len(filter_new(seen, cs)) >= n)
         new = filter_new(seen, codes)
         say("folder", name=folder.name, found=len(codes), new=len(new))
-        todo.extend((code, folder.name) for code in new[:missing])
+        todo.extend((code, folder.name, folder.holds) for code in new[:missing])
 
     extractions: list[PostExtraction] = []
     verifications: dict[tuple[str, str], Verification] = {}
@@ -231,7 +231,7 @@ def collect(
 
     failed: list[dict] = []
 
-    for n, (code, folder_name) in enumerate(todo, start=1):
+    for n, (code, folder_name, folder_holds) in enumerate(todo, start=1):
         # One bad post must not kill the run. Record it, mark it seen (or it
         # gets paid for again every run) and carry on.
         try:
@@ -242,7 +242,7 @@ def collect(
                 is_video=is_video)
 
             ex = extract_post(cfg, code, account, caption, shots,
-                              is_video=is_video)
+                              is_video=is_video, holds=folder_holds)
             extractions.append(ex)
             spend += ex.usd
             record_spend(spend_path, ex.usd, now)

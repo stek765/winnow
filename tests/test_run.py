@@ -95,7 +95,8 @@ def test_one_broken_post_does_not_kill_the_whole_run(tmp_path, monkeypatch):
     monkeypatch.setattr(run, "capture_post",
                         lambda *a, **k: ("cap", "acct", [], False))
 
-    def fake_extract(cfg, code, account, caption, shots, is_video=False):
+    def fake_extract(cfg, code, account, caption, shots, is_video=False,
+                     holds=""):
         if code == "BBB":
             raise ValueError("risposta non JSON dal modello")
         return PostExtraction(code, account, caption, [], 0.001)
@@ -152,7 +153,7 @@ def test_collect_reports_each_step_while_it_runs(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(
         run, "extract_post",
-        lambda cfg, code, account, caption, shots, is_video=False:
+        lambda cfg, code, account, caption, shots, is_video=False, holds="":
         PostExtraction(
             shortcode=code, account=account, caption=caption,
             entities=[Entity("repo", "a/b", "", 1)], usd=0.004,

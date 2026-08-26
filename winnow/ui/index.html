@@ -263,7 +263,18 @@ h1{font-family:var(--display); font-weight:700;
   font-size:.98rem; letter-spacing:-.01em;}
 .opt .txt span{display:block; font-size:.8rem; color:var(--faint);
   margin-top:.1rem;}
-.opt .kind{margin-left:auto; flex:none;}
+/* The folder row: a switch on the left, a sentence on the right. */
+.opt .pick{display:flex; align-items:flex-start; gap:.8rem; flex:none;
+  min-width:13rem; text-align:left;}
+.opt .holds{margin-left:auto; max-width:22rem; font-family:var(--body);
+  font-size:.85rem; background:var(--lit); border-color:transparent;}
+.opt .holds:hover{border-color:var(--rule);}
+.opt .holds:focus{background:#fff; border-color:var(--grease);}
+.opt .holds::placeholder{color:#b3babf; font-style:italic;}
+@media (max-width:640px){
+  .opt{flex-wrap:wrap;}
+  .opt .holds{margin:.6rem 0 0; max-width:none; width:100%;}
+}
 
 .field{display:block; margin-top:1rem;}
 .field span{display:block; font-family:var(--mono); font-size:.64rem;
@@ -526,7 +537,9 @@ async function loadSettings() {
 
   const known = models.find((m) => m.model === body.model);
   const folders = (body.folders || []).map((f) =>
-    `<span class="pill${f.active ? " on" : ""}">${esc(f.name)}</span>`).join("")
+    `<span class="pill${f.active ? " on" : ""}"` +
+    (f.holds ? ` title="${esc(f.holds)}"` : "") +
+    `>${esc(f.name)}</span>`).join("")
     || '<span class="pill">nessuna</span>';
   const on = (body.folders || []).filter((f) => f.active).length;
 
@@ -583,8 +596,9 @@ const SHEETS = {
   },
   folders: {
     title: "Quali cartelle guardare",
-    lead: "Le cartelle dei tuoi salvati su Instagram. winnow legge solo " +
-      "quelle accese, e il tipo decide cosa ne tira fuori.",
+    lead: "Le cartelle dei tuoi salvati su Instagram: winnow legge solo " +
+      "quelle accese. Accanto a ognuna scrivi cosa ci tieni dentro — serve " +
+      "al modello per leggere i nomi come li leggeresti tu.",
     draw: drawFolders,
     patch: () => ({ folders: draft.folders }),
   },
@@ -671,15 +685,30 @@ function drawPosts() {
     (e) => { draft.posts_per_run = e.target.value; });
 }
 
+// Examples rather than a taxonomy. Two fixed categories were one person's
+// way of sorting their own saved posts; everyone sorts differently, and the
+// two words meant nothing to anybody who had not chosen them.
+const HOLDS_EXAMPLES = [
+  "repo e tool da provare",
+  "notizie sull'AI",
+  "schede e componenti elettronici",
+  "ricette",
+  "esercizi e programmi di allenamento",
+  "dischi e attrezzatura da studio",
+];
+
 function drawFolders() {
+  // A row, not a button: it carries a text field, and a field inside a button
+  // is invalid markup — every click in it would toggle the folder.
   const rows = draft.folders.map((f, i) =>
-    `<button class="opt${f.active ? " on" : ""}" data-i="${i}">` +
-    `<span class="tick"></span><span class="txt"><b>${esc(f.name)}</b>` +
-    `<span>${f.active ? "winnow la legge" : "ferma"}</span></span>` +
-    `<select class="kind" data-kind="${i}">` +
-      `<option value="news"${f.kind === "news" ? " selected" : ""}>notizie</option>` +
-      `<option value="repo"${f.kind === "repo" ? " selected" : ""}>repo e tool</option>` +
-    "</select></button>").join("");
+    `<div class="opt${f.active ? " on" : ""}" data-row="${i}">` +
+    `<button class="pick" data-i="${i}" aria-pressed="${f.active}">` +
+      `<span class="tick"></span><span class="txt"><b>${esc(f.name)}</b>` +
+      `<span>${f.active ? "winnow la legge" : "ferma"}</span></span></button>` +
+    `<input class="holds" data-holds="${i}" maxlength="200" ` +
+      `value="${esc(f.holds || "")}" ` +
+      `placeholder="${esc(HOLDS_EXAMPLES[i % HOLDS_EXAMPLES.length])}">` +
+    "</div>").join("");
 
   $("sheet-body").innerHTML = `<div class="opts">${rows ||
     '<div class="opt"><span class="txt"><b>Nessuna cartella</b>' +
@@ -697,17 +726,20 @@ function drawFolders() {
 
 function wireFolders() {
   $("sheet-body").querySelectorAll("[data-i]").forEach((b) =>
-    b.addEventListener("click", (e) => {
-      if (e.target.tagName === "SELECT") return;   // the kind is not the switch
-      const f = draft.folders[Number(b.dataset.i)];
+    b.addEventListener("click", () => {
+      const i = Number(b.dataset.i);
+      const f = draft.folders[i];
       f.active = !f.active;
-      b.classList.toggle("on", f.active);
+      b.setAttribute("aria-pressed", f.active);
+      b.closest(".opt").classList.toggle("on", f.active);
       b.querySelector(".txt span").textContent =
         f.active ? "winnow la legge" : "ferma";
     }));
-  $("sheet-body").querySelectorAll("[data-kind]").forEach((sel) =>
-    sel.addEventListener("change", (e) => {
-      draft.folders[Number(sel.dataset.kind)].kind = e.target.value;
+  // On input, not on change: the sheet is saved by a button somewhere else,
+  // and a description typed but never blurred would be silently dropped.
+  $("sheet-body").querySelectorAll("[data-holds]").forEach((box) =>
+    box.addEventListener("input", () => {
+      draft.folders[Number(box.dataset.holds)].holds = box.value;
     }));
 }
 
@@ -736,7 +768,7 @@ async function scanFolders() {
     // Found ones arrive off. Switching somebody's folders on because a scan
     // happened to see them is deciding for them.
     added.forEach((f) => draft.folders.push(
-      { name: f.name, url: f.url, active: false, kind: "news" }));
+      { name: f.name, url: f.url, active: false, holds: "" }));
     drawFolders();
     $("scan-note").textContent = added.length
       ? `${added.length} nuove. Accendi quelle che vuoi, poi salva.`
