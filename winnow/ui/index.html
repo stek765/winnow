@@ -58,10 +58,19 @@ html,body{height:100%;}
      rather than any other texture. */
   background:url("/winnower.jpg") no-repeat 88% 46%/auto 112%;
   opacity:.29; filter:saturate(.78) contrast(1.06);
+  /* Two masks, intersected. The radial one alone faded the *opacity* but
+     not the picture's own left edge: sized by its height, the image simply
+     stops somewhere in the middle of the window, and that stop was a
+     straight vertical cut visible right through the fade. The linear one
+     takes the image to nothing before it gets there. */
   -webkit-mask-image:radial-gradient(50% 78% at 84% 50%, #000 0%,
-    rgba(0,0,0,.58) 46%, transparent 76%);
+      rgba(0,0,0,.58) 46%, transparent 76%),
+    linear-gradient(to right, transparent 34%, #000 62%);
+  -webkit-mask-composite:source-in;
   mask-image:radial-gradient(50% 78% at 84% 50%, #000 0%,
-    rgba(0,0,0,.58) 46%, transparent 76%);
+      rgba(0,0,0,.58) 46%, transparent 76%),
+    linear-gradient(to right, transparent 34%, #000 62%);
+  mask-composite:intersect;
   animation:breathe 68s ease-in-out infinite;
 }
 @keyframes breathe{
@@ -174,9 +183,11 @@ h1{font-family:var(--display); font-weight:700;
 .go .arrow{transition:transform .16s;}
 .go:hover .arrow{transform:translateX(3px);}
 
+/* No rule over the numbers. It was drawn across the whole column, so on a
+   wide window it ran out over the painting and read as a scratch on the
+   glass. The space alone separates them. */
 .stats{display:flex; flex-wrap:wrap; align-items:baseline; gap:1.6rem;
-  margin-top:clamp(2rem,5vw,3rem); padding-top:1.3rem;
-  border-top:1px solid var(--rule);}
+  margin-top:clamp(2rem,5vw,3rem);}
 .stat{display:flex; align-items:baseline; gap:.4rem;
   font-family:var(--mono); font-size:.68rem; letter-spacing:.1em;
   text-transform:uppercase; color:var(--faint);}
