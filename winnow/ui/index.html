@@ -209,32 +209,94 @@ h1{font-family:var(--display); font-weight:700;
 .row .k{font-family:var(--mono); font-size:.7rem; letter-spacing:.1em;
   text-transform:uppercase; color:var(--faint); width:9rem; flex:none;}
 .row .v{font-family:var(--mono); font-size:.82rem; word-break:break-word;}
-/* A folder is a switch, so it looks like one you can press: the read-only
-   version of this screen showed the same chips and a reader asked, fairly,
-   whether anything here could be changed at all. */
-.pill{display:inline-block; font-family:var(--mono); font-size:.7rem;
-  padding:.34rem .6rem; border-radius:999px; margin:0 .35rem .35rem 0;
+.pill{display:inline-block; font-family:var(--mono); font-size:.68rem;
+  padding:.24rem .55rem; border-radius:999px; margin:0 .3rem .3rem 0;
+  border:1px solid var(--rule); color:var(--faint);}
+.pill.on{border-color:var(--good); color:var(--good);}
+
+/* The controls do not live on this screen: the reading version of it was the
+   one people liked, and a page that is half report and half form is neither.
+   So each row keeps its calm and carries one way in. */
+.row{position:relative;}
+.edit{display:inline-flex; align-items:center; justify-content:center;
+  width:30px; height:30px; margin-left:auto; flex:none; border-radius:50%;
   border:1px solid var(--rule); color:var(--faint); background:var(--lit);
-  transition:border-color .15s, color .15s, background .15s;}
-.pill:hover{border-color:var(--soft); color:var(--soft);}
-.pill.on{border-color:var(--good); color:var(--good); background:#fff;}
-.pill.on::before{content:"✓ "; }
+  transition:border-color .15s, color .15s, transform .15s;}
+.edit:hover{border-color:var(--grease); color:var(--grease);
+  transform:rotate(-8deg);}
+.edit svg{width:14px; height:14px;}
 
-.row .v select,.row .v input{
-  font-family:var(--mono); font-size:.82rem; color:var(--ink);
-  background:var(--lit); border:1px solid var(--rule); border-radius:3px;
-  padding:.42rem .6rem; min-width:14rem; transition:border-color .15s;}
-.row .v select:focus,.row .v input:focus{outline:none;
-  border-color:var(--grease);}
-.row .v input[type=number]{min-width:6rem;}
-.hint{display:block; margin-top:.35rem; font-size:.76rem; color:var(--faint);
-  font-family:var(--body); max-width:38ch; line-height:1.35;}
+/* --- the sheet ----------------------------------------------------------
+   One setting at a time, on a surface of its own. Editing in place would
+   mean the page shows both what is saved and what is being typed, and no
+   way to tell which is which. */
+.sheet{position:fixed; inset:0; z-index:20; display:flex;
+  align-items:flex-end; justify-content:center;
+  background:rgba(16,20,26,.24); backdrop-filter:blur(3px);
+  animation:fade .18s ease both;}
+.sheet[hidden]{display:none;}
+@keyframes fade{from{opacity:0;} to{opacity:1;}}
+.panel{width:min(46rem,100%); max-height:88vh; overflow-y:auto;
+  background:var(--lit); border-radius:14px 14px 0 0;
+  border:1px solid var(--rule); border-bottom:0;
+  padding:clamp(1.5rem,4vw,2.4rem);
+  box-shadow:0 -8px 60px -20px rgba(16,20,26,.55);
+  animation:rise .26s cubic-bezier(.2,.8,.3,1) both;}
+@keyframes rise{from{transform:translateY(22px);} to{transform:none;}}
+.panel h2{font-family:var(--display); font-weight:700; letter-spacing:-.025em;
+  font-size:1.5rem; margin:0 0 .35rem;}
+.panel .lead{margin:0 0 1.5rem; color:var(--soft); font-size:.9rem;
+  max-width:52ch; line-height:1.45;}
 
-/* One line under the whole screen, never a toast: a message that disappears
-   by itself is a message a reader can miss, and the thing it reports is
-   whether their change was actually taken. */
-.saved{margin-top:1.4rem; font-size:.84rem; min-height:1.3em;
-  font-family:var(--body);}
+/* A choice is a whole row you can hit, not a dot you have to aim at. */
+.opts{display:grid; gap:1px; background:var(--rule); border:1px solid var(--rule);
+  border-radius:4px; overflow:hidden;}
+.opt{display:flex; align-items:flex-start; gap:.8rem; width:100%;
+  text-align:left; background:#fff; padding:.85rem 1rem;
+  transition:background .15s;}
+.opt:hover{background:var(--glass);}
+.opt.on{background:#fff; box-shadow:inset 3px 0 0 var(--grease);}
+.opt .tick{width:15px; height:15px; margin-top:.2rem; flex:none;
+  border:1px solid var(--rule); border-radius:50%; transition:.15s;}
+.opt.on .tick{border-color:var(--grease); border-width:5px;}
+.opt .txt b{display:block; font-family:var(--display); font-weight:600;
+  font-size:.98rem; letter-spacing:-.01em;}
+.opt .txt span{display:block; font-size:.8rem; color:var(--faint);
+  margin-top:.1rem;}
+.opt .kind{margin-left:auto; flex:none;}
+
+.field{display:block; margin-top:1rem;}
+.field span{display:block; font-family:var(--mono); font-size:.64rem;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--faint);
+  margin-bottom:.4rem;}
+input[type=text],input[type=number],select{
+  font-family:var(--mono); font-size:.85rem; color:var(--ink); width:100%;
+  background:#fff; border:1px solid var(--rule); border-radius:4px;
+  padding:.55rem .7rem; transition:border-color .15s;}
+select.kind{width:auto; font-size:.7rem; padding:.25rem .4rem;}
+input:focus,select:focus{outline:none; border-color:var(--grease);}
+.hint{display:block; margin-top:.5rem; font-size:.8rem; color:var(--faint);
+  font-family:var(--body); line-height:1.4;}
+
+.acts{display:flex; align-items:center; gap:.8rem; margin-top:1.8rem;
+  padding-top:1.2rem; border-top:1px solid var(--rule);}
+.ghost{font-family:var(--mono); font-size:.72rem; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--faint); padding:.8rem 1.1rem;
+  border-radius:999px; white-space:nowrap;
+  transition:color .15s, background .15s, border-color .15s;}
+.ghost:hover{color:var(--ink); background:var(--glass);}
+/* Bordered, because this one is not a way out of the panel — it is the only
+   way a folder ever gets added, and a bare label does not look pressable. */
+.ghost.edged{border:1px solid var(--rule); color:var(--soft);}
+.ghost.edged:hover{border-color:var(--grease); color:var(--grease);
+  background:none;}
+.ghost[disabled]{opacity:.45; cursor:default;}
+.go.small{padding:.8rem 1.4rem; font-size:.72rem;}
+
+/* Never a toast: a message that disappears by itself is one a reader can
+   miss, and what it reports is whether their change was taken. */
+.saved{margin:0 auto 0 0; font-size:.84rem; font-family:var(--body);
+  max-width:34ch; line-height:1.35;}
 .saved.ok{color:var(--good);}
 .saved.bad{color:var(--grease);}
 
@@ -294,10 +356,23 @@ h1{font-family:var(--display); font-weight:700;
   </section>
 
   <section class="screen" id="settings" hidden>
-    <p class="eyebrow">Cambia come lavora</p>
+    <p class="eyebrow">Come lavora</p>
     <div id="settings-body"></div>
   </section>
 
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <h2 id="sheet-title"></h2>
+    <p class="lead" id="sheet-lead"></p>
+    <div id="sheet-body"></div>
+    <div class="acts">
+      <p class="saved" id="saved"></p>
+      <button class="ghost" id="sheet-cancel">Annulla</button>
+      <button class="go small" id="sheet-save">Salva</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -428,35 +503,17 @@ async function loadArchive() {
 }
 
 // --- settings --------------------------------------------------------------
-let models = null;
+let models = null, config = null, draft = null;
 
-// Sent one at a time, as each control is left. A "Salva" button would make
-// the screen a form with a state to lose: the value on disk and the value
-// under the cursor could disagree, and nobody would know which one runs
-// tomorrow morning.
-async function save(patch) {
-  const r = await fetch("/api/config", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(patch),
-  });
-  const body = await r.json().catch(() => ({}));
-  if (r.status === 200) {
-    const note = $("saved");
-    note.className = "saved ok";
-    note.textContent = "Salvato.";
-    return body;
-  }
-  // Redrawn from disk, so the screen can never keep showing a value the file
-  // refused — which is the one way a settings page lies. The reason is passed
-  // *through* the redraw rather than written before it: the redraw replaces
-  // this very line, so setting the text first threw the refusal away, and it
-  // did so precisely when a reader most needed to see it.
-  loadSettings(body.error || "non salvato");
-  return null;
-}
+const PENCIL = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" ' +
+  'stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' +
+  '<path d="M11.3 2.2a1.7 1.7 0 0 1 2.5 2.4L5.4 13 2 14l1-3.4z"/></svg>';
 
-async function loadSettings(refusal) {
+const esc = (t) => String(t ?? "").replace(/[&<>"]/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// --- the reading screen ----------------------------------------------------
+async function loadSettings() {
   if (!models) models = (await api("/api/models")).body.models || [];
   const { code, body } = await api("/api/config");
   if (code !== 200) {
@@ -465,69 +522,262 @@ async function loadSettings(refusal) {
       'lancia <code>winnow init</code>: va fatto una volta sola.</p>';
     return;
   }
+  config = body;
 
-  // The current pair may not be in the menu — somebody's own local model, or
-  // a name typed into config.toml by hand. It is added rather than silently
-  // replaced by the first entry, which would change the setting by opening
-  // the page.
-  const known = models.some((m) => m.model === body.model);
-  const options = models.filter((m) => m.model).map((m) =>
-    `<option value="${m.provider}|${m.model}"${
-      m.model === body.model ? " selected" : ""}>${m.label} — ${m.hint}</option>`);
-  if (!known) {
-    options.unshift(`<option value="${body.provider}|${body.model}" selected>` +
-      `${body.model} (${body.provider})</option>`);
-  }
-
+  const known = models.find((m) => m.model === body.model);
   const folders = (body.folders || []).map((f) =>
-    `<button class="pill${f.active ? " on" : ""}" data-folder="${f.name}" ` +
-    `data-active="${f.active}">${f.name}</button>`).join("") ||
-    "<span class='hint'>nessuna cartella: aggiungile con <code>winnow init</code></span>";
+    `<span class="pill${f.active ? " on" : ""}">${esc(f.name)}</span>`).join("")
+    || '<span class="pill">nessuna</span>';
+  const on = (body.folders || []).filter((f) => f.active).length;
+
+  const row = (key, value, which) =>
+    `<div class="row"><span class="k">${key}</span>` +
+    `<span class="v">${value}</span>` +
+    (which ? `<button class="edit" data-edit="${which}" ` +
+             `title="Modifica ${key.toLowerCase()}" ` +
+             `aria-label="Modifica ${key.toLowerCase()}">${PENCIL}</button>` : "") +
+    "</div>";
 
   $("settings-body").innerHTML = '<div class="rows">' +
-    `<div class="row"><span class="k">Modello</span><span class="v">` +
-      `<select id="model">${options.join("")}</select>` +
-      `<span class="hint">Chi legge le slide. Haiku costa circa mezzo ` +
-      `centesimo a post; Sonnet legge meglio le slide fitte e costa quattro ` +
-      `volte tanto.</span></span></div>` +
-    `<div class="row"><span class="k">Post per giro</span><span class="v">` +
-      `<input type="number" id="ppr" min="1" max="200" value="${body.posts_per_run}">` +
-      `<span class="hint">Quanti ne apre a ogni raccolta. Più alto smaltisce ` +
-      `l'arretrato prima, ma ogni giro dura di più e costa di più.</span>` +
-      `</span></div>` +
-    `<div class="row"><span class="k">Cartelle</span><span class="v">${folders}` +
-      `<span class="hint">Quali cartelle dei salvati guardare. Per aggiungerne ` +
-      `una serve il suo indirizzo, che winnow va a cercare da solo: ` +
-      `<code>winnow init</code>.</span></span></div>` +
-    "</div>" +
-    `<p class="saved${refusal ? " bad" : ""}" id="saved">${refusal || ""}</p>`;
+    row("Modello", esc(known ? known.label : body.model), "model") +
+    row("Fornitore", esc(body.provider), null) +
+    row("Post per giro", body.posts_per_run, "posts") +
+    row("Cartelle", folders + (on ? "" :
+        ' <span class="pill">nessuna attiva</span>'), "folders") +
+    "</div>";
 
-  $("model").addEventListener("change", (e) => {
-    const [provider, model] = e.target.value.split("|");
-    // A local model needs an address, and this menu has no field for one —
-    // so it never offers the local entry, and the value already on disk is
-    // carried back unchanged.
-    save({ provider, model, base_url: body.base_url });
-  });
+  $("settings-body").querySelectorAll("[data-edit]").forEach((b) =>
+    b.addEventListener("click", () => openSheet(b.dataset.edit)));
+}
 
-  // On `change`, not on every keystroke: typing "30" over "8" passes through
-  // "3", and a screen that saves that has changed the setting to something
-  // nobody asked for.
-  $("ppr").addEventListener("change", (e) => {
-    save({ posts_per_run: Number(e.target.value) });
-  });
+// --- the sheet -------------------------------------------------------------
+function closeSheet() {
+  $("sheet").hidden = true;
+  draft = null;
+  $("saved").textContent = "";
+  $("saved").className = "saved";
+}
 
-  $("settings-body").querySelectorAll("[data-folder]").forEach((b) =>
-    b.addEventListener("click", async () => {
-      const active = b.dataset.active !== "true";
-      const done = await save({
-        folders: [{ name: b.dataset.folder, active }] });
-      if (done) {
-        b.dataset.active = active;
-        b.classList.toggle("on", active);
+function say(text, bad) {
+  const note = $("saved");
+  note.className = "saved" + (bad ? " bad" : " ok");
+  note.textContent = text;
+}
+
+const SHEETS = {
+  model: {
+    title: "Chi legge le slide",
+    lead: "Il modello apre ogni slide e ne tira fuori i nomi. Costa a post: " +
+      "con una raccolta da otto post al giorno, mezzo centesimo l'uno fa " +
+      "circa un euro al mese.",
+    draw: drawModel,
+    patch: () => ({ provider: draft.provider, model: draft.model,
+                    base_url: draft.base_url || null }),
+  },
+  posts: {
+    title: "Quanti post per giro",
+    lead: "Quanti ne apre a ogni raccolta. Più alto smaltisce l'arretrato " +
+      "prima, ma ogni giro dura di più e costa di più.",
+    draw: drawPosts,
+    patch: () => ({ posts_per_run: Number(draft.posts_per_run) }),
+  },
+  folders: {
+    title: "Quali cartelle guardare",
+    lead: "Le cartelle dei tuoi salvati su Instagram. winnow legge solo " +
+      "quelle accese, e il tipo decide cosa ne tira fuori.",
+    draw: drawFolders,
+    patch: () => ({ folders: draft.folders }),
+  },
+};
+
+function openSheet(which) {
+  const sheet = SHEETS[which];
+  // A copy, never the live config: cancelling has to leave nothing behind,
+  // and editing the object the reading screen draws from would change that
+  // screen before anything was saved.
+  draft = JSON.parse(JSON.stringify({
+    provider: config.provider, model: config.model,
+    base_url: config.base_url, posts_per_run: config.posts_per_run,
+    folders: (config.folders || []).map((f) => ({ ...f })),
+  }));
+  $("sheet-title").textContent = sheet.title;
+  $("sheet-lead").textContent = sheet.lead;
+  $("sheet").hidden = false;
+  $("sheet-save").dataset.which = which;
+  sheet.draw();
+}
+
+function drawModel() {
+  const known = models.some((m) => m.model === draft.model && m.model);
+  const rows = models.filter((m) => m.model).map((m) =>
+    `<button class="opt${m.model === draft.model ? " on" : ""}" ` +
+    `data-model="${esc(m.model)}" data-provider="${esc(m.provider)}">` +
+    `<span class="tick"></span><span class="txt"><b>${esc(m.label)}</b>` +
+    `<span>${esc(m.hint_it || m.hint)}</span></span></button>`);
+  rows.push(
+    `<button class="opt${known ? "" : " on"}" data-model="" data-provider="">` +
+    '<span class="tick"></span><span class="txt"><b>Un altro modello</b>' +
+    "<span>il tuo, sulla tua macchina, o un nome che scrivi a mano</span>" +
+    "</span></button>");
+
+  $("sheet-body").innerHTML = `<div class="opts">${rows.join("")}</div>` +
+    `<div id="custom"${known ? " hidden" : ""}>` +
+      '<label class="field"><span>Nome del modello</span>' +
+      `<input type="text" id="m-name" value="${esc(known ? "" : draft.model)}" ` +
+      'placeholder="qwen2.5vl"></label>' +
+      '<label class="field"><span>Indirizzo</span>' +
+      `<input type="text" id="m-url" value="${esc(draft.base_url || "")}" ` +
+      'placeholder="http://localhost:11434/v1"></label>' +
+      '<span class="hint">Deve saper leggere immagini e parlare l\'API di ' +
+      'OpenAI — Ollama, LM Studio. Gira sulla tua macchina, quindi non costa ' +
+      'niente e non manda le slide fuori di casa.</span>' +
+    "</div>";
+
+  $("sheet-body").querySelectorAll(".opt").forEach((b) =>
+    b.addEventListener("click", () => {
+      $("sheet-body").querySelectorAll(".opt").forEach(
+        (x) => x.classList.remove("on"));
+      b.classList.add("on");
+      const custom = !b.dataset.model;
+      $("custom").hidden = !custom;
+      if (custom) {
+        draft.provider = "local";
+        draft.model = $("m-name").value.trim();
+        draft.base_url = $("m-url").value.trim();
+      } else {
+        draft.provider = b.dataset.provider;
+        draft.model = b.dataset.model;
+        draft.base_url = null;
       }
     }));
+  const sync = () => {
+    draft.provider = "local";
+    draft.model = $("m-name").value.trim();
+    draft.base_url = $("m-url").value.trim();
+  };
+  $("m-name").addEventListener("input", sync);
+  $("m-url").addEventListener("input", sync);
 }
+
+function drawPosts() {
+  $("sheet-body").innerHTML =
+    '<label class="field"><span>Post per giro</span>' +
+    `<input type="number" id="ppr" min="1" max="200" value="${draft.posts_per_run}">` +
+    '</label><span class="hint">Otto al giorno è il ritmo per cui è tarato. ' +
+    "Chi installa winnow dopo anni di salvataggi ne ha centinaia in coda: " +
+    "alzarlo per qualche giorno smaltisce l'arretrato, poi si rimette giù." +
+    "</span>";
+  $("ppr").addEventListener("input",
+    (e) => { draft.posts_per_run = e.target.value; });
+}
+
+function drawFolders() {
+  const rows = draft.folders.map((f, i) =>
+    `<button class="opt${f.active ? " on" : ""}" data-i="${i}">` +
+    `<span class="tick"></span><span class="txt"><b>${esc(f.name)}</b>` +
+    `<span>${f.active ? "winnow la legge" : "ferma"}</span></span>` +
+    `<select class="kind" data-kind="${i}">` +
+      `<option value="news"${f.kind === "news" ? " selected" : ""}>notizie</option>` +
+      `<option value="repo"${f.kind === "repo" ? " selected" : ""}>repo e tool</option>` +
+    "</select></button>").join("");
+
+  $("sheet-body").innerHTML = `<div class="opts">${rows ||
+    '<div class="opt"><span class="txt"><b>Nessuna cartella</b>' +
+    "<span>cercale sul tuo account qui sotto</span></span></div>"}</div>` +
+    '<div class="acts" style="border:0;padding:0;margin-top:1.1rem">' +
+      '<button class="ghost edged" id="scan">Cerca sul tuo account</button>' +
+      '<span class="hint" id="scan-note" style="margin:0">Apre Instagram con ' +
+      'la sessione salvata e chiede quali cartelle hai. Serve per ' +
+      'aggiungerne una: il suo indirizzo non si può indovinare.</span>' +
+    "</div>";
+
+  wireFolders();
+  $("scan").addEventListener("click", scanFolders);
+}
+
+function wireFolders() {
+  $("sheet-body").querySelectorAll("[data-i]").forEach((b) =>
+    b.addEventListener("click", (e) => {
+      if (e.target.tagName === "SELECT") return;   // the kind is not the switch
+      const f = draft.folders[Number(b.dataset.i)];
+      f.active = !f.active;
+      b.classList.toggle("on", f.active);
+      b.querySelector(".txt span").textContent =
+        f.active ? "winnow la legge" : "ferma";
+    }));
+  $("sheet-body").querySelectorAll("[data-kind]").forEach((sel) =>
+    sel.addEventListener("change", (e) => {
+      draft.folders[Number(sel.dataset.kind)].kind = e.target.value;
+    }));
+}
+
+async function scanFolders() {
+  const note = $("scan-note"), button = $("scan");
+  button.disabled = true;
+  note.textContent = "Sto aprendo Instagram…";
+  const { code, body } = await api("/api/folders/scan", "POST");
+  if (code !== 202) {
+    button.disabled = false;
+    note.textContent = body.error || "non riuscito";
+    return;
+  }
+  // Polled like any other run: it drives a real browser and can take a while.
+  const tick = setInterval(async () => {
+    const { body: j } = await api("/api/jobs/" + body.id);
+    if (!j.done) return;
+    clearInterval(tick);
+    button.disabled = false;
+    if (j.error || !j.result) {
+      note.textContent = j.error || "non riuscito";
+      return;
+    }
+    const have = new Set(draft.folders.map((f) => f.name));
+    const added = j.result.folders.filter((f) => !have.has(f.name));
+    // Found ones arrive off. Switching somebody's folders on because a scan
+    // happened to see them is deciding for them.
+    added.forEach((f) => draft.folders.push(
+      { name: f.name, url: f.url, active: false, kind: "news" }));
+    drawFolders();
+    $("scan-note").textContent = added.length
+      ? `${added.length} nuove. Accendi quelle che vuoi, poi salva.`
+      : "Nessuna nuova: ci sono già tutte.";
+  }, 900);
+}
+
+$("sheet-cancel").addEventListener("click", closeSheet);
+// A click on the scrim is a cancel; one inside the panel is not.
+$("sheet").addEventListener("click", (e) => {
+  if (e.target === $("sheet")) closeSheet();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("sheet").hidden) closeSheet();
+});
+
+$("sheet-save").addEventListener("click", async (e) => {
+  // Held in a variable, not read off the event afterwards: `currentTarget` is
+  // only set while the event is being dispatched, so the first line after the
+  // await found null and the save died silently — the sheet simply never
+  // closed, with nothing on screen to say why.
+  const button = e.currentTarget;
+  const which = button.dataset.which;
+  button.disabled = true;
+  const r = await fetch("/api/config", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(SHEETS[which].patch()),
+  });
+  const body = await r.json().catch(() => ({}));
+  button.disabled = false;
+  if (r.status === 200) {
+    closeSheet();
+    loadSettings();
+    return;
+  }
+  // The engine's own sentence, shown where the change was made. The sheet
+  // stays open with what was typed still in it: closing it would throw the
+  // work away at the exact moment the reader has to correct it.
+  say(body.error || "non salvato", true);
+});
 
 // --- tabs ------------------------------------------------------------------
 document.querySelectorAll(".tab").forEach((t) =>

@@ -362,3 +362,65 @@ def test_a_key_nobody_offered_is_refused_rather_than_ignored():
 def test_an_empty_patch_changes_nothing_and_is_not_an_error():
     from winnow.setup import apply_config_patch
     assert apply_config_patch(CONFIG_SAMPLE, {}) == CONFIG_SAMPLE
+
+
+# --- adding a folder the window actually went and found --------------------
+#
+# "The window cannot invent a folder" was true while the only way to learn a
+# folder's URL was `winnow init`. Once the window can ask Instagram itself,
+# the rule becomes narrower: it may add a folder it was *told about*, and the
+# URL has to look like one Instagram would have given it.
+
+def test_a_discovered_folder_can_be_added_with_its_url_and_kind():
+    """The URL is the *relative* form Instagram's own links carry and
+    `parse_saved_folders` hands back — `/{user}/saved/{name}/{id}/`. Demanding
+    an absolute one would have refused every folder winnow can actually find,
+    which is exactly what a first version of this check did."""
+    from winnow.setup import apply_config_patch
+    out = apply_config_patch(CONFIG_SAMPLE, {"folders": [
+        {"name": "elettronica", "active": True, "kind": "repo",
+         "url": "/someone/saved/elettronica/999/"}]})
+    by_name = {f["name"]: f for f in _reread(out)["folders"]}
+    assert by_name["elettronica"]["active"] is True
+    assert by_name["elettronica"]["kind"] == "repo"
+    # The two it already had are still there, untouched.
+    assert by_name["github"]["active"] is True and by_name["ai"]["active"] is False
+
+
+def test_a_new_folder_without_a_url_is_refused():
+    """Written with an empty URL it would be a folder the collector opens and
+    finds nothing in — a silent zero, which is the failure mode this repo
+    keeps paying for."""
+    from winnow.setup import apply_config_patch
+    with pytest.raises(ValueError, match="indirizzo"):
+        apply_config_patch(CONFIG_SAMPLE, {"folders": [
+            {"name": "brand-new", "active": True, "kind": "news"}]})
+
+
+def test_a_url_that_is_not_a_saved_folder_is_refused():
+    """Saved folders are /{user}/saved/{name}/{id}/. Anything else is either a
+    typo or something that was never a folder, and both produce a run that
+    quietly reads nothing."""
+    from winnow.setup import apply_config_patch
+    for bad in ("https://example.com/x", "/someone/saved/",
+                "/someone/saved/all-posts/", "not a url", ""):
+        with pytest.raises(ValueError, match="indirizzo"):
+            apply_config_patch(CONFIG_SAMPLE, {"folders": [
+                {"name": "brand-new", "active": True, "kind": "news",
+                 "url": bad}]})
+
+
+def test_the_kind_of_a_folder_can_be_corrected():
+    """`kind` decides what the collector pulls out of a post, so getting it
+    wrong is not cosmetic — and the only place it was ever set was init."""
+    from winnow.setup import apply_config_patch
+    out = apply_config_patch(CONFIG_SAMPLE, {"folders": [
+        {"name": "ai", "active": False, "kind": "repo"}]})
+    assert {f["name"]: f["kind"] for f in _reread(out)["folders"]}["ai"] == "repo"
+
+
+def test_an_unknown_kind_is_refused():
+    from winnow.setup import apply_config_patch
+    with pytest.raises(ValueError, match="kind"):
+        apply_config_patch(CONFIG_SAMPLE, {"folders": [
+            {"name": "ai", "active": True, "kind": "whatever"}]})

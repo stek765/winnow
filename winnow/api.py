@@ -43,7 +43,7 @@ class Jobs:
         with self._lock:
             self._jobs[jid] = {"id": jid, "kind": kind, "events": [],
                                "done": False, "code": None, "error": None,
-                               "stopping": False,
+                               "stopping": False, "result": None,
                                "started": datetime.now().isoformat(timespec="seconds")}
         return jid
 
@@ -57,12 +57,18 @@ class Jobs:
             job["events"].append({"kind": kind, "data": data,
                                   "line": line(kind, data).strip()})
 
-    def finish(self, jid: str, code: int, error: str | None = None) -> None:
+    def finish(self, jid: str, code: int, error: str | None = None,
+               result: dict | None = None) -> None:
+        """A run can end with data and not only with a line of text.
+
+        The folder scan comes back with a list the window has to draw as
+        checkboxes, and a progress sentence cannot be turned back into one.
+        """
         job = self._jobs.get(jid)
         if job is None:
             return
         with self._lock:
-            job.update(done=True, code=code, error=error)
+            job.update(done=True, code=code, error=error, result=result)
 
     def get(self, jid: str) -> dict | None:
         return self._jobs.get(jid)
@@ -165,7 +171,8 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
         # JavaScript is the one nobody updates.
         from winnow.providers import CHOICES
         return 200, {"models": [{"label": c.label, "provider": c.provider,
-                                 "model": c.model, "hint": c.hint}
+                                 "model": c.model, "hint": c.hint,
+                                 "hint_it": c.hint_it}
                                 for c in CHOICES]}
 
     if path == "/api/config":
@@ -193,14 +200,16 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
             return 404, {"error": "no config yet — run the setup"}
         return 200, {k: raw[k] for k in CONFIG_PUBLIC if k in raw}
 
-    if path in ("/api/collect", "/api/recap"):
+    if path in ("/api/collect", "/api/recap", "/api/folders/scan"):
         if method != "POST":
             return 405, {"error": "POST only"}
         busy = jobs.current()
         if busy:
             return 409, {"error": BUSY_MESSAGE, "running": busy["id"],
                          "kind": busy["kind"]}
-        kind = path.rsplit("/", 1)[1]
+        # A scan drives the same browser session a collection does; two of
+        # them at once is one Playwright profile with two drivers.
+        kind = "folders" if path.endswith("/scan") else path.rsplit("/", 1)[1]
         jid = jobs.start(kind)
         if spawn:
             spawn(kind, jid, jobs)
@@ -237,6 +246,9 @@ def _run_job(kind: str, jid: str, jobs: Jobs) -> None:
         if kind == "recap":
             from winnow.recap import run_recap
             code = run_recap(open_file=False, on_event=say)
+        elif kind == "folders":
+            jobs.finish(jid, 0, result={"folders": scan_folders()})
+            return
         else:
             from winnow.cli import main as cli_main
             code = cli_main(["collect"])
@@ -246,6 +258,22 @@ def _run_job(kind: str, jid: str, jobs: Jobs) -> None:
         jobs.finish(jid, 1, error=f"{type(exc).__name__}: {exc}")
         return
     jobs.finish(jid, code or 0)
+
+
+def scan_folders() -> list[dict]:
+    """Ask the account which saved folders it has.
+
+    The window offers what Instagram actually holds instead of a name typed
+    from memory: a folder whose URL is one character wrong reads nothing and
+    says nothing, which is the quietest way for this tool to be useless.
+    """
+    from winnow.browser import list_saved_folders, open_session
+    from winnow.config import load_config
+
+    cfg = load_config(paths.config_file())
+    with open_session(cfg.browser_profile) as page:
+        found = list_saved_folders(page, cfg.username)
+    return [{"name": name, "url": url} for name, url in found]
 
 
 def spawn(kind: str, jid: str, jobs: Jobs) -> None:

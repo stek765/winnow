@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import getpass
 import os
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -468,20 +469,52 @@ def apply_config_patch(text: str, patch: dict) -> str:
         text = render_api_section(text, provider, model, base_url)
 
     if "folders" in patch:
-        known = {f["name"]: f for f in current.get("folders", [])}
-        wanted = {}
+        # Order is the config's, then anything new at the end: a list that
+        # reshuffles itself every time it is saved is a list nobody can read.
+        out = [(f["name"], f["url"], f["active"], f["kind"])
+               for f in current.get("folders", [])]
+        at = {name: i for i, (name, *_) in enumerate(out)}
+
         for item in patch["folders"] or []:
             name = item.get("name")
-            if name not in known:
-                # Adding one means finding its URL, which means scraping
-                # Instagram — that is `winnow init`, not a checkbox.
-                raise ValueError(f"cartella sconosciuta: {name!r}")
-            wanted[name] = bool(item.get("active"))
-        text = render_folders_section(text, current["instagram"]["username"], [
-            (f["name"], f["url"], wanted.get(f["name"], f["active"]), f["kind"])
-            for f in current.get("folders", [])])
+            kind = item.get("kind")
+            if kind is not None and kind not in ("repo", "news"):
+                raise ValueError(f"kind sconosciuto: {kind!r}")
+            active = bool(item.get("active"))
+
+            if name in at:
+                old_name, url, _, old_kind = out[at[name]]
+                out[at[name]] = (old_name, url, active, kind or old_kind)
+                continue
+
+            # New. The window may add a folder it went and found, but not one
+            # it made up: without a real URL the collector opens nothing and
+            # reports nothing, which is the silent-zero failure this repo
+            # keeps paying for.
+            url = (item.get("url") or "").strip()
+            if not is_saved_folder_url(url):
+                raise ValueError(f"{name!r}: indirizzo non valido per una "
+                                 "cartella dei salvati")
+            out.append((name, url, active, kind or "news"))
+
+        text = render_folders_section(
+            text, current["instagram"]["username"], out)
 
     return text
+
+
+def is_saved_folder_url(url: str) -> bool:
+    """Does this look like a link Instagram would have given us?
+
+    The pattern is not written again here: `browser.SAVED_RE` is the one that
+    decides what a saved folder is when they are read off the page, and a
+    second copy is a second thing to keep in step. A first version of this
+    check *did* write its own — demanding an absolute `https://...` URL — and
+    would have refused every folder winnow is able to find, since the hrefs on
+    the page are relative and that is what goes into config.toml.
+    """
+    from winnow.browser import SAVED_RE
+    return bool(SAVED_RE.match(url or ""))
 
 
 def render_posts_per_run(text: str, value: int) -> str:

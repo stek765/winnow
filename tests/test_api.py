@@ -225,3 +225,40 @@ def test_the_window_is_told_which_models_it_may_offer():
     assert code == 200 and len(body["models"]) >= 3
     first = body["models"][0]
     assert {"label", "provider", "model", "hint"} <= set(first)
+
+
+# --- asking Instagram which folders exist ----------------------------------
+
+def test_scanning_for_folders_starts_a_job_like_any_other():
+    """It opens a browser and waits on the network, so it cannot be a request
+    that blocks until it is done — the window would look frozen."""
+    jobs = Jobs()
+    code, body = route("POST", "/api/folders/scan", {}, jobs,
+                       spawn=lambda kind, jid, jobs: None)
+    assert code == 202 and jobs.get(body["id"])["kind"] == "folders"
+
+
+def test_a_scan_is_refused_while_something_else_runs():
+    jobs = Jobs()
+    route("POST", "/api/collect", {}, jobs, spawn=lambda *a: None)
+    code, _ = route("POST", "/api/folders/scan", {}, jobs, spawn=lambda *a: None)
+    assert code == 409
+
+
+def test_a_job_can_carry_a_result_and_not_only_a_line_of_text():
+    """The folders it found are data the window has to render as checkboxes.
+    A progress line cannot be turned back into a list."""
+    jobs = Jobs()
+    jid = jobs.start("folders")
+    jobs.finish(jid, 0, result={"folders": [
+        {"name": "github", "url": "/x/saved/github/1/"}]})
+    _, body = route("GET", f"/api/jobs/{jid}", {}, jobs)
+    assert body["result"]["folders"][0]["name"] == "github"
+
+
+def test_a_job_with_no_result_says_none_rather_than_missing_the_key():
+    jobs = Jobs()
+    jid = jobs.start("collect")
+    jobs.finish(jid, 0)
+    _, body = route("GET", f"/api/jobs/{jid}", {}, jobs)
+    assert body["result"] is None

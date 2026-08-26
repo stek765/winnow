@@ -40,19 +40,28 @@ class Choice:
     provider: str
     model: str
     hint: str
+    # The same sentence for the window, which speaks to whoever installed
+    # winnow rather than to whoever contributes to it. Localisation is
+    # duplication by definition; keeping the two on adjacent lines is what
+    # stops them drifting, and it is why this is not a separate table.
+    hint_it: str = ""
 
 
 # Few, and each one for a different reason. A longer menu is a longer decision,
 # and this one is made by someone who just wants the tool to work.
 CHOICES: list[Choice] = [
     Choice("Claude Haiku 4.5", ANTHROPIC, "claude-haiku-4-5",
-           "cheapest, ~$0.005 a post — recommended"),
+           "cheapest, ~$0.005 a post — recommended",
+           "il più economico, ~$0,005 a post — consigliato"),
     Choice("Claude Sonnet 5", ANTHROPIC, "claude-sonnet-5",
-           "reads dense slides better, ~4x the cost"),
+           "reads dense slides better, ~4x the cost",
+           "legge meglio le slide fitte, costa circa quattro volte tanto"),
     Choice("OpenAI GPT-4o mini", OPENAI, "gpt-4o-mini",
-           "if you already have an OpenAI account"),
+           "if you already have an OpenAI account",
+           "se hai già un account OpenAI"),
     Choice("Your own model", LOCAL, "",
-           "Ollama, LM Studio, anything speaking the OpenAI API — free"),
+           "Ollama, LM Studio, anything speaking the OpenAI API — free",
+           "Ollama, LM Studio, qualunque cosa parli l'API di OpenAI — gratis"),
 ]
 
 
