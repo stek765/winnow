@@ -46,30 +46,32 @@ html,body{height:100%;}
   pointer-events:none;}
 .app{position:relative; z-index:1;}
 
-/* Millet's winnower, veiled: masked to nothing at every edge so it reads as
-   light on the wall and not as a photograph pasted on the page. */
+/* Millet's winnower, veiled.
+
+   The picture fills this box — `cover` — and the box is what gets faded. The
+   earlier version did the opposite: the image was sized by its own height
+   inside a full-width element, so it simply *stopped* somewhere in the
+   middle, and that stop was a straight vertical cut. Fading it needed a mask
+   whose percentages happened to line up with where the edge fell, and they
+   only lined up at one window shape: at nearly full screen the edge slid past
+   the fade and the line came back.
+
+   Nothing here depends on the window's proportions any more. There is no
+   edge to hide, because the image has none inside its own frame. */
 .art{
-  position:absolute; inset:-6%;
-  /* Sized by its own height, never `cover`. The painting is a tall portrait
-     and the window is a wide landscape: `cover` blew it up until the
-     winnower himself was off-frame and all that was left on the page was a
-     pale smudge — atmosphere with nothing in it. At `auto 112%` the whole
-     figure is in the room, which is the only reason to use this picture
-     rather than any other texture. */
-  background:url("/winnower.jpg") no-repeat 88% 46%/auto 112%;
+  position:absolute; top:-6%; bottom:-6%; right:-3%;
+  width:clamp(26rem, 56%, 74rem);
+  background:url("/winnower.jpg") no-repeat 62% 42%/cover;
   opacity:.29; filter:saturate(.78) contrast(1.06);
-  /* Two masks, intersected. The radial one alone faded the *opacity* but
-     not the picture's own left edge: sized by its height, the image simply
-     stops somewhere in the middle of the window, and that stop was a
-     straight vertical cut visible right through the fade. The linear one
-     takes the image to nothing before it gets there. */
-  -webkit-mask-image:radial-gradient(50% 78% at 84% 50%, #000 0%,
-      rgba(0,0,0,.58) 46%, transparent 76%),
-    linear-gradient(to right, transparent 34%, #000 62%);
+  -webkit-mask-image:linear-gradient(to right, transparent 0%,
+      rgba(0,0,0,.5) 34%, #000 72%),
+    radial-gradient(120% 86% at 62% 50%, #000 0%, rgba(0,0,0,.72) 62%,
+      transparent 100%);
   -webkit-mask-composite:source-in;
-  mask-image:radial-gradient(50% 78% at 84% 50%, #000 0%,
-      rgba(0,0,0,.58) 46%, transparent 76%),
-    linear-gradient(to right, transparent 34%, #000 62%);
+  mask-image:linear-gradient(to right, transparent 0%,
+      rgba(0,0,0,.5) 34%, #000 72%),
+    radial-gradient(120% 86% at 62% 50%, #000 0%, rgba(0,0,0,.72) 62%,
+      transparent 100%);
   mask-composite:intersect;
   animation:breathe 68s ease-in-out infinite;
 }
