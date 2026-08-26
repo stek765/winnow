@@ -18,6 +18,12 @@
   --body:"Instrument Sans",-apple-system,"Segoe UI",sans-serif;
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
   --pad:clamp(1.5rem,5vw,3.5rem);
+  /* One column for everything that is a table or a list. Fixed caps left the
+     content in a strip on the left of a wide window with the rest of it
+     empty; a cap that is a *maximum* rather than a width grows with the
+     window and still stops before a row becomes unreadable. Prose keeps its
+     own measure in `ch` — that one really is a width, not a limit. */
+  --column:min(100%, 76rem);
   --lift:0 1px 2px rgba(16,20,26,.14), 0 14px 34px -22px rgba(16,20,26,.5);
 }
 *{box-sizing:border-box;}
@@ -138,7 +144,7 @@ a{color:inherit;}
 
 /* --- home -------------------------------------------------------------- */
 .home{display:flex; flex-direction:column; justify-content:center;
-  min-height:100%; max-width:44rem;}
+  min-height:100%; max-width:var(--column);}
 .dot{display:inline-flex; align-items:center; gap:.5rem;
   font-family:var(--mono); font-size:.66rem; letter-spacing:.14em;
   text-transform:uppercase; color:var(--faint); margin-bottom:1.1rem;}
@@ -211,7 +217,7 @@ h1{font-family:var(--display); font-weight:700;
 
 .cards{display:grid; gap:1px; background:var(--rule);
   border:1px solid var(--rule); border-radius:4px; overflow:hidden;
-  max-width:54rem;}
+  max-width:var(--column);}
 .card{display:block; width:100%; text-align:left; background:var(--lit);
   padding:1.15rem 1.3rem; transition:background .16s;}
 .card:hover{background:#fff;}
@@ -268,7 +274,7 @@ h1{font-family:var(--display); font-weight:700;
 .bin svg{width:14px; height:14px;}
 
 /* Appears only when something is chosen, and says what it will do. */
-.tray{position:sticky; bottom:0; margin-top:1.2rem; max-width:54rem;
+.tray{position:sticky; bottom:0; margin-top:1.2rem; max-width:var(--column);
   display:flex; align-items:center; gap:1rem; padding:1rem 1.2rem;
   background:var(--lit); border:1px solid var(--rule); border-radius:4px;
   box-shadow:0 -6px 26px -18px rgba(16,20,26,.5);
@@ -306,7 +312,7 @@ h1{font-family:var(--display); font-weight:700;
 .empty{color:var(--soft); max-width:40ch;}
 
 /* --- settings ---------------------------------------------------------- */
-.rows{max-width:44rem;}
+.rows{max-width:var(--column);}
 .row{display:flex; align-items:baseline; gap:1rem; padding:.85rem 0;
   border-bottom:1px solid var(--rule);}
 .row .k{font-family:var(--mono); font-size:.7rem; letter-spacing:.1em;
