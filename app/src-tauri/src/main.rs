@@ -98,7 +98,11 @@ fn main() {
         }
     };
 
-    let url = format!("http://127.0.0.1:{port}/");
+    // `native` tells the page it is in this window and not a browser tab, so
+    // it can leave a band clear for the traffic lights drawn over its top-left
+    // corner. The shell says it outright rather than letting the page guess
+    // from the user agent — the same page is served to both.
+    let url = format!("http://127.0.0.1:{port}/?native=mac");
 
     tauri::Builder::default()
         .manage(Engine(Mutex::new(Some(child))))

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The Dock icon, at source.
+
+     macOS does not scale app icons down: it draws them at the size given. So
+     the rounded square is 824 wide on a 1024 canvas, with 100 of transparent
+     margin on every side — Apple's own grid. An icon painted edge to edge
+     reads as bigger than every neighbour in the Dock, which is exactly what
+     the first version did.
+
+     Kept in the repo, and not generated once by hand, so the next change is
+     an edit and not an archaeology exercise.
+
+     Render:  rsvg-convert -w 1024 -h 1024 icon.svg -o icon.png  -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <rect x="100" y="100" width="824" height="824" rx="185.4" ry="185.4" fill="#17110f"/>
+  <!-- The mark, centred on the square rather than on the canvas: the ear is
+       tall and the grains fly right, so its own centre is not the middle of
+       its bounding box by accident. -->
+  <g transform="translate(512 512) scale(10.4) translate(-36.15 -24)">
+    <g fill="#f4f0ec">
+      <ellipse cx="22" cy="5.5" rx="3" ry="5.7"/>
+      <ellipse cx="17.9" cy="13" rx="3" ry="5.7" transform="rotate(-28 17.9 13)"/>
+      <ellipse cx="26.1" cy="13" rx="3" ry="5.7" transform="rotate(28 26.1 13)"/>
+      <ellipse cx="17.2" cy="21" rx="3" ry="5.7" transform="rotate(-30 17.2 21)"/>
+      <ellipse cx="26.8" cy="21" rx="3" ry="5.7" transform="rotate(30 26.8 21)"/>
+      <ellipse cx="16.6" cy="29" rx="3" ry="5.7" transform="rotate(-32 16.6 29)"/>
+      <ellipse cx="27.4" cy="29" rx="3" ry="5.7" transform="rotate(32 27.4 29)"/>
+      <path d="M22 34 V47" stroke="#f4f0ec" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+    </g>
+    <g fill="#ce3a24">
+      <ellipse cx="38" cy="21" rx="2.5" ry="3.9" transform="rotate(-46 38 21)"/>
+      <ellipse cx="47" cy="13" rx="2.5" ry="3.9" transform="rotate(-30 47 13)"/>
+      <ellipse cx="56" cy="6"  rx="2.5" ry="3.9" transform="rotate(-16 56 6)"/>
+    </g>
+  </g>
+</svg>

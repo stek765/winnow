@@ -49,6 +49,15 @@ a{color:inherit;}
 .tab:hover{color:var(--ink);}
 .tab.on{background:var(--ink); color:var(--lit);}
 
+/* In the native window the close/minimise/zoom buttons are drawn *over* the
+   page, top left — there is no system title bar to hold them. So the bar gets
+   a band above it that belongs to them alone.
+
+   Padding on the left would have been shorter, and wrong: it would push the
+   wheat ear out of line with the headline underneath it, and a logo that does
+   not share the page's left edge reads as a mistake from across the room. */
+.native .bar{padding-top:2.6rem;}
+
 .screen{flex:1; overflow-y:auto; padding:0 var(--pad) var(--pad);}
 .screen[hidden]{display:none;}
 
@@ -183,6 +192,13 @@ h1{font-family:var(--display); font-weight:700;
 
 <script>
 const $ = (id) => document.getElementById(id);
+
+// The shell says so in the URL. Sniffing the user agent would be guessing:
+// the same page is served to a browser tab, where there are no traffic lights
+// to make room for and the band would just be a dent in the top of the page.
+if (new URLSearchParams(location.search).get("native")) {
+  document.documentElement.classList.add("native");
+}
 let job = null, timer = null;
 
 async function api(path, method = "GET") {
