@@ -91,12 +91,52 @@ def test_merging_nothing_is_refused_rather_than_producing_an_empty_page():
         merge([])
 
 
-def test_the_label_names_the_span_and_not_the_file():
-    """A merged page is not a week, so it cannot be called one. It is called
-    by what it covers."""
-    assert label_for(["2026-08-23", "2026-08-24"]) == "23–24 agosto"
-    assert label_for(["2026-07-30", "2026-08-24"]) == "30 luglio – 24 agosto"
+def test_the_label_never_turns_scattered_weeks_into_a_period():
+    """`1 giugno – 24 agosto` for ten weeks picked out of a summer is a
+    sentence that is not true: it reads as everything in between. With three
+    or more, the count comes first, so the range can only be read as the two
+    ends of a selection."""
     assert label_for(["2026-08-23"]) == "23 agosto"
+    assert label_for(["2026-08-23", "2026-08-24"]) == "23 e 24 agosto"
+    assert label_for(["2026-07-30", "2026-08-24"]) == "30 luglio e 24 agosto"
+    ten = ["2026-06-01", "2026-06-05", "2026-06-09", "2026-07-03",
+           "2026-07-08", "2026-07-15", "2026-07-22", "2026-08-02",
+           "2026-08-10", "2026-08-24"]
+    assert label_for(ten) == "10 settimane, da 1 giugno a 24 agosto"
+
+
+def test_a_name_the_reader_gave_it_wins_over_any_label():
+    """Ten weeks chosen out of a year are a theme, and a theme has a name.
+    That is the only thing that makes a shelf of merges findable."""
+    assert label_for(["2026-08-23", "2026-08-24"], "Embedded") == "Embedded"
+    assert label_for(["2026-08-23"], "   ") == "23 agosto"
+
+
+def test_two_different_selections_cannot_land_on_the_same_file():
+    """Named from the first and last week, `{23, 30}` and `{23, 26, 30}` came
+    out identical — measured — and the second silently overwrote the first."""
+    from winnow.harvest import merge_id
+    a = merge_id(["2026-08-23", "2026-08-30"], "")
+    b = merge_id(["2026-08-23", "2026-08-26", "2026-08-30"], "")
+    assert a != b
+    # Same weeks, same file: merging the same selection twice replaces it
+    # rather than piling up copies nobody can tell apart.
+    assert a == merge_id(["2026-08-30", "2026-08-23"], "")
+
+
+def test_the_name_is_part_of_what_makes_a_merge_distinct():
+    """Same weeks, two different readings of them, two pages."""
+    from winnow.harvest import merge_id
+    assert (merge_id(["2026-08-23", "2026-08-24"], "Embedded")
+            != merge_id(["2026-08-23", "2026-08-24"], "Personal AI"))
+
+
+def test_a_file_name_carries_no_surprises_from_a_typed_name():
+    """It goes into a path and into a URL."""
+    from winnow.harvest import merge_id
+    stem = merge_id(["2026-08-23", "2026-08-24"], "Robe da /comprare/ ../ !!")
+    assert "/" not in stem and ".." not in stem and " " not in stem
+    assert stem.startswith("unione-")
 
 
 # --- the page ---------------------------------------------------------------
@@ -106,7 +146,7 @@ def test_the_page_names_every_thing_and_says_which_weeks_it_covers():
     html = render_harvest(merge([A, B]))
     for name in ("cactus/needle", "n8n-io/n8n", "wm64/GhidraGPT"):
         assert name in html
-    assert "23–24 agosto" in html
+    assert "23 e 24 agosto" in html
     assert "Reverse engineering" in html
 
 

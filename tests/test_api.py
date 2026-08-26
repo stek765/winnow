@@ -484,17 +484,39 @@ def test_merging_two_weeks_writes_a_page_and_says_where(tmp_path, monkeypatch):
                        {"weeks": ["2026-08-23", "2026-08-24"]}, Jobs())
     assert code == 200
     page = tmp_path / body["file"]
-    assert page.is_file() and "23–24 agosto" in page.read_text(encoding="utf-8")
-    assert body["label"] == "23–24 agosto"
+    assert page.is_file() and "23 e 24 agosto" in page.read_text(encoding="utf-8")
+    assert body["label"] == "23 e 24 agosto"
+
+
+def test_a_merge_can_be_given_a_name_and_keeps_it(tmp_path, monkeypatch):
+    """Ten weeks out of a year are a theme. Without a name there is nothing
+    to find them by."""
+    import winnow.api as A
+    for week in ("2026-08-23", "2026-08-24"):
+        (tmp_path / f"{week}.answer.md").write_text(json.dumps({
+            "week": week, "counts": {}, "categories": [
+                {"name": "X", "items": [{"name": f"a/{week}"}]}]}),
+            encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+    _, body = route("POST", "/api/merge", {
+        "weeks": ["2026-08-23", "2026-08-24"], "name": "Embedded"}, Jobs())
+    assert body["label"] == "Embedded"
+    page = (tmp_path / body["file"]).read_text(encoding="utf-8")
+    assert "Embedded" in page
+    # And it still says what it was made from, or the title has nothing
+    # behind it a month later.
+    assert "23 agosto" in page and "24 agosto" in page
+    _, listing = route("GET", "/api/recaps", {}, Jobs())
+    assert listing["merges"][0]["label"] == "Embedded"
 
 
 def test_a_merge_is_listed_apart_from_the_weeks_it_covers(tmp_path, monkeypatch):
     """It is not a week. Listed among them it would claim to be one."""
     import winnow.api as A
     (tmp_path / "2026-08-24.answer.html").write_text("<html>", encoding="utf-8")
-    (tmp_path / "unione-2026-08-23_2026-08-24.html").write_text(
+    (tmp_path / "unione-embedded-1a2b3c4d.html").write_text(
         "<html>", encoding="utf-8")
-    (tmp_path / "unione-2026-08-23_2026-08-24.json").write_text(json.dumps(
+    (tmp_path / "unione-embedded-1a2b3c4d.json").write_text(json.dumps(
         {"weeks": ["2026-08-23", "2026-08-24"], "label": "23–24 agosto",
          "things": 21}), encoding="utf-8")
     monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)

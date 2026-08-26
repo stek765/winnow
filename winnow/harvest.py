@@ -113,26 +113,60 @@ def say_day(iso: str) -> str:
         return str(iso)
 
 
-def label_for(weeks: list[str]) -> str:
+def label_for(weeks: list[str], name: str = "") -> str:
     """What the merged page is called.
 
-    Not a week — it is not one, and calling it one would put it in a list
-    beside things that are. It is called by what it covers.
+    A name the reader typed wins over everything: ten weeks picked out of a
+    year are a theme, not a period, and a theme is the only thing that makes
+    a shelf of merges findable a month later.
+
+    Without one, the label must not turn a selection into a span. The first
+    version said `1 giugno – 24 agosto` for ten scattered weeks, which reads
+    as everything in between and is simply false. From three up, the count
+    comes first, so the two dates can only be read as the ends of a choice.
     """
+    name = " ".join(str(name or "").split())
+    if name:
+        return name
     weeks = sorted(w for w in weeks if w)
     if not weeks:
         return "unione"
     if len(weeks) == 1:
         return say_day(weeks[0])
-    first, last = say_day(weeks[0]), say_day(weeks[-1])
-    if first.split()[-1] == last.split()[-1]:      # same month, said once
-        return f"{first.split()[0]}–{last}"
-    return f"{first} – {last}"
+    if len(weeks) == 2:
+        a, b = say_day(weeks[0]), say_day(weeks[1])
+        # The month once when it is the same one: "23 agosto e 24 agosto"
+        # makes a reader check whether the two really are the same month.
+        return (f"{a.split()[0]} e {b}" if a.split()[-1] == b.split()[-1]
+                else f"{a} e {b}")
+    return (f"{len(weeks)} settimane, da {say_day(weeks[0])} "
+            f"a {say_day(weeks[-1])}")
+
+
+def merge_id(weeks: list[str], name: str = "") -> str:
+    """The file this merge lives in.
+
+    Named from the first and last week — the first attempt — `{23, 30}` and
+    `{23, 26, 30}` produced the same file, and the second quietly overwrote
+    the first. Measured, not imagined. The name is derived from *everything*
+    that makes a merge what it is: the exact set of weeks and the name given
+    to it. Same choice twice replaces itself; anything else is a new page.
+
+    The typed name is slugged, never used raw: it ends up in a path and in a
+    URL.
+    """
+    import hashlib
+
+    weeks = sorted(w for w in weeks if w)
+    seed = "|".join(weeks) + "\u0000" + " ".join(str(name or "").split())
+    short = hashlib.sha1(seed.encode("utf-8")).hexdigest()[:8]
+    slug = re.sub(r"[^a-z0-9]+", "-", str(name or "").lower()).strip("-")[:32]
+    return f"unione-{slug}-{short}" if slug else f"unione-{short}"
 
 
 # --- the page ---------------------------------------------------------------
 
-def render_harvest(merged: dict) -> str:
+def render_harvest(merged: dict, label: str = "") -> str:
     """The merge as a page.
 
     Its own renderer rather than a bend in `render.py`: a recap page is built
@@ -143,7 +177,7 @@ def render_harvest(merged: dict) -> str:
     from winnow.render import _esc, painting_data_uri
 
     m = merged["counts"]
-    label = label_for(merged["weeks"])
+    label = label or label_for(merged["weeks"])
     blocks = []
     for cat in merged["categories"]:
         rows = []
@@ -197,6 +231,9 @@ mask-image:radial-gradient(50% 78% at 82% 50%,#000 0%,rgba(0,0,0,.6) 46%,transpa
 padding:clamp(2rem,5vw,3.5rem) clamp(1.2rem,4vw,3rem) 6rem}}
 h1{{font-family:var(--display);font-weight:700;letter-spacing:-.03em;
 font-size:clamp(2rem,5vw,2.9rem);margin:0 0 .4rem;line-height:1.05}}
+/* Which weeks, written out. A page called "Embedded" must still say what it
+   was made from, or in a month it is a title with nothing behind it. */
+.from{{font-size:.92rem;color:var(--soft);margin:0 0 .5rem;line-height:1.4}}
 .sub{{font-family:var(--mono);font-size:.74rem;letter-spacing:.1em;
 color:var(--faint);margin:0 0 2.4rem}}
 h2{{font-family:var(--mono);font-size:.68rem;letter-spacing:.18em;
@@ -232,7 +269,8 @@ padding:.18rem .55rem}}
 </style></head><body>
 <div class="veil" aria-hidden="true"><div class="art"></div></div>
 <div class="wrap">
-<h1>Il raccolto, {_esc(label)}</h1>
+<h1>{_esc(label)}</h1>
+<p class="from">Il raccolto di {_esc(", ".join(say_day(w) for w in merged["weeks"]))}</p>
 <p class="sub">{m["things"]} cose &middot; {m["weeks"]} settimane &middot;
 {m["posts"]} post letti &middot; ${m["usd"]:.2f} spesi</p>
 {"".join(blocks)}

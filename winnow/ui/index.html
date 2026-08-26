@@ -250,7 +250,12 @@ h1{font-family:var(--display); font-weight:700;
   animation:rise .2s cubic-bezier(.2,.8,.3,1) both;}
 .tray[hidden]{display:none;}
 .tray .n{font-family:var(--mono); font-size:.72rem; color:var(--soft);}
-.tray .go{padding:.7rem 1.2rem; font-size:.7rem; margin-left:auto;}
+.tray .go{padding:.7rem 1.2rem; font-size:.7rem;}
+/* Optional, and the thing that makes a shelf of merges findable a month
+   later: ten weeks picked out of a year are a theme, and a theme has a name. */
+.tray input{flex:1; min-width:8rem; margin-left:auto; font-family:var(--body);
+  font-size:.86rem;}
+@media (max-width:640px){.tray{flex-wrap:wrap;} .tray input{order:9; width:100%;}}
 
 /* --- the reader ---------------------------------------------------------
    The page opens inside the app. `window.open` does nothing in this webview
@@ -509,6 +514,8 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
     <div id="archive-body"></div>
     <div class="tray" id="tray" hidden>
       <span class="n" id="tray-n"></span>
+      <input type="text" id="tray-name" maxlength="60"
+             placeholder="chiamala — es. Embedded, Roba da provare">
       <button class="ghost" id="tray-clear">Annulla</button>
       <button class="go" id="tray-go">Unisci</button>
     </div>
@@ -764,13 +771,18 @@ async function loadArchive() {
     ? '<p class="eyebrow">Settimane messe insieme</p><div class="cards">' +
       body.merges.map((m) =>
         `<div class="card" data-file="${m.file}" data-week="" ` +
+        `data-label="${esc(m.label)}" ` +
         `data-score="${m.things ? m.things + " cose" : ""}">` +
         '<span class="body"><span class="top">' +
         `<b>${esc(m.label)}</b>` +
         (m.things ? `<span class="score"><b>${m.things}</b> cose</span>` : "") +
         (m.weeks.length
           ? `<span class="cost">${m.weeks.length} settimane</span>` : "") +
-        "</span></span>" +
+        "</span>" +
+        // A page called "Embedded" says nothing about which weeks are behind
+        // it — and that is the question a month later.
+        (m.weeks.length ? `<p class="said">${esc(weekList(m.weeks))}</p>` : "") +
+        "</span>" +
         `<button class="bin" title="Elimina" aria-label="Elimina">${TRASH}</button>` +
         "</div>").join("") + "</div>"
     : "";
@@ -780,7 +792,8 @@ async function loadArchive() {
       if (e.target.closest(".bin")) return;
       // The tick selects, the rest of the row opens. Two jobs, two targets.
       if (e.target.closest(".box")) return toggle(c);
-      openRecap(c.dataset.file, c.dataset.week, c.dataset.score);
+      openRecap(c.dataset.file, c.dataset.week, c.dataset.score,
+                c.dataset.label);
     });
     const bin = c.querySelector(".bin");
     if (bin) bin.addEventListener("click", () => remove(c));
@@ -808,6 +821,7 @@ function paintTray() {
 
 $("tray-clear").addEventListener("click", () => {
   picked.clear();
+  $("tray-name").value = "";
   document.querySelectorAll(".card").forEach(
     (c) => c.classList.remove("picked"));
   paintTray();
@@ -823,13 +837,18 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 $("tray-go").addEventListener("click", async () => {
   $("tray-go").disabled = true;
   const weeks = [...picked].sort();
-  $("fuse-chips").innerHTML = weeks
-    .map((w) => `<span>${sayDay(w)}</span>`).join("");
-  $("fuse-say").textContent = `${weeks.length} settimane in una pagina`;
+  const name = $("tray-name").value.trim();
+  // Six chips fit across; more become a crowd that says nothing.
+  const chips = weeks.length <= 6 ? weeks.map(sayDay)
+    : [sayDay(weeks[0]), `+${weeks.length - 2}`, sayDay(weeks[weeks.length - 1])];
+  $("fuse-chips").innerHTML = chips.map((c) => `<span>${esc(c)}</span>`).join("");
+  $("fuse-say").textContent = name
+    ? `${weeks.length} settimane in «${name}»`
+    : `${weeks.length} settimane in una pagina`;
   $("fuse").hidden = false;
 
   const [{ code, body }] = await Promise.all([
-    post("/api/merge", { weeks }),
+    post("/api/merge", { weeks, name }),
     wait(FUSE_MS),
   ]);
 
@@ -839,8 +858,9 @@ $("tray-go").addEventListener("click", async () => {
     $("tray-n").textContent = body.error || "non riuscito";
     return;
   }
+  $("tray-name").value = "";
   await loadArchive();
-  openRecap(body.file, "", `${body.things} cose`);
+  openRecap(body.file, "", `${body.things} cose`, body.label);
 });
 
 async function remove(card) {
@@ -856,9 +876,17 @@ async function remove(card) {
   loadArchive();
 }
 
-function openRecap(file, week, score) {
+// Six dates read; twenty do not. Past that, the ends and the count.
+function weekList(weeks) {
+  const days = weeks.map(sayDay);
+  if (days.length <= 6) return days.join(" · ");
+  return `${days[0]} · ${days[1]} · ${days[2]} … ${days[days.length - 1]}` +
+    ` — ${days.length} in tutto`;
+}
+
+function openRecap(file, week, score, label) {
   $("page").src = "/recap/" + file;
-  $("read-week").textContent = week ? sayDay(week) : "";
+  $("read-week").textContent = label || (week ? sayDay(week) : "");
   $("read-count").textContent = score || "";
   show("reader");
 }

@@ -198,7 +198,7 @@ def _verdict(answer: Path) -> dict:
     }
 
 
-MERGE_PAGE = re.compile(r"^unione-[\d_-]+\.html$")
+MERGE_PAGE = re.compile(r"^unione-[a-z0-9-]+\.html$")
 
 
 def _merges() -> list[dict]:
@@ -223,7 +223,11 @@ def _merges() -> list[dict]:
                 info = {}
         out.append({"file": f.name, "label": info.get("label") or f.stem,
                     "weeks": info.get("weeks") or [],
+                    "made": info.get("made") or "",
                     "things": info.get("things")})
+    # Newest first by when it was made, not by file name: a name now carries
+    # what the reader typed, and alphabetical order of that means nothing.
+    out.sort(key=lambda m: m["made"], reverse=True)
     return out
 
 
@@ -377,13 +381,16 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
     if path == "/api/merge":
         if method != "POST":
             return 405, {"error": "POST only"}
-        from winnow.harvest import label_for, merge, render_harvest
+        from winnow.harvest import label_for, merge, merge_id, render_harvest
         from winnow.render import extract_json
 
         weeks = sorted({w for w in (payload.get("weeks") or [])
                         if isinstance(w, str) and WEEK_RE.match(w)})
         if len(weeks) < 2:
             return 400, {"error": "servono almeno due settimane"}
+        # Optional, and the only thing that makes ten scattered weeks
+        # findable a month later.
+        name = " ".join(str(payload.get("name") or "").split())[:60]
 
         d = paths.recap_dir()
         answers, missing = [], []
@@ -401,13 +408,15 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
             return 400, {"error": "manca il giudizio di " + ", ".join(missing)}
 
         merged = merge(answers)
-        label = label_for(weeks)
-        stem = f"unione-{weeks[0]}_{weeks[-1]}"
+        label = label_for(weeks, name)
+        stem = merge_id(weeks, name)
         d.mkdir(parents=True, exist_ok=True)
-        (d / f"{stem}.html").write_text(render_harvest(merged), encoding="utf-8")
+        (d / f"{stem}.html").write_text(render_harvest(merged, label),
+                                        encoding="utf-8")
         (d / f"{stem}.json").write_text(json.dumps(
-            {"weeks": weeks, "label": label,
-             "things": merged["counts"]["things"]},
+            {"weeks": weeks, "label": label, "name": name,
+             "things": merged["counts"]["things"],
+             "made": datetime.now().isoformat(timespec="seconds")},
             ensure_ascii=False), encoding="utf-8")
         return 200, {"file": f"{stem}.html", "label": label,
                      "things": merged["counts"]["things"]}
