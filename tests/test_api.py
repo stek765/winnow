@@ -156,3 +156,72 @@ def test_the_painting_is_served_to_the_window():
     # Served under its own path, so the page can reference it by URL instead
     # of carrying 93 KB of base64 inline on every poll of the home screen.
     assert make_handler(Jobs(), PAINTING.parent / "ui")
+
+
+# --- changing the settings from the window ---------------------------------
+
+def test_a_setting_can_be_changed_and_the_new_value_comes_straight_back(
+        tmp_path, monkeypatch):
+    """One round trip, not two: a window that has to re-ask after saving can
+    show the old value for as long as the second request takes."""
+    import winnow.api as A
+    from tests.test_setup import CONFIG_SAMPLE
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(CONFIG_SAMPLE, encoding="utf-8")
+    monkeypatch.setattr(A.paths, "config_file", lambda: cfg)
+
+    code, body = route("PATCH", "/api/config", {"posts_per_run": 30}, Jobs())
+    assert code == 200
+    assert body["posts_per_run"] == 30
+    assert "posts_per_run = 30" in cfg.read_text(encoding="utf-8")
+
+
+def test_a_refused_change_says_why_and_leaves_the_file_alone(
+        tmp_path, monkeypatch):
+    import winnow.api as A
+    from tests.test_setup import CONFIG_SAMPLE
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(CONFIG_SAMPLE, encoding="utf-8")
+    monkeypatch.setattr(A.paths, "config_file", lambda: cfg)
+
+    code, body = route("PATCH", "/api/config", {"posts_per_run": 0}, Jobs())
+    assert code == 400 and "posts_per_run" in body["error"]
+    assert cfg.read_text(encoding="utf-8") == CONFIG_SAMPLE
+
+
+def test_the_key_cannot_be_written_from_the_window_either(tmp_path, monkeypatch):
+    """It is refused on the way in for the same reason it is stripped on the
+    way out: a route that could set it could be made to hand it back."""
+    import winnow.api as A
+    from tests.test_setup import CONFIG_SAMPLE
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(CONFIG_SAMPLE, encoding="utf-8")
+    monkeypatch.setattr(A.paths, "config_file", lambda: cfg)
+
+    code, body = route("PATCH", "/api/config", {"api_key": "sk-ant-nope"}, Jobs())
+    assert code == 400 and "api_key" in body["error"]
+    assert "sk-ant-nope" not in cfg.read_text(encoding="utf-8")
+
+
+def test_settings_cannot_be_rewritten_under_a_running_job(tmp_path, monkeypatch):
+    """A collection reads the folder list and the post cap as it goes.
+    Changing them underneath is a run that half obeyed two configurations."""
+    import winnow.api as A
+    from tests.test_setup import CONFIG_SAMPLE
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(CONFIG_SAMPLE, encoding="utf-8")
+    monkeypatch.setattr(A.paths, "config_file", lambda: cfg)
+
+    jobs = Jobs()
+    jobs.start("collect")
+    code, body = route("PATCH", "/api/config", {"posts_per_run": 30}, jobs)
+    assert code == 409 and cfg.read_text(encoding="utf-8") == CONFIG_SAMPLE
+
+
+def test_the_window_is_told_which_models_it_may_offer():
+    """Hard-coding the menu in the page would put the list in two places, and
+    the copy in JavaScript is the one nobody updates."""
+    code, body = route("GET", "/api/models", {}, Jobs())
+    assert code == 200 and len(body["models"]) >= 3
+    first = body["models"][0]
+    assert {"label", "provider", "model", "hint"} <= set(first)

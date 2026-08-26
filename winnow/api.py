@@ -96,13 +96,39 @@ def _config_dict() -> dict:
     cfg = load_config(paths.config_file())
     return {"model": cfg.model, "provider": cfg.provider,
             "base_url": cfg.base_url,
+            "posts_per_run": cfg.limits.posts_per_run,
             "folders": [{"name": f.name, "active": f.active, "kind": f.kind}
                         for f in cfg.folders]}
 
 
+def _write_config(patch: dict) -> dict:
+    """Validate, write, and answer with the config as it now is.
+
+    One round trip, not two: a window that has to ask again after saving
+    shows the old values for as long as the second request takes, which reads
+    as a change that did not take.
+    """
+    from winnow.setup import apply_config_patch
+
+    path = paths.config_file()
+    if not path.exists():
+        raise FileNotFoundError(path)
+    text = path.read_text(encoding="utf-8")
+    # Nothing is written until the whole patch has been accepted, so a refusal
+    # can never leave half a change on disk.
+    new = apply_config_patch(text, patch)
+    if new != text:
+        path.write_text(new, encoding="utf-8")
+        path.chmod(0o600)
+    raw = _config_dict()
+    out = {k: raw[k] for k in CONFIG_PUBLIC if k in raw}
+    out["posts_per_run"] = raw.get("posts_per_run")
+    return out
+
+
 # Never handed to the window, however the config grows. An allow-list and not
 # a deny-list: a key added later must not leak because nobody updated a filter.
-CONFIG_PUBLIC = ("model", "provider", "base_url", "folders")
+CONFIG_PUBLIC = ("model", "provider", "base_url", "posts_per_run", "folders")
 
 
 def _archive() -> list[dict]:
@@ -131,9 +157,36 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
             return 405, {"error": "GET only"}
         return 200, {"recaps": _archive()}
 
-    if path == "/api/config":
+    if path == "/api/models":
         if method != "GET":
             return 405, {"error": "GET only"}
+        # The menu comes from the same list `winnow init` reads. Written out
+        # again in the page it would be in two places, and the copy in
+        # JavaScript is the one nobody updates.
+        from winnow.providers import CHOICES
+        return 200, {"models": [{"label": c.label, "provider": c.provider,
+                                 "model": c.model, "hint": c.hint}
+                                for c in CHOICES]}
+
+    if path == "/api/config":
+        if method == "PATCH":
+            busy = jobs.current()
+            if busy:
+                # A collection reads the folder list and the post cap as it
+                # goes: changing them underneath produces a run that half
+                # obeyed two configurations, and no way to tell afterwards.
+                return 409, {"error": BUSY_MESSAGE, "running": busy["id"],
+                             "kind": busy["kind"]}
+            try:
+                return 200, _write_config(payload)
+            except FileNotFoundError:
+                return 404, {"error": "no config yet — run the setup"}
+            except ValueError as exc:
+                # The sentence `apply_config_patch` raised, verbatim: it was
+                # written to be read by whoever pressed the button.
+                return 400, {"error": str(exc)}
+        if method != "GET":
+            return 405, {"error": "GET or PATCH"}
         try:
             raw = _config_dict()
         except FileNotFoundError:
@@ -270,6 +323,10 @@ def make_handler(jobs: Jobs, ui_dir: Path):
 
         def do_POST(self) -> None:
             if not self._api("POST"):
+                self._send(404, {"error": "no such path"})
+
+        def do_PATCH(self) -> None:
+            if not self._api("PATCH"):
                 self._send(404, {"error": "no such path"})
 
     return Handler

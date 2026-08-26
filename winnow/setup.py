@@ -400,6 +400,101 @@ def setup_model(config_file: Path, env_file: Path) -> None:
     print(f"  ✅ model: {model} ({choice.provider})")
 
 
+# What a window is allowed to change. An allow-list and not a deny-list, for
+# the same reason `CONFIG_PUBLIC` is one: a key added to the config later must
+# not become writable from a socket because nobody remembered to exclude it.
+#
+# `api_key` is deliberately absent and stays absent. It lives in a 600 file,
+# never in config.toml, and a route that could set it would be a route that
+# could be made to leak it back.
+PATCHABLE = ("model", "provider", "base_url", "posts_per_run", "folders")
+
+
+def apply_config_patch(text: str, patch: dict) -> str:
+    """Apply a whole change at once, or refuse it with a reason.
+
+    `winnow config` asks one question at a time and can correct a bad answer
+    on the spot. A window cannot: it sends everything and needs one answer
+    saying whether it was taken. So validation happens here, before a byte is
+    written, and every refusal raises a sentence meant to be read by a person
+    rather than a stack trace.
+
+    Pure on purpose — text in, text out — so every rule below is provable
+    without a config file, a socket, or a running app.
+    """
+    import tomllib
+
+    unknown = [k for k in patch if k not in PATCHABLE]
+    if unknown:
+        # Ignored instead, the screen would say "saved" for a change that
+        # never happened — the worst possible answer, because it is wrong and
+        # reassuring at the same time.
+        raise ValueError("non si cambia da qui: " + ", ".join(sorted(unknown)))
+
+    current = tomllib.loads(text)
+
+    if "posts_per_run" in patch:
+        value = patch["posts_per_run"]
+        # `isinstance(True, int)` is True in Python, and a bool here would be
+        # written out as `posts_per_run = True`.
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ValueError("posts_per_run: serve un numero intero sopra zero")
+        text = render_posts_per_run(text, value)
+
+    if {"model", "provider", "base_url"} & set(patch):
+        from winnow.providers import ANTHROPIC, LOCAL, OPENAI
+
+        api = current.get("api", {})
+        provider = patch.get("provider", api.get("provider", ANTHROPIC))
+        if provider not in (ANTHROPIC, OPENAI, LOCAL):
+            raise ValueError(f"provider sconosciuto: {provider!r}")
+
+        model = patch.get("model", api.get("model", ""))
+        if not isinstance(model, str) or not model.strip():
+            raise ValueError("il modello non può essere vuoto")
+        model = model.strip()
+
+        # A base_url carried over from a previous provider would sit in the
+        # file pointing at a machine nobody asks any more, and come back stale
+        # the day somebody switches to local again.
+        base_url = patch.get("base_url") if provider == LOCAL else None
+        if provider == LOCAL:
+            if not base_url and patch.get("provider") != LOCAL:
+                base_url = api.get("base_url")
+            if not base_url or not str(base_url).strip():
+                raise ValueError("un modello locale ha bisogno di un indirizzo")
+            base_url = str(base_url).strip()
+
+        text = render_api_section(text, provider, model, base_url)
+
+    if "folders" in patch:
+        known = {f["name"]: f for f in current.get("folders", [])}
+        wanted = {}
+        for item in patch["folders"] or []:
+            name = item.get("name")
+            if name not in known:
+                # Adding one means finding its URL, which means scraping
+                # Instagram — that is `winnow init`, not a checkbox.
+                raise ValueError(f"cartella sconosciuta: {name!r}")
+            wanted[name] = bool(item.get("active"))
+        text = render_folders_section(text, current["instagram"]["username"], [
+            (f["name"], f["url"], wanted.get(f["name"], f["active"]), f["kind"])
+            for f in current.get("folders", [])])
+
+    return text
+
+
+def render_posts_per_run(text: str, value: int) -> str:
+    """Change the one number, leave the file alone otherwise."""
+    out = []
+    for line in text.splitlines():
+        if line.strip().startswith("posts_per_run"):
+            out.append(f"posts_per_run = {value}       # per run")
+        else:
+            out.append(line)
+    return "\n".join(out) + "\n"
+
+
 def write_api_choice(config_file: Path, provider: str, model: str,
                      base_url: str | None) -> None:
     """Record the choice without disturbing anything else in the file."""
@@ -807,14 +902,9 @@ def set_posts_per_run(config_file: Path) -> None:
         print("  needs a number above zero. Leaving it as it was.")
         return
 
-    text = config_file.read_text(encoding="utf-8")
-    out = []
-    for line in text.splitlines():
-        if line.strip().startswith("posts_per_run"):
-            out.append(f"posts_per_run = {value}       # per run")
-        else:
-            out.append(line)
-    config_file.write_text("\n".join(out) + "\n", encoding="utf-8")
+    config_file.write_text(
+        render_posts_per_run(config_file.read_text(encoding="utf-8"), value),
+        encoding="utf-8")
     print(f"  ✅ {value} posts per run")
 
 

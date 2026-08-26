@@ -209,10 +209,34 @@ h1{font-family:var(--display); font-weight:700;
 .row .k{font-family:var(--mono); font-size:.7rem; letter-spacing:.1em;
   text-transform:uppercase; color:var(--faint); width:9rem; flex:none;}
 .row .v{font-family:var(--mono); font-size:.82rem; word-break:break-word;}
-.pill{display:inline-block; font-family:var(--mono); font-size:.66rem;
-  padding:.2rem .5rem; border-radius:2px; margin-right:.35rem;
-  border:1px solid var(--rule); color:var(--soft);}
-.pill.on{border-color:var(--good); color:var(--good);}
+/* A folder is a switch, so it looks like one you can press: the read-only
+   version of this screen showed the same chips and a reader asked, fairly,
+   whether anything here could be changed at all. */
+.pill{display:inline-block; font-family:var(--mono); font-size:.7rem;
+  padding:.34rem .6rem; border-radius:999px; margin:0 .35rem .35rem 0;
+  border:1px solid var(--rule); color:var(--faint); background:var(--lit);
+  transition:border-color .15s, color .15s, background .15s;}
+.pill:hover{border-color:var(--soft); color:var(--soft);}
+.pill.on{border-color:var(--good); color:var(--good); background:#fff;}
+.pill.on::before{content:"✓ "; }
+
+.row .v select,.row .v input{
+  font-family:var(--mono); font-size:.82rem; color:var(--ink);
+  background:var(--lit); border:1px solid var(--rule); border-radius:3px;
+  padding:.42rem .6rem; min-width:14rem; transition:border-color .15s;}
+.row .v select:focus,.row .v input:focus{outline:none;
+  border-color:var(--grease);}
+.row .v input[type=number]{min-width:6rem;}
+.hint{display:block; margin-top:.35rem; font-size:.76rem; color:var(--faint);
+  font-family:var(--body); max-width:38ch; line-height:1.35;}
+
+/* One line under the whole screen, never a toast: a message that disappears
+   by itself is a message a reader can miss, and the thing it reports is
+   whether their change was actually taken. */
+.saved{margin-top:1.4rem; font-size:.84rem; min-height:1.3em;
+  font-family:var(--body);}
+.saved.ok{color:var(--good);}
+.saved.bad{color:var(--grease);}
 
 @media (prefers-reduced-motion:reduce){*{animation:none !important; transition:none !important;}}
 </style>
@@ -270,7 +294,7 @@ h1{font-family:var(--display); font-weight:700;
   </section>
 
   <section class="screen" id="settings" hidden>
-    <p class="eyebrow">Com'è configurato</p>
+    <p class="eyebrow">Cambia come lavora</p>
     <div id="settings-body"></div>
   </section>
 
@@ -404,21 +428,105 @@ async function loadArchive() {
 }
 
 // --- settings --------------------------------------------------------------
-async function loadSettings() {
+let models = null;
+
+// Sent one at a time, as each control is left. A "Salva" button would make
+// the screen a form with a state to lose: the value on disk and the value
+// under the cursor could disagree, and nobody would know which one runs
+// tomorrow morning.
+async function save(patch) {
+  const r = await fetch("/api/config", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  const body = await r.json().catch(() => ({}));
+  if (r.status === 200) {
+    const note = $("saved");
+    note.className = "saved ok";
+    note.textContent = "Salvato.";
+    return body;
+  }
+  // Redrawn from disk, so the screen can never keep showing a value the file
+  // refused — which is the one way a settings page lies. The reason is passed
+  // *through* the redraw rather than written before it: the redraw replaces
+  // this very line, so setting the text first threw the refusal away, and it
+  // did so precisely when a reader most needed to see it.
+  loadSettings(body.error || "non salvato");
+  return null;
+}
+
+async function loadSettings(refusal) {
+  if (!models) models = (await api("/api/models")).body.models || [];
   const { code, body } = await api("/api/config");
   if (code !== 200) {
     $("settings-body").innerHTML =
-      '<p class="empty">Nessuna configurazione ancora.</p>';
+      '<p class="empty">Nessuna configurazione ancora. Apri un terminale e ' +
+      'lancia <code>winnow init</code>: va fatto una volta sola.</p>';
     return;
   }
+
+  // The current pair may not be in the menu — somebody's own local model, or
+  // a name typed into config.toml by hand. It is added rather than silently
+  // replaced by the first entry, which would change the setting by opening
+  // the page.
+  const known = models.some((m) => m.model === body.model);
+  const options = models.filter((m) => m.model).map((m) =>
+    `<option value="${m.provider}|${m.model}"${
+      m.model === body.model ? " selected" : ""}>${m.label} — ${m.hint}</option>`);
+  if (!known) {
+    options.unshift(`<option value="${body.provider}|${body.model}" selected>` +
+      `${body.model} (${body.provider})</option>`);
+  }
+
   const folders = (body.folders || []).map((f) =>
-    `<span class="pill${f.active ? " on" : ""}">${f.name}</span>`).join("") ||
-    "<span class='pill'>nessuna</span>";
+    `<button class="pill${f.active ? " on" : ""}" data-folder="${f.name}" ` +
+    `data-active="${f.active}">${f.name}</button>`).join("") ||
+    "<span class='hint'>nessuna cartella: aggiungile con <code>winnow init</code></span>";
+
   $("settings-body").innerHTML = '<div class="rows">' +
-    `<div class="row"><span class="k">Modello</span><span class="v">${body.model}</span></div>` +
-    `<div class="row"><span class="k">Fornitore</span><span class="v">${body.provider}</span></div>` +
-    `<div class="row"><span class="k">Cartelle</span><span class="v">${folders}</span></div>` +
-    "</div>";
+    `<div class="row"><span class="k">Modello</span><span class="v">` +
+      `<select id="model">${options.join("")}</select>` +
+      `<span class="hint">Chi legge le slide. Haiku costa circa mezzo ` +
+      `centesimo a post; Sonnet legge meglio le slide fitte e costa quattro ` +
+      `volte tanto.</span></span></div>` +
+    `<div class="row"><span class="k">Post per giro</span><span class="v">` +
+      `<input type="number" id="ppr" min="1" max="200" value="${body.posts_per_run}">` +
+      `<span class="hint">Quanti ne apre a ogni raccolta. Più alto smaltisce ` +
+      `l'arretrato prima, ma ogni giro dura di più e costa di più.</span>` +
+      `</span></div>` +
+    `<div class="row"><span class="k">Cartelle</span><span class="v">${folders}` +
+      `<span class="hint">Quali cartelle dei salvati guardare. Per aggiungerne ` +
+      `una serve il suo indirizzo, che winnow va a cercare da solo: ` +
+      `<code>winnow init</code>.</span></span></div>` +
+    "</div>" +
+    `<p class="saved${refusal ? " bad" : ""}" id="saved">${refusal || ""}</p>`;
+
+  $("model").addEventListener("change", (e) => {
+    const [provider, model] = e.target.value.split("|");
+    // A local model needs an address, and this menu has no field for one —
+    // so it never offers the local entry, and the value already on disk is
+    // carried back unchanged.
+    save({ provider, model, base_url: body.base_url });
+  });
+
+  // On `change`, not on every keystroke: typing "30" over "8" passes through
+  // "3", and a screen that saves that has changed the setting to something
+  // nobody asked for.
+  $("ppr").addEventListener("change", (e) => {
+    save({ posts_per_run: Number(e.target.value) });
+  });
+
+  $("settings-body").querySelectorAll("[data-folder]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      const active = b.dataset.active !== "true";
+      const done = await save({
+        folders: [{ name: b.dataset.folder, active }] });
+      if (done) {
+        b.dataset.active = active;
+        b.classList.toggle("on", active);
+      }
+    }));
 }
 
 // --- tabs ------------------------------------------------------------------

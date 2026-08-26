@@ -231,3 +231,134 @@ def test_a_large_file_to_link_is_flagged_at_the_moment_of_choosing(
     monkeypatch.setattr(setup, "ask", lambda *_a, **_k: "1")
     setup.ask_profile(tmp_path / "profile.md")
     assert "large" in capsys.readouterr().out
+
+
+# --- editing the config from somewhere that is not a terminal ---------------
+#
+# `winnow config` asks questions at a prompt. The window cannot ask questions:
+# it sends the whole change at once and needs to be told, in one answer,
+# whether it was accepted. So the edit is a pure text transform with its own
+# validation, and every refusal carries a sentence a person can read.
+
+CONFIG_SAMPLE = '''[instagram]
+username = "someone"
+
+[api]
+provider = "anthropic"
+model = "claude-haiku-4-5"
+
+[limits]
+warn_eur_week = 5.0
+halt_eur_week = 10.0
+posts_per_run = 8       # per run
+max_slides = 12
+eur_per_usd = 0.92
+
+[[folders]]
+name = "github"
+url = "https://instagram.com/x/saved/github/1/"
+active = true
+kind = "repo"
+
+[[folders]]
+name = "ai"
+url = "https://instagram.com/x/saved/ai/2/"
+active = false
+kind = "news"
+'''
+
+
+def _reread(text):
+    import tomllib
+    return tomllib.loads(text)
+
+
+def test_the_model_can_be_changed_without_touching_anything_else():
+    from winnow.setup import apply_config_patch
+    out = apply_config_patch(CONFIG_SAMPLE, {"model": "claude-sonnet-5"})
+    raw = _reread(out)
+    assert raw["api"]["model"] == "claude-sonnet-5"
+    # The whole reason this is a patch and not a rewrite: a config editor that
+    # resets the limits somebody tuned is worse than no editor.
+    assert raw["limits"]["posts_per_run"] == 8
+    assert raw["limits"]["halt_eur_week"] == 10.0
+    assert len(raw["folders"]) == 2
+
+
+def test_a_folder_is_switched_on_by_name_and_keeps_its_url():
+    """The window can toggle a folder. It cannot invent one: finding the URL
+    means scraping Instagram, which is what `winnow init` is for."""
+    from winnow.setup import apply_config_patch
+    out = apply_config_patch(CONFIG_SAMPLE, {"folders": [{"name": "ai", "active": True}]})
+    by_name = {f["name"]: f for f in _reread(out)["folders"]}
+    assert by_name["ai"]["active"] is True
+    assert by_name["ai"]["url"].endswith("/ai/2/")
+    assert by_name["ai"]["kind"] == "news"
+    assert by_name["github"]["active"] is True      # untouched
+
+
+def test_a_folder_that_does_not_exist_is_refused_and_named():
+    from winnow.setup import apply_config_patch
+    with pytest.raises(ValueError, match="nonesuch"):
+        apply_config_patch(CONFIG_SAMPLE, {"folders": [{"name": "nonesuch", "active": True}]})
+
+
+def test_posts_per_run_is_changed_and_must_be_above_zero():
+    from winnow.setup import apply_config_patch
+    assert _reread(apply_config_patch(
+        CONFIG_SAMPLE, {"posts_per_run": 30}))["limits"]["posts_per_run"] == 30
+    for bad in (0, -1, "eight", 1.5):
+        with pytest.raises(ValueError):
+            apply_config_patch(CONFIG_SAMPLE, {"posts_per_run": bad})
+
+
+def test_an_unknown_provider_is_refused():
+    """Written through, it would be found only at the next run — by then the
+    screen has said "saved" and the failure looks like a different bug."""
+    from winnow.setup import apply_config_patch
+    with pytest.raises(ValueError, match="provider"):
+        apply_config_patch(CONFIG_SAMPLE, {"provider": "wishful", "model": "x"})
+
+
+def test_a_local_model_without_an_address_is_refused():
+    from winnow.setup import apply_config_patch
+    with pytest.raises(ValueError, match="indirizzo"):
+        apply_config_patch(CONFIG_SAMPLE, {"provider": "local", "model": "qwen2.5vl"})
+    out = apply_config_patch(CONFIG_SAMPLE, {
+        "provider": "local", "model": "qwen2.5vl",
+        "base_url": "http://localhost:11434/v1"})
+    assert _reread(out)["api"]["base_url"] == "http://localhost:11434/v1"
+
+
+def test_leaving_a_local_model_drops_the_address_it_needed():
+    """Kept, it would sit in the file pointing at a machine nobody asks any
+    more — and reappear the day somebody switches back to local, stale."""
+    from winnow.setup import apply_config_patch
+    local = apply_config_patch(CONFIG_SAMPLE, {
+        "provider": "local", "model": "qwen2.5vl",
+        "base_url": "http://localhost:11434/v1"})
+    back = apply_config_patch(local, {"provider": "anthropic",
+                                      "model": "claude-haiku-4-5"})
+    assert "base_url" not in _reread(back)["api"]
+
+
+def test_an_empty_model_name_is_refused():
+    from winnow.setup import apply_config_patch
+    with pytest.raises(ValueError, match="modello"):
+        apply_config_patch(CONFIG_SAMPLE, {"model": "  "})
+
+
+def test_a_key_nobody_offered_is_refused_rather_than_ignored():
+    """Silently dropped, the screen says "saved" for a change that never
+    happened. The api key is the one that matters: it lives in a 600 file,
+    never in config.toml, and must not be settable from a window."""
+    from winnow.setup import apply_config_patch
+    with pytest.raises(ValueError, match="api_key"):
+        apply_config_patch(CONFIG_SAMPLE, {"api_key": "sk-ant-nope"})
+    with pytest.raises(ValueError, match="username"):
+        apply_config_patch(CONFIG_SAMPLE, {"username": "someone-else"})
+
+
+def test_an_empty_patch_changes_nothing_and_is_not_an_error():
+    from winnow.setup import apply_config_patch
+    assert apply_config_patch(CONFIG_SAMPLE, {}) == CONFIG_SAMPLE
