@@ -190,7 +190,9 @@ h1{font-family:var(--display); font-weight:700;
 /* --- archive ----------------------------------------------------------- */
 .eyebrow{font-family:var(--mono); font-size:.66rem; letter-spacing:.2em;
   text-transform:uppercase; color:var(--faint); margin:1.5rem 0 1rem;}
-.lead-in{margin:-.4rem 0 1.6rem; max-width:52ch; color:var(--soft);
+.title{font-family:var(--display); font-weight:700; letter-spacing:-.03em;
+  font-size:clamp(1.7rem,3.4vw,2.2rem); margin:1.4rem 0 .4rem; line-height:1.1;}
+.lead-in{margin:0 0 1.8rem; max-width:56ch; color:var(--soft);
   font-size:.9rem; line-height:1.5;}
 .cards{display:grid; gap:1px; background:var(--rule);
   border:1px solid var(--rule); border-radius:4px; overflow:hidden;
@@ -216,17 +218,27 @@ h1{font-family:var(--display); font-weight:700;
 .card{display:flex; gap:1rem; cursor:pointer;}
 .card .body{flex:1; min-width:0;}
 .card.picked{background:#fff; box-shadow:inset 3px 0 0 var(--grease);}
-.box{width:17px; height:17px; flex:none; margin-top:.35rem; border-radius:4px;
+/* At rest the row is the card that was there before the controls arrived:
+   a date, a ratio, a sentence. The tick and the bin appear when the pointer
+   does — and the tick stays out for good once anything is chosen, or the
+   selection would be invisible the moment the pointer leaves.
+
+   They keep their space at all times: appearing controls that also *move*
+   the text are two things happening at once, and the second one is a flinch. */
+.box{width:17px; height:17px; flex:none; align-self:center; border-radius:4px;
   border:1px solid var(--rule); background:#fff; position:relative;
-  transition:border-color .15s, background .15s;}
+  opacity:0; transition:opacity .18s, border-color .15s, background .15s;}
+.card:hover .box,.cards.choosing .box,.card.picked .box{opacity:1;}
 .card:hover .box{border-color:var(--soft);}
 .card.picked .box{background:var(--grease); border-color:var(--grease);}
 .card.picked .box::after{content:""; position:absolute; left:5px; top:2px;
   width:4px; height:9px; border:solid #fff; border-width:0 1.8px 1.8px 0;
   transform:rotate(42deg);}
-.bin{flex:none; align-self:flex-start; width:30px; height:30px;
+.bin{flex:none; align-self:center; width:30px; height:30px;
   border-radius:50%; color:var(--faint); display:inline-flex;
-  align-items:center; justify-content:center; transition:.15s;}
+  align-items:center; justify-content:center; opacity:0;
+  transition:opacity .18s, background .15s, color .15s;}
+.card:hover .bin{opacity:1;}
 .bin:hover{background:rgba(206,58,36,.1); color:var(--grease);}
 .bin svg{width:14px; height:14px;}
 
@@ -295,6 +307,63 @@ h1{font-family:var(--display); font-weight:700;
 .edit:hover{border-color:var(--grease); color:var(--grease);
   transform:rotate(-8deg);}
 .edit svg{width:14px; height:14px;}
+
+/* --- the fusing ---------------------------------------------------------
+   The merge takes a moment and produces a page. Without something in
+   between, the window simply swaps screens and the reader has to work out
+   what happened; a drawing of the thing that just happened does that for
+   them, and costs a second. */
+.fuse{position:fixed; inset:0; z-index:30; display:flex; align-items:center;
+  justify-content:center; background:rgba(233,236,237,.94);
+  backdrop-filter:blur(6px); animation:fade .2s ease both;}
+.fuse[hidden]{display:none;}
+.fuse-in{text-align:center; color:var(--ink);}
+.chips{display:flex; align-items:center; justify-content:center; gap:1.4rem;
+  margin-bottom:2rem; font-family:var(--mono); font-size:.78rem;
+  color:var(--soft);}
+.chips span{border:1px solid var(--rule); border-radius:999px;
+  padding:.4rem .9rem; background:var(--lit);
+  animation:close .9s cubic-bezier(.5,0,.2,1) both;}
+.chips span:first-child{--from:-2.2rem;}
+.chips span:last-child{--from:2.2rem;}
+@keyframes close{
+  from{transform:translateX(var(--from,0)); opacity:0;}
+  60%{opacity:1;}
+  to{transform:none; opacity:1;}
+}
+.glyph{width:min(22rem,70vw); height:auto; color:var(--ink);}
+.glyph .ear{animation:lean 1.1s cubic-bezier(.4,0,.3,1) both;}
+@keyframes lean{
+  from{opacity:0;}
+  to{opacity:1;}
+}
+/* Thrown, then landing on the arrowhead: same three grains as the wordmark,
+   travelling the distance the two weeks have just travelled. */
+/* `transform-box:fill-box` is not decoration here. Left at the default,
+   an SVG element's CSS transform-origin is the viewBox's `0 0`, so the
+   `rotate` in the throw swung each grain through an arc around the corner of
+   the drawing and carried it *left*, past the ear — measured, not guessed.
+   Anchored to its own box, the rotation spins in place and the translate is
+   the only thing that moves it. */
+.glyph .g{transform-box:fill-box; transform-origin:center;
+  animation:throw 1.5s cubic-bezier(.3,0,.15,1) both;
+  animation-delay:calc(.35s + var(--i) * .13s);}
+/* Each grain leaves at its own height and lands on the arrowhead's point:
+   the three paths converge, which is the whole picture — several weeks
+   arriving at one page. */
+@keyframes throw{
+  0%{transform:translate(0,0) rotate(0deg); opacity:0;}
+  18%{opacity:1;}
+  72%{opacity:1;}
+  100%{transform:translate(98px, calc((1 - var(--i)) * 6px)) rotate(160deg);
+       opacity:0;}
+}
+.glyph .head{stroke-dasharray:52; stroke-dashoffset:52;
+  animation:draw .5s cubic-bezier(.4,0,.2,1) both; animation-delay:1.15s;}
+@keyframes draw{to{stroke-dashoffset:0;}}
+.fuse-say{margin:1.6rem 0 0; font-family:var(--mono); font-size:.7rem;
+  letter-spacing:.16em; text-transform:uppercase; color:var(--faint);
+  animation:fade .4s ease both; animation-delay:.3s;}
 
 /* --- the sheet ----------------------------------------------------------
    One setting at a time, on a surface of its own. Editing in place would
@@ -434,9 +503,9 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
   </section>
 
   <section class="screen" id="archive" hidden>
-    <p class="eyebrow">Le settimane già giudicate</p>
-    <p class="lead-in">Clicca una settimana per riaprire il suo recap.
-      Spuntane due o più per metterle insieme.</p>
+    <h1 class="title">Il raccolto</h1>
+    <p class="lead-in">Storico di tutti i recap fatti. Clicca una settimana
+      per riaprirla, spuntane due o più per metterle insieme.</p>
     <div id="archive-body"></div>
     <div class="tray" id="tray" hidden>
       <span class="n" id="tray-n"></span>
@@ -460,6 +529,45 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
     <div id="settings-body"></div>
   </section>
 
+</div>
+
+<div class="fuse" id="fuse" hidden>
+  <div class="fuse-in">
+    <div class="chips" id="fuse-chips"></div>
+    <!-- The mark is the tool's own: an ear of wheat, and the three grains
+         leaving it. Here they do not drift — they are thrown, and where they
+         land they close into an arrowhead. Winnowing and joining in one
+         drawing, which is what the button does. -->
+    <svg class="glyph" viewBox="0 0 200 60" aria-hidden="true">
+      <!-- The ear is the wordmark's own geometry, moved and scaled — not
+           redrawn. Rewritten by hand once, the grains crowded the stem and
+           it read as a bud. A mark that already works is copied, never
+           re-derived. -->
+      <g class="ear" fill="currentColor" transform="translate(-6 2) scale(1.12)">
+        <ellipse cx="22" cy="5.5" rx="3" ry="5.7"/>
+        <ellipse cx="17.9" cy="13" rx="3" ry="5.7" transform="rotate(-28 17.9 13)"/>
+        <ellipse cx="26.1" cy="13" rx="3" ry="5.7" transform="rotate(28 26.1 13)"/>
+        <ellipse cx="17.2" cy="21" rx="3" ry="5.7" transform="rotate(-30 17.2 21)"/>
+        <ellipse cx="26.8" cy="21" rx="3" ry="5.7" transform="rotate(30 26.8 21)"/>
+        <ellipse cx="16.6" cy="29" rx="3" ry="5.7" transform="rotate(-32 16.6 29)"/>
+        <ellipse cx="27.4" cy="29" rx="3" ry="5.7" transform="rotate(32 27.4 29)"/>
+        <path d="M22 34 V47" stroke="currentColor" stroke-width="2.6"
+              stroke-linecap="round" fill="none"/>
+      </g>
+      <g class="grains" fill="var(--grease)">
+        <ellipse class="g" style="--i:0" cx="62" cy="22" rx="2.9" ry="4.5"
+                 transform="rotate(-40 62 22)"/>
+        <ellipse class="g" style="--i:1" cx="62" cy="28" rx="2.9" ry="4.5"
+                 transform="rotate(-30 62 28)"/>
+        <ellipse class="g" style="--i:2" cx="62" cy="34" rx="2.9" ry="4.5"
+                 transform="rotate(-20 62 34)"/>
+      </g>
+      <path class="head" d="M152 18 L167 28.5 L152 39" fill="none"
+            stroke="var(--grease)" stroke-width="3.4" stroke-linecap="round"
+            stroke-linejoin="round"/>
+    </svg>
+    <p class="fuse-say" id="fuse-say">Le metto insieme</p>
+  </div>
 </div>
 
 <div class="sheet" id="sheet" hidden>
@@ -689,6 +797,8 @@ function toggle(card) {
 }
 
 function paintTray() {
+  const cards = document.querySelector(".cards");
+  if (cards) cards.classList.toggle("choosing", picked.size > 0);
   $("tray").hidden = picked.size === 0;
   $("tray-n").textContent = picked.size === 1
     ? "1 scelta — servono almeno due"
@@ -703,9 +813,27 @@ $("tray-clear").addEventListener("click", () => {
   paintTray();
 });
 
+// How long the drawing takes to finish. The request usually beats it, so the
+// two are raced: the animation is never cut off half way, and never held on
+// after it has finished playing.
+const FUSE_MS = 1750;
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
 $("tray-go").addEventListener("click", async () => {
   $("tray-go").disabled = true;
-  const { code, body } = await post("/api/merge", { weeks: [...picked] });
+  const weeks = [...picked].sort();
+  $("fuse-chips").innerHTML = weeks
+    .map((w) => `<span>${sayDay(w)}</span>`).join("");
+  $("fuse-say").textContent = `${weeks.length} settimane in una pagina`;
+  $("fuse").hidden = false;
+
+  const [{ code, body }] = await Promise.all([
+    post("/api/merge", { weeks }),
+    wait(FUSE_MS),
+  ]);
+
+  $("fuse").hidden = true;
   $("tray-go").disabled = false;
   if (code !== 200) {
     $("tray-n").textContent = body.error || "non riuscito";
