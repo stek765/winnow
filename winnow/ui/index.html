@@ -570,7 +570,7 @@ async function loadSettings() {
     row("Modello", esc(known ? known.label : body.model), "model") +
     row("Fornitore", esc(body.provider), null) +
     row("Raccolta", esc(when), "hour") +
-    row("Post per giro", body.posts_per_run, "posts") +
+    row("Quanti post", `${body.posts_per_run} a ogni raccolta`, "posts") +
     row("Cartelle", folders + (on ? "" :
         ' <span class="pill">nessuna attiva</span>'), "folders") +
     row("Tetto di spesa", `${eur(body.halt_eur_week)} a settimana`, "spend") +
@@ -606,9 +606,9 @@ const SHEETS = {
                     base_url: draft.base_url || null }),
   },
   posts: {
-    title: "Quanti post per giro",
-    lead: "Quanti ne apre a ogni raccolta. Più alto smaltisce l'arretrato " +
-      "prima, ma ogni giro dura di più e costa di più.",
+    title: "Quanti post a raccolta",
+    lead: "Quanti post apre ogni volta che raccoglie. Più alto smaltisce " +
+      "l'arretrato prima, ma la raccolta dura di più e costa di più.",
     draw: drawPosts,
     patch: () => ({ posts_per_run: Number(draft.posts_per_run) }),
   },
@@ -718,14 +718,24 @@ function drawModel() {
 
 function drawPosts() {
   $("sheet-body").innerHTML =
-    '<label class="field"><span>Post per giro</span>' +
+    '<label class="field"><span>Post a ogni raccolta</span>' +
     `<input type="number" id="ppr" min="1" max="200" value="${draft.posts_per_run}">` +
-    '</label><span class="hint">Otto al giorno è il ritmo per cui è tarato. ' +
-    "Chi installa winnow dopo anni di salvataggi ne ha centinaia in coda: " +
-    "alzarlo per qualche giorno smaltisce l'arretrato, poi si rimette giù." +
-    "</span>";
-  $("ppr").addEventListener("input",
-    (e) => { draft.posts_per_run = e.target.value; });
+    '</label><span class="hint" id="ppr-note"></span>';
+  const note = () => {
+    const n = Math.max(1, Number(draft.posts_per_run) || 0);
+    // Said in money and in days, because that is what the number decides.
+    // ~$0.005 a post is what a year of runs has actually cost.
+    $("ppr-note").textContent =
+      `${n} post al giorno sono circa ${eur(n * 0.005 * 7 * 0.92)} a ` +
+      `settimana. Otto è il ritmo per cui winnow è tarato; chi lo installa ` +
+      `dopo anni di salvataggi ne ha centinaia in coda, e alzarlo per qualche ` +
+      `giorno smaltisce l'arretrato.`;
+  };
+  note();
+  $("ppr").addEventListener("input", (e) => {
+    draft.posts_per_run = e.target.value;
+    note();
+  });
 }
 
 const HOURS = ["07:00", "09:00", "13:00", "19:00", "22:00"];
