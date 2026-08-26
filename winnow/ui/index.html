@@ -156,8 +156,12 @@ a{color:inherit;}
 .screen[hidden]{display:none;}
 
 /* --- home -------------------------------------------------------------- */
-.home{display:flex; flex-direction:column; justify-content:center;
-  min-height:100%; max-width:var(--column);}
+/* Anchored at both ends instead of floating in the middle. Centred, the
+   whole screen sat in the upper third and everything below it was leftover;
+   with the statement at the top and the facts at the foot, the air between
+   them is composition rather than the space nobody filled. */
+.home{display:flex; flex-direction:column; min-height:100%;
+  max-width:var(--column); padding:clamp(1rem,7vh,5.5rem) 0 clamp(1rem,5vh,3rem);}
 .dot{display:inline-flex; align-items:center; gap:.5rem;
   font-family:var(--mono); font-size:.66rem; letter-spacing:.14em;
   text-transform:uppercase; color:var(--faint); margin-bottom:1.1rem;}
@@ -168,10 +172,13 @@ a{color:inherit;}
 .s-brake .dot::before,.s-logged_out .dot::before{background:var(--grease);}
 @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.25;}}
 
+/* It is the one sentence the screen exists to say, so on a big window it
+     is allowed to be big. Its measure still holds it to 18 characters. */
 h1{font-family:var(--display); font-weight:700;
-  font-size:clamp(1.8rem,4.4vw,2.9rem); line-height:1.06;
-  letter-spacing:-.03em; margin:0 0 .6rem; max-width:18ch;}
-.detail{color:var(--soft); margin:0 0 clamp(1.6rem,4vw,2.3rem); max-width:46ch;}
+  font-size:clamp(1.9rem,5.2vw,4.4rem); line-height:1.02;
+  letter-spacing:-.035em; margin:0 0 .7rem; max-width:18ch;}
+.detail{color:var(--soft); margin:0 0 clamp(1.8rem,4vw,2.6rem);
+  max-width:46ch; font-size:clamp(1rem,1.3vw,1.15rem);}
 .go{
   display:inline-flex; align-items:center; gap:.7rem; align-self:flex-start;
   background:var(--grease); color:#fff; font-family:var(--mono);
@@ -190,8 +197,10 @@ h1{font-family:var(--display); font-weight:700;
 /* No rule over the numbers. It was drawn across the whole column, so on a
    wide window it ran out over the painting and read as a scratch on the
    glass. The space alone separates them. */
+/* `margin-top:auto` is the whole trick: everything above keeps its natural
+   spacing, and the remaining height — however much there is — falls here. */
 .stats{display:flex; flex-wrap:wrap; align-items:baseline; gap:1.6rem;
-  margin-top:clamp(2rem,5vw,3rem);}
+  margin-top:auto; padding-top:clamp(2rem,5vw,3rem);}
 .stat{display:flex; align-items:baseline; gap:.4rem;
   font-family:var(--mono); font-size:.68rem; letter-spacing:.1em;
   text-transform:uppercase; color:var(--faint);}
