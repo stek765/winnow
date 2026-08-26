@@ -87,7 +87,6 @@ def _facts(jobs: Jobs) -> dict:
     return appstate.read_facts(
         state_dir=paths.state_dir(), findings_dir=paths.findings_dir(),
         judged=paths.judged_file(), browser_profile=paths.browser_profile(),
-        recaps=paths.recap_dir(),
         running={"kind": running["kind"],
                  "done": len(running["events"]), "of": 0} if running else None)
 
@@ -239,6 +238,21 @@ def make_handler(jobs: Jobs, ui_dir: Path):
             # The recap pages live in the data directory, not next to the UI:
             # they are the user's, they outlive any installed copy of winnow,
             # and copying them under the app would make two of each.
+            # The painting the tool is named after, from the package. The
+            # recap page embeds it as base64 because it gets mailed and moved;
+            # the window is served over a socket, so a URL is right here — the
+            # home screen polls every four seconds and would otherwise carry
+            # 93 KB of inline picture each time.
+            if self.path == "/winnower.jpg":
+                from winnow.render import PAINTING
+                data = PAINTING.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/jpeg")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "max-age=86400")
+                self.end_headers()
+                self.wfile.write(data)
+                return
             if self.path.startswith("/recap/"):
                 name = Path(self.path[len("/recap/"):]).name
                 page = paths.recap_dir() / name

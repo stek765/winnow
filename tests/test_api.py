@@ -143,3 +143,16 @@ def test_reading_never_starts_anything(path):
     jobs = Jobs()
     route("GET", path, {}, jobs)
     assert jobs.current() is None
+
+
+def test_the_painting_is_served_to_the_window():
+    """The window's background is the Millet the tool is named after — the
+    same picture the recap page opens with, so the app and the page it
+    produces read as one product. It lives in the package, not next to the
+    UI, so there is exactly one copy of it."""
+    from winnow.api import Jobs, make_handler
+    from winnow.render import PAINTING
+    assert PAINTING.is_file()
+    # Served under its own path, so the page can reference it by URL instead
+    # of carrying 93 KB of base64 inline on every poll of the home screen.
+    assert make_handler(Jobs(), PAINTING.parent / "ui")
