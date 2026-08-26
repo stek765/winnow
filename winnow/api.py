@@ -97,11 +97,30 @@ def _facts(jobs: Jobs) -> dict:
                  "done": len(running["events"]), "of": 0} if running else None)
 
 
+def _keys_present() -> dict:
+    """Which providers have a key on disk. Booleans, never values."""
+    from winnow.providers import KEY_ENV
+    from winnow.setup import load_env_file
+
+    try:
+        env = load_env_file(paths.env_file())
+    except OSError:
+        env = {}
+    return {provider: bool((env.get(name) or "").strip())
+            for provider, name in KEY_ENV.items()}
+
+
 def _config_dict() -> dict:
     from winnow.config import load_config
     cfg = load_config(paths.config_file())
+    from winnow.providers import needs_key
+
     return {"model": cfg.model, "provider": cfg.provider,
             "base_url": cfg.base_url,
+            # Said beside the model that needs it, which is the one place a
+            # missing key is actionable rather than a puzzle.
+            "key_ready": (not needs_key(cfg.provider)
+                          or _keys_present().get(cfg.provider, False)),
             "posts_per_run": cfg.limits.posts_per_run,
             "warn_eur_week": cfg.limits.warn_eur_week,
             "halt_eur_week": cfg.limits.halt_eur_week,
@@ -135,7 +154,7 @@ def _write_config(patch: dict) -> dict:
 # Never handed to the window, however the config grows. An allow-list and not
 # a deny-list: a key added later must not leak because nobody updated a filter.
 CONFIG_PUBLIC = ("model", "provider", "base_url", "posts_per_run",
-                 "warn_eur_week", "halt_eur_week", "folders")
+                 "warn_eur_week", "halt_eur_week", "key_ready", "folders")
 
 
 def _archive() -> list[dict]:
@@ -176,6 +195,29 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
                                  "hint_it": c.hint_it}
                                 for c in CHOICES]}
 
+    if path == "/api/keys":
+        # A key is write-only over this API. The window has to know *whether*
+        # one exists — a provider without its key is a run that dies at the
+        # first post — but it has no reason to be able to read it back, and a
+        # value that never travels cannot be caught travelling.
+        from winnow.providers import KEY_ENV
+        from winnow.setup import load_env_file, write_key
+
+        if method == "POST":
+            provider = payload.get("provider")
+            if provider not in KEY_ENV:
+                # A model on your own machine has no account and no bill.
+                return 400, {"error": f"{provider!r} non usa una chiave"}
+            key = (payload.get("key") or "").strip()
+            if not key:
+                # Written through, it looks set and fails at the next run —
+                # which is the exact failure this endpoint exists to stop.
+                return 400, {"error": "la chiave è vuota"}
+            write_key(paths.env_file(), KEY_ENV[provider], key)
+        elif method != "GET":
+            return 405, {"error": "GET or POST"}
+        return 200, {"keys": _keys_present()}
+
     if path == "/api/profile":
         if method != "GET":
             return 405, {"error": "GET only"}
@@ -188,6 +230,19 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
         # touches, and the window has no reason to hold a copy of it.
         return 200, {"exists": prof.is_file(), "chars": chars,
                      "path": str(prof)}
+
+    if path.startswith("/api/console"):
+        # Opening the provider's key page in a real browser. The window cannot
+        # do it itself: a webview navigating away would replace the app.
+        if method != "POST":
+            return 405, {"error": "POST only"}
+        from winnow.providers import CONSOLE
+        from winnow.setup import open_url
+        which = path.partition("?p=")[2]
+        if which not in CONSOLE:
+            return 400, {"error": f"nessuna pagina per {which!r}"}
+        open_url(CONSOLE[which])
+        return 200, {"opened": True}
 
     if path == "/api/profile/open":
         if method != "POST":

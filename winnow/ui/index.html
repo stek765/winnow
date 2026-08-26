@@ -213,6 +213,7 @@ h1{font-family:var(--display); font-weight:700;
   padding:.24rem .55rem; border-radius:999px; margin:0 .3rem .3rem 0;
   border:1px solid var(--rule); color:var(--faint);}
 .pill.on{border-color:var(--good); color:var(--good);}
+.pill.bad{border-color:var(--grease); color:var(--grease);}
 
 /* The controls do not live on this screen: the reading version of it was the
    one people liked, and a page that is half report and half form is neither.
@@ -279,7 +280,7 @@ h1{font-family:var(--display); font-weight:700;
    underneath — which is what showed through the moment the border was made
    transparent, and it is the reason the field looked like a Windows text box
    with a hard ring around it. */
-input[type=text],input[type=number],select{
+input[type=text],input[type=number],input[type=password],select{
   -webkit-appearance:none; appearance:none;
   font-family:var(--mono); font-size:.85rem; color:var(--ink); width:100%;
   background:#fff; border:1px solid var(--rule); border-radius:6px;
@@ -517,7 +518,7 @@ async function loadArchive() {
 
 // --- settings --------------------------------------------------------------
 let models = null, config = null, draft = null;
-let schedule = {}, profile = {};
+let schedule = {}, profile = {}, keys = {};
 
 const PENCIL = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" ' +
   'stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' +
@@ -554,9 +555,9 @@ async function loadSettings() {
              `aria-label="Modifica ${key.toLowerCase()}">${PENCIL}</button>` : "") +
     "</div>";
 
-  const [sched, prof] = await Promise.all([
-    api("/api/schedule"), api("/api/profile")]);
-  schedule = sched.body; profile = prof.body;
+  const [sched, prof, k] = await Promise.all([
+    api("/api/schedule"), api("/api/profile"), api("/api/keys")]);
+  schedule = sched.body; profile = prof.body; keys = k.body.keys || {};
   const when = sched.body.active
     ? `ogni giorno alle ${sched.body.when}` : "spenta";
   // Not `profile`: that name is taken by the module-level copy assigned two
@@ -566,8 +567,13 @@ async function loadSettings() {
     ? `${prof.body.chars.toLocaleString("it")} caratteri`
     : "non ancora scritto";
 
+  // A model whose key is missing is a run that dies at the first post, and
+  // the row that changed it is the only place a reader can act on that.
+  const modelValue = esc(known ? known.label : body.model) +
+    (body.key_ready ? "" : ' <span class="pill bad">manca la chiave</span>');
+
   $("settings-body").innerHTML = '<div class="rows">' +
-    row("Modello", esc(known ? known.label : body.model), "model") +
+    row("Modello", modelValue, "model") +
     row("Fornitore", esc(body.provider), null) +
     row("Raccolta", esc(when), "hour") +
     row("Quanti post", `${body.posts_per_run} a ogni raccolta`, "posts") +
@@ -664,6 +670,55 @@ function openSheet(which) {
   sheet.draw();
 }
 
+// Where a key is made. Named here rather than looked up in the engine
+// because it is a URL a person opens in a browser, not something winnow
+// calls.
+const CONSOLES = {
+  anthropic: "https://console.anthropic.com/settings/keys",
+  openai: "https://platform.openai.com/api-keys",
+};
+
+// A company writes its own name. `provider` is a config value, not a label.
+const BRAND = { anthropic: "Anthropic", openai: "OpenAI" };
+const brand = (p) => BRAND[p] || p;
+
+// The key state is redrawn on its own, so choosing a provider can answer
+// "and does it have a key?" without rebuilding the list under the cursor.
+function drawKey() {
+  const box = $("key");
+  if (!box) return;
+  const provider = draft.provider;
+  if (!CONSOLES[provider]) {          // a local model has no account, no bill
+    box.innerHTML = "";
+    return;
+  }
+  if (keys[provider]) {
+    box.innerHTML = '<span class="hint"><b>La chiave ' + esc(brand(provider)) +
+      " c'è già.</b> Sta in un file che solo tu puoi leggere, e da qui non " +
+      "si rilegge: se ne serve una nuova, incollala qui sotto e sostituisce " +
+      'quella vecchia.</span>' + keyField(provider);
+  } else {
+    box.innerHTML = '<span class="hint"><b>Serve una chiave ' + esc(brand(provider)) +
+      ".</b> Senza, la prossima raccolta si ferma al primo post.</span>" +
+      keyField(provider);
+  }
+  const field = $("key-input");
+  field.addEventListener("input", () => { draft.key = field.value.trim(); });
+  $("key-open").addEventListener("click",
+    () => api("/api/console?p=" + encodeURIComponent(provider), "POST"));
+}
+
+function keyField(provider) {
+  return '<label class="field"><span>Chiave ' + esc(brand(provider)) + "</span>" +
+    '<input type="password" id="key-input" autocomplete="off" ' +
+    'placeholder="incollala qui"></label>' +
+    '<div class="acts" style="border:0;padding:0;margin-top:.9rem">' +
+      '<button class="ghost edged" id="key-open">Apri la pagina delle chiavi' +
+      "</button><span class=\"hint\" style=\"margin:0\">Creane una, mettile " +
+      "un limite di spesa, e ricorda che una chiave senza credito caricato " +
+      "non funziona.</span></div>";
+}
+
 function drawModel() {
   const known = models.some((m) => m.model === draft.model && m.model);
   const rows = models.filter((m) => m.model).map((m) =>
@@ -688,8 +743,10 @@ function drawModel() {
       '<span class="hint">Deve saper leggere immagini e parlare l\'API di ' +
       'OpenAI — Ollama, LM Studio. Gira sulla tua macchina, quindi non costa ' +
       'niente e non manda le slide fuori di casa.</span>' +
-    "</div>";
+    "</div>" +
+    '<div id="key"></div>';
 
+  drawKey();
   $("sheet-body").querySelectorAll(".opt").forEach((b) =>
     b.addEventListener("click", () => {
       $("sheet-body").querySelectorAll(".opt").forEach(
@@ -706,6 +763,8 @@ function drawModel() {
         draft.model = b.dataset.model;
         draft.base_url = null;
       }
+      draft.key = "";
+      drawKey();
     }));
   const sync = () => {
     draft.provider = "local";
@@ -900,6 +959,24 @@ $("sheet-save").addEventListener("click", async (e) => {
   // a system job; the profile is a file somebody edits themselves. Sending
   // those to /api/config would be a 400 about a key that does not exist.
   if (which === "profile") { closeSheet(); return; }
+  // The key goes first and on its own route: a provider written without one
+  // is a configuration that looks saved and dies at the next run — which is
+  // the whole reason this exists. If it fails, nothing else is written.
+  if (which === "model" && draft.key) {
+    const r = await fetch("/api/keys", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: draft.provider, key: draft.key }),
+    });
+    const kb = await r.json().catch(() => ({}));
+    if (r.status !== 200) {
+      button.disabled = false;
+      say(kb.error || "chiave non salvata", true);
+      return;
+    }
+    keys = kb.keys || keys;
+    draft.key = "";
+  }
+
   const to = which === "hour" ? "/api/schedule" : "/api/config";
   const payload = which === "hour"
     ? (draft.at === "off" ? { off: true } : { at: draft.at || "" })

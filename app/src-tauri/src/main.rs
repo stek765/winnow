@@ -74,8 +74,6 @@ fn start_engine() -> Result<(Child, u16), String> {
     let mut reader = BufReader::new(stdout);
     let mut line = String::new();
 
-    // One line, then we stop reading: the engine keeps running and keeps
-    // printing, and a shell that kept the pipe would eventually block it.
     reader
         .read_line(&mut line)
         .map_err(|e| format!("cannot read the engine's port: {e}"))?;
@@ -85,6 +83,23 @@ fn start_engine() -> Result<(Child, u16), String> {
         .strip_prefix("WINNOW_PORT=")
         .and_then(|p| p.parse::<u16>().ok())
         .ok_or_else(|| format!("the engine did not announce a port (said: {line:?})"))?;
+
+    // Everything the engine prints after that line still has to be read.
+    //
+    // The first version of this comment had the reasoning backwards: it said a
+    // shell that kept hold of the pipe would block the engine. The opposite is
+    // true — a pipe nobody drains fills up (64 KB on macOS) and then the
+    // *writer* blocks on its next print, forever. A collection prints a line
+    // per post, so the engine would have frozen mid-run with the window still
+    // showing a spinner, and nothing anywhere saying why.
+    //
+    // Forwarded rather than discarded, so `winnow.app`'s output is still
+    // readable from a terminal when something goes wrong.
+    std::thread::spawn(move || {
+        for line in reader.lines().map_while(Result::ok) {
+            println!("{line}");
+        }
+    });
 
     Ok((child, port))
 }

@@ -334,3 +334,77 @@ def test_the_profile_never_travels_over_the_api(tmp_path, monkeypatch):
     monkeypatch.setattr(A.paths, "profile_file", lambda: prof)
     _, body = route("GET", "/api/profile", {}, Jobs())
     assert "stipendio" not in json.dumps(body)
+
+
+# --- the API keys ----------------------------------------------------------
+#
+# Switching the provider in the window wrote `provider = "openai"` and stopped
+# there: no key existed, nothing asked for one, and the next run died. A
+# setting that can be changed into a broken state without saying so is worse
+# than one that cannot be changed at all.
+
+def test_the_window_is_told_which_keys_exist_and_never_their_value(
+        tmp_path, monkeypatch):
+    import winnow.api as A
+    env = tmp_path / "env"
+    env.write_text("ANTHROPIC_API_KEY=sk-ant-secret\n", encoding="utf-8")
+    monkeypatch.setattr(A.paths, "env_file", lambda: env)
+    code, body = route("GET", "/api/keys", {}, Jobs())
+    assert code == 200
+    assert body["keys"]["anthropic"] is True
+    assert body["keys"]["openai"] is False
+    # Booleans, never values: the answer travels to a page and there is no
+    # reason for the page to be able to read the key back.
+    assert "sk-ant-secret" not in json.dumps(body)
+
+
+def test_a_key_can_be_written_but_not_read_back(tmp_path, monkeypatch):
+    import winnow.api as A
+    env = tmp_path / "env"
+    monkeypatch.setattr(A.paths, "env_file", lambda: env)
+    code, body = route("POST", "/api/keys",
+                       {"provider": "openai", "key": "sk-openai-new"}, Jobs())
+    assert code == 200 and body["keys"]["openai"] is True
+    assert "sk-openai-new" in env.read_text(encoding="utf-8")
+    assert "sk-openai-new" not in json.dumps(body)
+    # The file holds a credential: it must not be readable by anyone else.
+    assert oct(env.stat().st_mode)[-3:] == "600"
+
+
+def test_an_empty_key_is_refused_rather_than_written(tmp_path, monkeypatch):
+    """Written through, it looks set and fails at the next run — which is the
+    exact failure this endpoint exists to stop."""
+    import winnow.api as A
+    env = tmp_path / "env"
+    monkeypatch.setattr(A.paths, "env_file", lambda: env)
+    for bad in ("", "   ", None):
+        code, _ = route("POST", "/api/keys",
+                        {"provider": "openai", "key": bad}, Jobs())
+        assert code == 400
+    assert not env.exists()
+
+
+def test_a_provider_with_no_console_takes_no_key(tmp_path, monkeypatch):
+    """A model on your own machine has no account and no bill."""
+    import winnow.api as A
+    monkeypatch.setattr(A.paths, "env_file", lambda: tmp_path / "env")
+    code, _ = route("POST", "/api/keys",
+                    {"provider": "local", "key": "whatever"}, Jobs())
+    assert code == 400
+
+
+def test_the_config_says_whether_the_chosen_provider_has_its_key(
+        tmp_path, monkeypatch):
+    """The one place it matters is beside the model that needs it."""
+    import winnow.api as A
+    from tests.test_setup import CONFIG_SAMPLE
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(CONFIG_SAMPLE, encoding="utf-8")
+    env = tmp_path / "env"
+    monkeypatch.setattr(A.paths, "config_file", lambda: cfg)
+    monkeypatch.setattr(A.paths, "env_file", lambda: env)
+    _, body = route("GET", "/api/config", {}, Jobs())
+    assert body["provider"] == "anthropic" and body["key_ready"] is False
+    env.write_text("ANTHROPIC_API_KEY=sk-ant-x\n", encoding="utf-8")
+    _, body = route("GET", "/api/config", {}, Jobs())
+    assert body["key_ready"] is True
