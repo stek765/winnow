@@ -405,7 +405,8 @@ def setup_model(config_file: Path, env_file: Path) -> None:
 # `api_key` is deliberately absent and stays absent. It lives in a 600 file,
 # never in config.toml, and a route that could set it would be a route that
 # could be made to leak it back.
-PATCHABLE = ("model", "provider", "base_url", "posts_per_run", "folders")
+PATCHABLE = ("model", "provider", "base_url", "posts_per_run", "folders",
+             "warn_eur_week", "halt_eur_week")
 
 
 def apply_config_patch(text: str, patch: dict) -> str:
@@ -430,6 +431,28 @@ def apply_config_patch(text: str, patch: dict) -> str:
         raise ValueError("non si cambia da qui: " + ", ".join(sorted(unknown)))
 
     current = tomllib.loads(text)
+
+    if {"warn_eur_week", "halt_eur_week"} & set(patch):
+        limits = current.get("limits", {})
+        values = {}
+        for key in ("warn_eur_week", "halt_eur_week"):
+            raw = patch.get(key, limits.get(key))
+            if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+                raise ValueError(f"{key}: serve un numero")
+            if raw <= 0:
+                raise ValueError(f"{key}: serve un numero sopra zero")
+            values[key] = float(raw)
+        # `load_config` refuses this too — but at the next run, long after the
+        # screen said "saved". The rule has to hold at the door as well, and
+        # it is checked against what is on disk when only one of the two moves.
+        if values["halt_eur_week"] <= values["warn_eur_week"]:
+            raise ValueError(
+                "il freno deve stare sopra l'allarme: "
+                f"{values['halt_eur_week']} non è più di "
+                f"{values['warn_eur_week']}")
+        for key, value in values.items():
+            if key in patch:
+                text = render_limit(text, key, value)
 
     if "posts_per_run" in patch:
         value = patch["posts_per_run"]
@@ -511,15 +534,25 @@ def is_saved_folder_url(url: str) -> bool:
     return bool(SAVED_RE.match(url or ""))
 
 
-def render_posts_per_run(text: str, value: int) -> str:
-    """Change the one number, leave the file alone otherwise."""
+def render_limit(text: str, key: str, value) -> str:
+    """Change one number, leave the file alone otherwise.
+
+    The comment on the line is kept: it is the only explanation of what these
+    numbers do for whoever opens config.toml in an editor, and rewriting the
+    line without it deletes that explanation a setting at a time.
+    """
     out = []
     for line in text.splitlines():
-        if line.strip().startswith("posts_per_run"):
-            out.append(f"posts_per_run = {value}       # per run")
+        if line.strip().startswith(f"{key} ") or line.strip().startswith(f"{key}="):
+            note = line.split("#", 1)[1] if "#" in line else ""
+            out.append(f"{key} = {value}" + (f"      #{note}" if note else ""))
         else:
             out.append(line)
     return "\n".join(out) + "\n"
+
+
+def render_posts_per_run(text: str, value: int) -> str:
+    return render_limit(text, "posts_per_run", value)
 
 
 def write_api_choice(config_file: Path, provider: str, model: str,

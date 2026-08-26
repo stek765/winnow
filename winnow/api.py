@@ -103,6 +103,8 @@ def _config_dict() -> dict:
     return {"model": cfg.model, "provider": cfg.provider,
             "base_url": cfg.base_url,
             "posts_per_run": cfg.limits.posts_per_run,
+            "warn_eur_week": cfg.limits.warn_eur_week,
+            "halt_eur_week": cfg.limits.halt_eur_week,
             "folders": [{"name": f.name, "active": f.active}
                         for f in cfg.folders]}
 
@@ -127,14 +129,13 @@ def _write_config(patch: dict) -> dict:
         path.write_text(new, encoding="utf-8")
         path.chmod(0o600)
     raw = _config_dict()
-    out = {k: raw[k] for k in CONFIG_PUBLIC if k in raw}
-    out["posts_per_run"] = raw.get("posts_per_run")
-    return out
+    return {k: raw[k] for k in CONFIG_PUBLIC if k in raw}
 
 
 # Never handed to the window, however the config grows. An allow-list and not
 # a deny-list: a key added later must not leak because nobody updated a filter.
-CONFIG_PUBLIC = ("model", "provider", "base_url", "posts_per_run", "folders")
+CONFIG_PUBLIC = ("model", "provider", "base_url", "posts_per_run",
+                 "warn_eur_week", "halt_eur_week", "folders")
 
 
 def _archive() -> list[dict]:
@@ -174,6 +175,51 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
                                  "model": c.model, "hint": c.hint,
                                  "hint_it": c.hint_it}
                                 for c in CHOICES]}
+
+    if path == "/api/profile":
+        if method != "GET":
+            return 405, {"error": "GET only"}
+        prof = paths.profile_file()
+        try:
+            chars = len(prof.read_text(encoding="utf-8")) if prof.is_file() else 0
+        except OSError:
+            chars = 0
+        # Size and path, never the text. It is the most personal file winnow
+        # touches, and the window has no reason to hold a copy of it.
+        return 200, {"exists": prof.is_file(), "chars": chars,
+                     "path": str(prof)}
+
+    if path == "/api/profile/open":
+        if method != "POST":
+            return 405, {"error": "POST only"}
+        from winnow.setup import open_in_editor
+        open_in_editor(paths.profile_file())
+        return 200, {"opened": True}
+
+    if path == "/api/schedule":
+        from winnow import schedule
+
+        if method == "PATCH":
+            busy = jobs.current()
+            if busy:
+                # Moving the hour reinstalls the job. Doing that under a run
+                # started by the old one is asking for two of them.
+                return 409, {"error": BUSY_MESSAGE, "running": busy["id"],
+                             "kind": busy["kind"]}
+            try:
+                if payload.get("off"):
+                    schedule.remove()
+                else:
+                    hour, minute = schedule.parse_time(payload.get("at") or "")
+                    schedule.install(hour, minute)
+            except ValueError as exc:
+                return 400, {"error": str(exc)}
+        elif method != "GET":
+            return 405, {"error": "GET or PATCH"}
+        # Read back from disk either way: what got installed is the answer,
+        # not what was asked for.
+        now = schedule.current()
+        return 200, {"active": now.active, "when": now.when, "how": now.how}
 
     if path == "/api/config":
         if method == "PATCH":

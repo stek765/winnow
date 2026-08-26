@@ -423,3 +423,36 @@ def test_a_config_written_before_this_still_loads():
     assert by_name["github"].active is True
 
 
+
+
+# --- the spend limits ------------------------------------------------------
+#
+# The brake is the only thing standing between a bug and a bill, so the two
+# numbers that set it belong where somebody will actually look at them.
+
+def test_the_two_spend_limits_can_be_changed():
+    from winnow.setup import apply_config_patch
+    out = apply_config_patch(CONFIG_SAMPLE,
+                             {"warn_eur_week": 2.0, "halt_eur_week": 6.0})
+    limits = _reread(out)["limits"]
+    assert limits["warn_eur_week"] == 2.0 and limits["halt_eur_week"] == 6.0
+    assert limits["posts_per_run"] == 8          # nothing else moved
+
+
+def test_a_halt_below_the_warning_is_refused():
+    """`load_config` already refuses it — but at the next run, which is long
+    after the screen said "saved". The same rule has to hold at the door."""
+    from winnow.setup import apply_config_patch
+    with pytest.raises(ValueError, match="allarme"):
+        apply_config_patch(CONFIG_SAMPLE,
+                           {"warn_eur_week": 8.0, "halt_eur_week": 5.0})
+    # Also when only one of the two moves: the other one is already on disk.
+    with pytest.raises(ValueError, match="allarme"):
+        apply_config_patch(CONFIG_SAMPLE, {"halt_eur_week": 2.0})
+
+
+def test_a_limit_that_is_not_a_number_or_is_negative_is_refused():
+    from winnow.setup import apply_config_patch
+    for bad in ("tanti", -1, None):
+        with pytest.raises(ValueError):
+            apply_config_patch(CONFIG_SAMPLE, {"warn_eur_week": bad})

@@ -262,3 +262,75 @@ def test_a_job_with_no_result_says_none_rather_than_missing_the_key():
     jobs.finish(jid, 0)
     _, body = route("GET", f"/api/jobs/{jid}", {}, jobs)
     assert body["result"] is None
+
+
+# --- the daily run ---------------------------------------------------------
+
+def test_the_window_can_read_what_the_scheduler_holds(monkeypatch):
+    import winnow.api as A
+    from winnow.schedule import Scheduled
+    monkeypatch.setattr("winnow.schedule.current", lambda: Scheduled(True, "13:00", "launchd"))
+    code, body = route("GET", "/api/schedule", {}, Jobs())
+    assert code == 200
+    assert body["active"] is True and body["when"] == "13:00"
+    assert body["how"] == "launchd"
+
+
+def test_setting_an_hour_installs_it(monkeypatch):
+    called = {}
+    monkeypatch.setattr("winnow.schedule.install",
+                        lambda h, m, which=None: called.update(h=h, m=m) or 0)
+    monkeypatch.setattr("winnow.schedule.current",
+                        lambda: __import__("winnow.schedule", fromlist=["x"]).Scheduled(True, "07:30", "launchd"))
+    code, body = route("PATCH", "/api/schedule", {"at": "07:30"}, Jobs())
+    assert code == 200 and called == {"h": 7, "m": 30}
+    assert body["when"] == "07:30"
+
+
+def test_an_hour_that_is_not_an_hour_is_refused(monkeypatch):
+    code, body = route("PATCH", "/api/schedule", {"at": "domani"}, Jobs())
+    assert code == 400 and body["error"]
+
+
+def test_turning_the_daily_run_off_removes_it(monkeypatch):
+    called = {}
+    monkeypatch.setattr("winnow.schedule.remove",
+                        lambda which=None: called.setdefault("off", True) or 0)
+    monkeypatch.setattr("winnow.schedule.current",
+                        lambda: __import__("winnow.schedule", fromlist=["x"]).Scheduled(False))
+    code, body = route("PATCH", "/api/schedule", {"off": True}, Jobs())
+    assert code == 200 and called == {"off": True} and body["active"] is False
+
+
+def test_the_schedule_cannot_be_moved_while_a_run_is_going():
+    jobs = Jobs()
+    jobs.start("collect")
+    code, _ = route("PATCH", "/api/schedule", {"at": "07:30"}, jobs)
+    assert code == 409
+
+
+# --- the profile -----------------------------------------------------------
+
+def test_the_window_can_see_whether_a_profile_exists(tmp_path, monkeypatch):
+    """It is the one file the whole judgement leans on, and the one nobody
+    remembers writing. A window that never mentions it lets that happen."""
+    import winnow.api as A
+    prof = tmp_path / "profile.md"
+    monkeypatch.setattr(A.paths, "profile_file", lambda: prof)
+    code, body = route("GET", "/api/profile", {}, Jobs())
+    assert code == 200 and body["exists"] is False and body["chars"] == 0
+    prof.write_text("chi sono, in breve", encoding="utf-8")
+    _, body = route("GET", "/api/profile", {}, Jobs())
+    assert body["exists"] is True and body["chars"] == 18
+    assert str(prof) in body["path"]
+
+
+def test_the_profile_never_travels_over_the_api(tmp_path, monkeypatch):
+    """Its size and its path, never its text: it is the most personal file
+    winnow touches and the window has no reason to hold a copy."""
+    import winnow.api as A
+    prof = tmp_path / "profile.md"
+    prof.write_text("stipendio, salute, tutto quanto", encoding="utf-8")
+    monkeypatch.setattr(A.paths, "profile_file", lambda: prof)
+    _, body = route("GET", "/api/profile", {}, Jobs())
+    assert "stipendio" not in json.dumps(body)

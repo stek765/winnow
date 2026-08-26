@@ -517,10 +517,13 @@ async function loadArchive() {
 
 // --- settings --------------------------------------------------------------
 let models = null, config = null, draft = null;
+let schedule = {}, profile = {};
 
 const PENCIL = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" ' +
   'stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' +
   '<path d="M11.3 2.2a1.7 1.7 0 0 1 2.5 2.4L5.4 13 2 14l1-3.4z"/></svg>';
+
+const eur = (n) => "€" + Number(n ?? 0).toFixed(2).replace(".", ",");
 
 const esc = (t) => String(t ?? "").replace(/[&<>"]/g,
   (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -551,12 +554,27 @@ async function loadSettings() {
              `aria-label="Modifica ${key.toLowerCase()}">${PENCIL}</button>` : "") +
     "</div>";
 
+  const [sched, prof] = await Promise.all([
+    api("/api/schedule"), api("/api/profile")]);
+  schedule = sched.body; profile = prof.body;
+  const when = sched.body.active
+    ? `ogni giorno alle ${sched.body.when}` : "spenta";
+  // Not `profile`: that name is taken by the module-level copy assigned two
+  // lines up, and a `const` of the same name in this block shadows it — the
+  // assignment then reads a variable declared later and throws.
+  const profileLabel = prof.body.exists
+    ? `${prof.body.chars.toLocaleString("it")} caratteri`
+    : "non ancora scritto";
+
   $("settings-body").innerHTML = '<div class="rows">' +
     row("Modello", esc(known ? known.label : body.model), "model") +
     row("Fornitore", esc(body.provider), null) +
+    row("Raccolta", esc(when), "hour") +
     row("Post per giro", body.posts_per_run, "posts") +
     row("Cartelle", folders + (on ? "" :
         ' <span class="pill">nessuna attiva</span>'), "folders") +
+    row("Tetto di spesa", `${eur(body.halt_eur_week)} a settimana`, "spend") +
+    row("Profilo", esc(profileLabel), "profile") +
     "</div>";
 
   $("settings-body").querySelectorAll("[data-edit]").forEach((b) =>
@@ -594,6 +612,30 @@ const SHEETS = {
     draw: drawPosts,
     patch: () => ({ posts_per_run: Number(draft.posts_per_run) }),
   },
+  hour: {
+    title: "Quando raccogliere",
+    lead: "winnow apre i post salvati una volta al giorno, da solo. " +
+      "Scegli un'ora in cui il computer è di solito acceso: se dorme, la " +
+      "corsa salta e nessuno te lo dice.",
+    draw: drawHour,
+    patch: null,          // it installs a system job, not a line of config
+  },
+  spend: {
+    title: "Quanto può spendere",
+    lead: "Due soglie. La prima avvisa. La seconda ferma winnow per sempre, " +
+      "e non riparte finché non lo dici tu a mano — è quello che sta fra un " +
+      "errore e una bolletta.",
+    draw: drawSpend,
+    patch: () => ({ warn_eur_week: Number(draft.warn_eur_week),
+                    halt_eur_week: Number(draft.halt_eur_week) }),
+  },
+  profile: {
+    title: "Il tuo profilo",
+    lead: "È il file su cui si regge tutto il giudizio: dice chi sei, cosa " +
+      "hai già deciso e cosa stai cercando. Senza, winnow filtra a caso.",
+    draw: drawProfile,
+    patch: null,
+  },
   folders: {
     title: "Quali cartelle guardare",
     lead: "Le cartelle dei tuoi salvati su Instagram. Tocca una riga per " +
@@ -611,7 +653,9 @@ function openSheet(which) {
   draft = JSON.parse(JSON.stringify({
     provider: config.provider, model: config.model,
     base_url: config.base_url, posts_per_run: config.posts_per_run,
+    warn_eur_week: config.warn_eur_week, halt_eur_week: config.halt_eur_week,
     folders: (config.folders || []).map((f) => ({ ...f })),
+    schedule: schedule, profile: profile,
   }));
   $("sheet-title").textContent = sheet.title;
   $("sheet-lead").textContent = sheet.lead;
@@ -682,6 +726,76 @@ function drawPosts() {
     "</span>";
   $("ppr").addEventListener("input",
     (e) => { draft.posts_per_run = e.target.value; });
+}
+
+const HOURS = ["07:00", "09:00", "13:00", "19:00", "22:00"];
+
+function drawHour() {
+  const now = draft.schedule || {};
+  const rows = HOURS.map((h) =>
+    `<button class="opt${now.active && now.when === h ? " on" : ""}" ` +
+    `data-hour="${h}"><span class="tick"></span><span class="txt">` +
+    `<b>${h}</b></span></button>`);
+  const custom = now.active && !HOURS.includes(now.when);
+  rows.push(`<button class="opt${custom ? " on" : ""}" data-hour="">` +
+    '<span class="tick"></span><span class="txt"><b>Un\'altra ora</b>' +
+    "</span></button>");
+  rows.push(`<button class="opt${now.active ? "" : " on"}" data-hour="off">` +
+    '<span class="tick"></span><span class="txt"><b>Mai</b>' +
+    "<span>la raccolta la lanci tu dalla casa</span></span></button>");
+
+  $("sheet-body").innerHTML = `<div class="opts">${rows.join("")}</div>` +
+    `<div id="at"${custom ? "" : " hidden"}><label class="field">` +
+    `<span>Ora</span><input type="text" id="hh" value="${esc(now.when || "")}" ` +
+    'placeholder="13:00"></label></div>' +
+    (now.how ? `<span class="hint">Installata con ${esc(now.how)}.</span>` : "");
+
+  $("sheet-body").querySelectorAll("[data-hour]").forEach((b) =>
+    b.addEventListener("click", () => {
+      $("sheet-body").querySelectorAll(".opt").forEach(
+        (x) => x.classList.remove("on"));
+      b.classList.add("on");
+      const v = b.dataset.hour;
+      $("at").hidden = v !== "";
+      draft.at = v === "" ? $("hh").value : v;
+    }));
+  $("hh").addEventListener("input", (e) => { draft.at = e.target.value; });
+}
+
+function drawSpend() {
+  $("sheet-body").innerHTML =
+    '<label class="field"><span>Avvisa oltre</span>' +
+    `<input type="text" id="warn" value="${draft.warn_eur_week}"></label>` +
+    '<label class="field"><span>Ferma tutto oltre</span>' +
+    `<input type="text" id="halt" value="${draft.halt_eur_week}"></label>` +
+    '<span class="hint">In euro, a settimana. Un post costa circa mezzo ' +
+    "centesimo, quindi il freno non scatta mai per uso normale: scatta " +
+    "quando qualcosa è andato storto, che è esattamente il momento in cui " +
+    "serve.</span>";
+  $("warn").addEventListener("input",
+    (e) => { draft.warn_eur_week = e.target.value.replace(",", "."); });
+  $("halt").addEventListener("input",
+    (e) => { draft.halt_eur_week = e.target.value.replace(",", "."); });
+}
+
+function drawProfile() {
+  const p = draft.profile || {};
+  $("sheet-body").innerHTML =
+    '<div class="rows" style="margin:0">' +
+    `<div class="row"><span class="k">Stato</span><span class="v">${
+      p.exists ? esc(p.chars.toLocaleString("it")) + " caratteri"
+               : "non ancora scritto"}</span></div>` +
+    `<div class="row"><span class="k">File</span><span class="v">${
+      esc(p.path || "")}</span></div></div>` +
+    '<div class="acts" style="border:0;padding:0;margin-top:1.2rem">' +
+      '<button class="ghost edged" id="openprof">Apri nell\'editor</button>' +
+      '<span class="hint" id="prof-note" style="margin:0">Si scrive a mano, ' +
+      "una volta, e si corregge quando un recap sbaglia bersaglio. " +
+      "Non passa mai da questa finestra.</span></div>";
+  $("openprof").addEventListener("click", async () => {
+    await api("/api/profile/open", "POST");
+    $("prof-note").textContent = "Aperto. Salva il file e chiudi qui.";
+  });
 }
 
 function drawFolders() {
@@ -771,10 +885,20 @@ $("sheet-save").addEventListener("click", async (e) => {
   const button = e.currentTarget;
   const which = button.dataset.which;
   button.disabled = true;
-  const r = await fetch("/api/config", {
+
+  // Not everything on this screen is a line of config.toml. The hour installs
+  // a system job; the profile is a file somebody edits themselves. Sending
+  // those to /api/config would be a 400 about a key that does not exist.
+  if (which === "profile") { closeSheet(); return; }
+  const to = which === "hour" ? "/api/schedule" : "/api/config";
+  const payload = which === "hour"
+    ? (draft.at === "off" ? { off: true } : { at: draft.at || "" })
+    : SHEETS[which].patch();
+
+  const r = await fetch(to, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(SHEETS[which].patch()),
+    body: JSON.stringify(payload),
   });
   const body = await r.json().catch(() => ({}));
   button.disabled = false;
@@ -783,6 +907,7 @@ $("sheet-save").addEventListener("click", async (e) => {
     loadSettings();
     return;
   }
+  button.disabled = false;
   // The engine's own sentence, shown where the change was made. The sheet
   // stays open with what was typed still in it: closing it would throw the
   // work away at the exact moment the reader has to correct it.
