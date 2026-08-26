@@ -215,6 +215,18 @@ h1{font-family:var(--display); font-weight:700;
 .pill.on{border-color:var(--good); color:var(--good);}
 .pill.bad{border-color:var(--grease); color:var(--grease);}
 
+/* Something already done, said once and quietly. Not a warning, not a badge:
+   a line that ends the question instead of opening one. */
+#key{margin-top:1.2rem;}
+#key .ghost{margin-left:-1.1rem;}   /* the label lines up with the text above */
+.done{display:flex; align-items:center; gap:.55rem; margin:0 0 .4rem;
+  font-size:.88rem; color:var(--soft);}
+.done .ok{width:16px; height:16px; flex:none; border-radius:50%;
+  background:var(--good); position:relative;}
+.done .ok::after{content:""; position:absolute; left:5px; top:3px;
+  width:4px; height:8px; border:solid #fff; border-width:0 1.6px 1.6px 0;
+  transform:rotate(42deg);}
+
 /* The controls do not live on this screen: the reading version of it was the
    one people liked, and a page that is half report and half form is neither.
    So each row keeps its calm and carries one way in. */
@@ -574,7 +586,9 @@ async function loadSettings() {
 
   $("settings-body").innerHTML = '<div class="rows">' +
     row("Modello", modelValue, "model") +
-    row("Fornitore", esc(body.provider), null) +
+    row("Fornitore", esc(brand(body.provider)) +
+        (body.key_ready && CONSOLES[body.provider]
+          ? ' <span class="pill on">chiave impostata</span>' : ""), null) +
     row("Raccolta", esc(when), "hour") +
     row("Quanti post", `${body.posts_per_run} a ogni raccolta`, "posts") +
     row("Cartelle", folders + (on ? "" :
@@ -692,16 +706,29 @@ function drawKey() {
     box.innerHTML = "";
     return;
   }
-  if (keys[provider]) {
-    box.innerHTML = '<span class="hint"><b>La chiave ' + esc(brand(provider)) +
-      " c'è già.</b> Sta in un file che solo tu puoi leggere, e da qui non " +
-      "si rilegge: se ne serve una nuova, incollala qui sotto e sostituisce " +
-      'quella vecchia.</span>' + keyField(provider);
-  } else {
-    box.innerHTML = '<span class="hint"><b>Serve una chiave ' + esc(brand(provider)) +
-      ".</b> Senza, la prossima raccolta si ferma al primo post.</span>" +
-      keyField(provider);
+  if (keys[provider] && !draft.replacing) {
+    // No empty field when the key is already there. A box saying "incollala
+    // qui" is an instruction, and it read as one — somebody with a working
+    // setup went looking for their key to type it again. Nothing to fill in
+    // means nothing to do, which is the true answer.
+    box.innerHTML = '<p class="done"><span class="ok"></span>Chiave ' +
+      esc(brand(provider)) + " impostata. Non serve fare altro.</p>" +
+      '<button class="ghost" id="key-replace">Sostituiscila</button>';
+    $("key-replace").addEventListener("click", () => {
+      draft.replacing = true;
+      drawKey();
+      $("key-input").focus();
+    });
+    return;
   }
+
+  box.innerHTML = '<span class="hint">' + (keys[provider]
+    ? "<b>La vecchia viene sostituita</b> appena salvi. Da qui non si " +
+      "rilegge: sta in un file che solo tu puoi aprire."
+    : "<b>Serve una chiave " + esc(brand(provider)) + ".</b> Senza, la " +
+      "prossima raccolta si ferma al primo post.") +
+    "</span>" + keyField(provider);
+
   const field = $("key-input");
   field.addEventListener("input", () => { draft.key = field.value.trim(); });
   $("key-open").addEventListener("click",
@@ -764,6 +791,7 @@ function drawModel() {
         draft.base_url = null;
       }
       draft.key = "";
+      draft.replacing = false;
       drawKey();
     }));
   const sync = () => {
