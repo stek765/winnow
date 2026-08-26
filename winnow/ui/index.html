@@ -266,11 +266,16 @@ h1{font-family:var(--display); font-weight:700;
 /* The folder row: a switch on the left, a sentence on the right. */
 .opt .pick{display:flex; align-items:flex-start; gap:.8rem; flex:none;
   min-width:13rem; text-align:left;}
+/* This one is a line of prose sitting in a table, not a form field: it reads
+   as the folder's description until you touch it. So no box ever — a rule
+   under the text that gets darker, the way a pencil line does. */
 .opt .holds{margin-left:auto; max-width:22rem; font-family:var(--body);
-  font-size:.85rem; background:var(--lit); border-color:transparent;}
-.opt .holds:hover{border-color:var(--rule);}
-.opt .holds:focus{background:#fff; border-color:var(--grease);}
-.opt .holds::placeholder{color:#b3babf; font-style:italic;}
+  font-size:.85rem; background:none; border:0; border-radius:0;
+  padding:.4rem .1rem; box-shadow:inset 0 -1px 0 transparent;
+  transition:box-shadow .18s, background .18s;}
+.opt .holds:hover{box-shadow:inset 0 -1px 0 var(--rule);}
+.opt .holds:focus{box-shadow:inset 0 -2px 0 var(--grease);}
+.opt .holds::placeholder{color:#b3babf;}
 @media (max-width:640px){
   .opt{flex-wrap:wrap;}
   .opt .holds{margin:.6rem 0 0; max-width:none; width:100%;}
@@ -280,12 +285,19 @@ h1{font-family:var(--display); font-weight:700;
 .field span{display:block; font-family:var(--mono); font-size:.64rem;
   letter-spacing:.14em; text-transform:uppercase; color:var(--faint);
   margin-bottom:.4rem;}
+/* `appearance:none` first, always. Left on auto, macOS draws its own bevel
+   underneath — which is what showed through the moment the border was made
+   transparent, and it is the reason the field looked like a Windows text box
+   with a hard ring around it. */
 input[type=text],input[type=number],select{
+  -webkit-appearance:none; appearance:none;
   font-family:var(--mono); font-size:.85rem; color:var(--ink); width:100%;
-  background:#fff; border:1px solid var(--rule); border-radius:4px;
-  padding:.55rem .7rem; transition:border-color .15s;}
-select.kind{width:auto; font-size:.7rem; padding:.25rem .4rem;}
-input:focus,select:focus{outline:none; border-color:var(--grease);}
+  background:#fff; border:1px solid var(--rule); border-radius:6px;
+  padding:.55rem .7rem; transition:border-color .18s, box-shadow .18s;}
+input:focus,select:focus{outline:none; border-color:var(--faint);
+  /* A halo the colour of the page, not a ring drawn on top of it: it says
+     "here" without putting a second rectangle around the first. */
+  box-shadow:0 0 0 3px rgba(206,58,36,.14);}
 .hint{display:block; margin-top:.5rem; font-size:.8rem; color:var(--faint);
   font-family:var(--body); line-height:1.4;}
 
