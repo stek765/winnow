@@ -101,15 +101,19 @@ a{color:inherit;}
 .app{display:flex; flex-direction:column; height:100%;}
 .bar{
   display:flex; align-items:center; gap:.6rem; flex:none;
-  padding:1rem var(--pad) .9rem; -webkit-app-region:drag;
+  padding:1rem var(--pad) .9rem;
 }
+/* Tauri drags only when the event's own target carries the attribute, so the
+   mark and the wordmark hand their clicks up to the bar instead of eating
+   them. The tabs keep theirs — they are buttons. */
+.bar .mark,.bar .name{pointer-events:none;}
 .mark{color:var(--grease); flex:none; transform:translateY(2px);}
 .mark .grain{fill:var(--grease); animation:drift 5s ease-in-out infinite;
   animation-delay:calc(var(--i) * .4s);}
 @keyframes drift{0%,100%{transform:translate(0,0);} 50%{transform:translate(2px,-1.6px);}}
 .name{font-family:var(--display); font-weight:700; font-size:1.15rem;
   letter-spacing:-.02em;}
-.tabs{margin-left:auto; display:flex; gap:.25rem; -webkit-app-region:no-drag;}
+.tabs{margin-left:auto; display:flex; gap:.25rem;}
 .tab{font-family:var(--mono); font-size:.66rem; letter-spacing:.12em;
   text-transform:uppercase; color:var(--faint); padding:.45rem .8rem;
   border-radius:999px; transition:background .18s, color .18s;}
@@ -488,7 +492,11 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
 
 <div class="app">
 
-  <header class="bar">
+  <!-- `data-tauri-drag-region`, not `-webkit-app-region: drag`. The latter
+       is Electron's, and does nothing in the WKWebView this app actually runs
+       in — which is why the window could not be moved at all: with the system
+       title bar switched off, that bar was the only thing left to grab. -->
+  <header class="bar" data-tauri-drag-region>
     <svg class="mark" viewBox="11 0 49 49" width="26" height="26" role="img" aria-label="winnow">
       <ellipse cx="22" cy="5.5" rx="3" ry="5.7" fill="currentColor"/>
       <ellipse cx="17.9" cy="13" rx="3" ry="5.7" transform="rotate(-28 17.9 13)" fill="currentColor"/>
@@ -670,9 +678,11 @@ function paintHome(s) {
 
   const stale = s.stale
     ? '<span class="stat warn"><b>!</b>l\'ultima raccolta è vecchia</span>' : "";
+  // No count of days here any more: the line under the headline names them,
+  // and repeating the same fact in a unit that does not say what it counts is
+  // what made «3 GIORNI» unreadable.
   $("stats").innerHTML =
     `<span class="stat"><b>${s.pending_posts}</b>post in coda</span>` +
-    `<span class="stat"><b>${s.pending_days}</b>giorni</span>` +
     `<span class="stat"><b>$${(s.spend_usd || 0).toFixed(2)}</b>questa settimana</span>` +
     stale;
 }

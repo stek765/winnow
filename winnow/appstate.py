@@ -19,6 +19,7 @@ comes before work for the same reason: the work would refuse to start.
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -33,6 +34,10 @@ BRAKE = "brake"
 # be inferred from a date.
 STALE_AFTER = timedelta(hours=36)
 
+# A findings file is named after its day. Anything else in that folder is not
+# one, and must not become half of a date range.
+DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
 
 def _stale(last_collect: str | None, now: datetime) -> bool:
     """Never collected and collected long ago are different sentences."""
@@ -45,6 +50,29 @@ def _stale(last_collect: str | None, now: datetime) -> bool:
     return now - when > STALE_AFTER
 
 
+def _span(facts: dict) -> str:
+    """Which days are waiting, said as days.
+
+    «3 giorni» is a quantity of something the sentence never names, and it was
+    read exactly that way. The dates answer the question instead of restating
+    the headline's own number in a different unit.
+    """
+    from winnow.harvest import say_day
+
+    first, last = facts.get("pending_from"), facts.get("pending_to")
+    if not first or not last:
+        days = facts.get("pending_days", 0)
+        word = "giorno" if days == 1 else "giorni"
+        return f"{days} {word} non ancora giudicati"
+    if first == last:
+        return f"Raccolti il {say_day(first)}"
+    a, b = say_day(first), say_day(last)
+    # The month once when it is the same one, as everywhere else.
+    if a.split()[-1] == b.split()[-1]:
+        a = a.split()[0]
+    return f"Raccolti fra il {a} e il {b}"
+
+
 def home(facts: dict, now: datetime | None = None) -> dict:
     """One face, one sentence, one button. Never an empty screen."""
     now = now or datetime.now()
@@ -54,6 +82,8 @@ def home(facts: dict, now: datetime | None = None) -> dict:
         "last_collect": facts.get("last_collect"),
         "pending_posts": facts.get("pending_posts", 0),
         "pending_days": facts.get("pending_days", 0),
+        "pending_from": facts.get("pending_from"),
+        "pending_to": facts.get("pending_to"),
     }
 
     running = facts.get("running")
@@ -82,7 +112,7 @@ def home(facts: dict, now: datetime | None = None) -> dict:
         return {**out, "state": READY, "action": "recap",
                 "button": "Fai il recap",
                 "headline": f"{posts} post da giudicare",
-                "detail": f"{days} {day_word} non ancora giudicati"}
+                "detail": _span(facts)}
 
     return {**out, "state": NOTHING_NEW, "action": "collect",
             "button": "Raccogli ora",
@@ -103,6 +133,7 @@ def read_facts(state_dir: Path, findings_dir: Path, judged: Path,
 
     now = now or datetime.now()
     files = pending_files(findings_dir, last_judged(judged))
+    days = sorted(f.stem for f in files if DAY_RE.match(f.stem))
     posts = 0
     for f in files:
         try:
@@ -126,6 +157,8 @@ def read_facts(state_dir: Path, findings_dir: Path, judged: Path,
         "running": running,
         "pending_posts": posts,
         "pending_days": len(files),
+        "pending_from": days[0] if days else None,
+        "pending_to": days[-1] if days else None,
         "last_collect": last_collect,
         "spend_usd": weekly_spend(state_dir / "spend.json", now),
     }

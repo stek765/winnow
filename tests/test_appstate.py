@@ -121,3 +121,53 @@ def test_reading_a_corrupt_findings_file_does_not_crash(tmp_path):
                        browser_profile=tmp_path / "nope",
                        now=datetime(2026, 8, 26, 10, 0))
     assert facts["pending_posts"] == 0
+
+
+# --- which days, not how many ----------------------------------------------
+
+def test_the_facts_say_which_days_are_waiting(tmp_path):
+    """«3 giorni» is a quantity of something unnamed. The days themselves are
+    the answer to the question a reader actually asks."""
+    from winnow.appstate import read_facts
+    findings = tmp_path / "findings"
+    findings.mkdir()
+    for day in ("2026-08-23", "2026-08-24", "2026-08-25"):
+        (findings / f"{day}.json").write_text(
+            json.dumps({"posts": [{"shortcode": "A"}]}), encoding="utf-8")
+    facts = read_facts(state_dir=tmp_path, findings_dir=findings,
+                       judged=tmp_path / "j.json",
+                       browser_profile=tmp_path / "nope",
+                       now=datetime(2026, 8, 26, 10, 0))
+    assert facts["pending_from"] == "2026-08-23"
+    assert facts["pending_to"] == "2026-08-25"
+
+
+def test_with_nothing_waiting_there_are_no_days_to_name(tmp_path):
+    from winnow.appstate import read_facts
+    facts = read_facts(state_dir=tmp_path, findings_dir=tmp_path / "none",
+                       judged=tmp_path / "j.json",
+                       browser_profile=tmp_path / "nope",
+                       now=datetime(2026, 8, 26, 10, 0))
+    assert facts["pending_from"] is None and facts["pending_to"] is None
+
+
+def test_the_home_says_the_span_instead_of_counting_days():
+    from winnow.appstate import home
+    s = home({"logged_in": True, "pending_posts": 30, "pending_days": 3,
+              "pending_from": "2026-08-23", "pending_to": "2026-08-25"})
+    assert s["detail"] == "Raccolti fra il 23 e il 25 agosto"
+
+
+def test_one_day_is_named_and_not_turned_into_a_span():
+    from winnow.appstate import home
+    s = home({"logged_in": True, "pending_posts": 8, "pending_days": 1,
+              "pending_from": "2026-08-25", "pending_to": "2026-08-25"})
+    assert s["detail"] == "Raccolti il 25 agosto"
+
+
+def test_without_the_dates_it_falls_back_to_counting(tmp_path):
+    """An older findings folder, or a day whose name is not a date: the screen
+    still has to say something true."""
+    from winnow.appstate import home
+    s = home({"logged_in": True, "pending_posts": 8, "pending_days": 2})
+    assert "2 giorni" in s["detail"]
