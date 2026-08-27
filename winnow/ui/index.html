@@ -453,10 +453,16 @@ h1{font-family:var(--display); font-weight:700;
   animation:fade .18s ease both;}
 .sheet[hidden]{display:none;}
 @keyframes fade{from{opacity:0;} to{opacity:1;}}
-.panel{width:min(46rem,100%); max-height:88vh; overflow-y:auto;
-  background:var(--lit); border-radius:14px 14px 0 0;
+/* A tall sheet, not one that stops wherever its contents happen to end.
+   Sized by the content it looked hung halfway up the window and read as
+   misaligned — the panel is a surface, and a surface has an edge of its own
+   rather than one borrowed from whatever is written on it. It rises to just
+   under the title bar and stays there whatever it holds. */
+.panel{width:min(46rem,100%); height:calc(100vh - 3.5rem);
+  display:flex; flex-direction:column; overflow-y:auto;
+  background:var(--lit); border-radius:16px 16px 0 0;
   border:1px solid var(--rule); border-bottom:0;
-  padding:clamp(1.5rem,4vw,2.4rem);
+  padding:clamp(1.6rem,4vw,2.6rem);
   box-shadow:0 -8px 60px -20px rgba(16,20,26,.55);
   animation:rise .26s cubic-bezier(.2,.8,.3,1) both;}
 @keyframes rise{from{transform:translateY(22px);} to{transform:none;}}
@@ -510,6 +516,9 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
 
 .acts{display:flex; align-items:center; gap:.8rem; margin-top:1.8rem;
   padding-top:1.2rem; border-top:1px solid var(--rule);}
+/* The panel's own footer, and only that one: the rows inside the body use
+   the same class and must not be pushed to the bottom of the sheet. */
+.panel > .acts{margin-top:auto; flex:none;}
 .ghost{font-family:var(--mono); font-size:.72rem; letter-spacing:.1em;
   text-transform:uppercase; color:var(--faint); padding:.8rem 1.1rem;
   border-radius:999px; white-space:nowrap;
