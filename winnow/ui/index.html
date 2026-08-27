@@ -345,6 +345,10 @@ h1{font-family:var(--display); font-weight:700;
 .back::before{content:"\2039"; margin-right:.5rem; font-size:1.1rem;
   line-height:0;}
 .back:hover{color:var(--grease);}
+/* The pane runs from edge to edge while the bar above stays inset by
+   `--pad`: that step is the whole effect — narrower on top, wider below —
+   and the shadow under the bar is what makes it read as a step rather than
+   as two things drawn on one sheet. */
 #page{flex:1; width:100%; border:0; background:#dde2e5;
   border-top:1px solid var(--rule);}
 .empty{color:var(--soft); max-width:40ch;}
@@ -993,6 +997,31 @@ function weekList(weeks) {
   return `${days[0]} · ${days[1]} · ${days[2]} … ${days[days.length - 1]}` +
     ` — ${days.length} in tutto`;
 }
+
+// The recap page is written to be read on its own — mailed, moved, opened
+// from a folder — so it keeps a printed measure: 5rem of margin and a column
+// that stops at 78rem. Inside the app that reads as *narrower* than the bar
+// above it (80px against 56), which is the opposite of breaking out.
+//
+// So the override lives here and not in the page: the file on disk stays the
+// document it is, and only the copy shown in this window goes edge to edge.
+// Same origin, so the stylesheet can simply be handed to it.
+const BREAKOUT = `
+  :root{--pad:clamp(1rem,2.2vw,2.2rem) !important;}
+  .list,.vgs,.wrap{max-width:none !important;}
+`;
+
+function breakOut() {
+  const doc = $("page").contentDocument;
+  if (!doc || !doc.head) return;          // still loading, or not ours
+  if (doc.getElementById("winnow-breakout")) return;
+  const style = doc.createElement("style");
+  style.id = "winnow-breakout";
+  style.textContent = BREAKOUT;
+  doc.head.appendChild(style);
+}
+
+$("page").addEventListener("load", breakOut);
 
 function openRecap(file, week, score, label) {
   $("page").src = "/recap/" + file;
