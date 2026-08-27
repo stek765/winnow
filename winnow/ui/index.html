@@ -61,21 +61,23 @@ html,body{height:100%;}
   position:absolute; top:-6%; bottom:-6%; right:-3%;
   width:clamp(26rem, 56%, 74rem);
   -webkit-mask-image:linear-gradient(to right, transparent 0%,
-    rgba(0,0,0,.10) 22%, rgba(0,0,0,.34) 42%, rgba(0,0,0,.66) 62%,
-    rgba(0,0,0,.9) 80%, #000 94%);
+    rgba(0,0,0,.08) 18%, rgba(0,0,0,.3) 36%, rgba(0,0,0,.68) 56%,
+    rgba(0,0,0,.93) 74%, #000 88%);
   mask-image:linear-gradient(to right, transparent 0%,
-    rgba(0,0,0,.10) 22%, rgba(0,0,0,.34) 42%, rgba(0,0,0,.66) 62%,
-    rgba(0,0,0,.9) 80%, #000 94%);
+    rgba(0,0,0,.08) 18%, rgba(0,0,0,.3) 36%, rgba(0,0,0,.68) 56%,
+    rgba(0,0,0,.93) 74%, #000 88%);
   animation:breathe 68s ease-in-out infinite;
 }
 .art i{
   display:block; position:absolute; inset:0;
   background:url("/winnower.jpg") no-repeat 62% 42%/cover;
-  opacity:.29; filter:saturate(.78) contrast(1.06);
-  -webkit-mask-image:radial-gradient(130% 90% at 62% 50%, #000 0%,
-    rgba(0,0,0,.86) 55%, rgba(0,0,0,.4) 85%, transparent 100%);
-  mask-image:radial-gradient(130% 90% at 62% 50%, #000 0%,
-    rgba(0,0,0,.86) 55%, rgba(0,0,0,.4) 85%, transparent 100%);
+  /* Present, not fogged. At .29 over a pale ground the picture read as
+     haze; the figure only becomes a figure once it holds its own darks. */
+  opacity:.46; filter:saturate(.95) contrast(1.16);
+  -webkit-mask-image:radial-gradient(140% 100% at 64% 50%, #000 0%,
+    #000 62%, rgba(0,0,0,.55) 88%, transparent 100%);
+  mask-image:radial-gradient(140% 100% at 64% 50%, #000 0%,
+    #000 62%, rgba(0,0,0,.55) 88%, transparent 100%);
 }
 @keyframes breathe{
   0%,100%{transform:scale(1.03) translate3d(0,0,0);}
@@ -120,8 +122,15 @@ a{color:inherit;}
 .app{display:flex; flex-direction:column; height:100%;}
 .bar{
   display:flex; align-items:center; gap:.6rem; flex:none;
-  padding:1rem var(--pad) .9rem;
+  padding:1rem var(--pad) .9rem; position:relative;
 }
+/* A scrim under the header, now that the painting holds real darks: without
+   it ARCHIVIO and IMPOSTAZIONI sat on the winnower's shoulder and stopped
+   being readable. It fades to nothing, so the picture still comes up to the
+   top of the window — the type just wins where the type is. */
+.bar::before{content:""; position:absolute; inset:0; z-index:-1;
+  background:linear-gradient(to bottom, rgba(240,242,243,.92) 0%,
+    rgba(240,242,243,.62) 55%, rgba(240,242,243,0) 100%);}
 /* Tauri drags only when the event's own target carries the attribute, so the
    mark and the wordmark hand their clicks up to the bar instead of eating
    them. The tabs keep theirs — they are buttons. */
@@ -134,7 +143,7 @@ a{color:inherit;}
   letter-spacing:-.02em;}
 .tabs{margin-left:auto; display:flex; gap:.25rem;}
 .tab{font-family:var(--mono); font-size:.66rem; letter-spacing:.12em;
-  text-transform:uppercase; color:var(--faint); padding:.45rem .8rem;
+  text-transform:uppercase; color:var(--soft); padding:.45rem .8rem;
   border-radius:999px; transition:background .18s, color .18s;}
 .tab:hover{color:var(--ink);}
 .tab.on{background:var(--ink); color:var(--lit);}
@@ -162,7 +171,11 @@ a{color:inherit;}
    them is composition rather than the space nobody filled. */
 .home{display:flex; flex-direction:column; min-height:100%;
   max-width:var(--column); padding:clamp(1rem,7vh,5.5rem) 0 clamp(1rem,5vh,3rem);}
-.dot{display:inline-flex; align-items:center; gap:.5rem;
+/* `auto` above as well as below: the free height splits between the two,
+   so the block that matters sits in the room rather than pinned to its
+   ceiling with the leftover underneath. */
+.dot{margin-top:auto;
+  display:inline-flex; align-items:center; gap:.5rem;
   font-family:var(--mono); font-size:.66rem; letter-spacing:.14em;
   text-transform:uppercase; color:var(--faint); margin-bottom:1.1rem;}
 .dot::before{content:""; width:8px; height:8px; border-radius:50%;
@@ -177,8 +190,8 @@ a{color:inherit;}
 h1{font-family:var(--display); font-weight:700;
   font-size:clamp(1.9rem,5.2vw,4.4rem); line-height:1.02;
   letter-spacing:-.035em; margin:0 0 .7rem; max-width:18ch;}
-.detail{color:var(--soft); margin:0 0 clamp(1.8rem,4vw,2.6rem);
-  max-width:46ch; font-size:clamp(1rem,1.3vw,1.15rem);}
+.detail{color:var(--faint); margin:0 0 clamp(1.1rem,2vw,1.5rem);
+  max-width:46ch; font-size:clamp(1rem,1.3vw,1.12rem);}
 .go{
   display:inline-flex; align-items:center; gap:.7rem; align-self:flex-start;
   background:var(--grease); color:#fff; font-family:var(--mono);
@@ -200,7 +213,7 @@ h1{font-family:var(--display); font-weight:700;
 /* `margin-top:auto` is the whole trick: everything above keeps its natural
    spacing, and the remaining height — however much there is — falls here. */
 .stats{display:flex; flex-wrap:wrap; align-items:baseline; gap:1.6rem;
-  margin-top:auto; padding-top:clamp(2rem,5vw,3rem);}
+  margin-top:auto; padding-top:clamp(2rem,5vw,3rem); opacity:.85;}
 .stat{display:flex; align-items:baseline; gap:.4rem;
   font-family:var(--mono); font-size:.68rem; letter-spacing:.1em;
   text-transform:uppercase; color:var(--faint);}
@@ -208,13 +221,14 @@ h1{font-family:var(--display); font-weight:700;
   letter-spacing:-.02em; color:var(--ink);}
 .warn{color:var(--amber);}
 
-/* What the app is for, said once and quietly. It sits under the numbers
-   rather than over the headline: a reader who already knows should be able
-   to ignore it every day without it ever being in the way, and a reader who
-   does not should find it without asking. */
-.purpose{margin:1.6rem 0 0; max-width:42ch; font-size:.86rem; line-height:1.5;
-  color:var(--faint);}
-.purpose b{font-weight:600; color:var(--soft);}
+/* Why the tool exists, standing where the eye is already going: between the
+   headline and the button. Stranded at the foot in small grey it was a
+   footnote to the numbers, and the two things that matter on this screen —
+   what winnow is for, and the one thing to press — were at opposite ends of
+   the window with the leftover space in between. */
+.purpose{margin:0 0 clamp(1.8rem,4vw,2.6rem); max-width:44ch;
+  font-size:clamp(.98rem,1.2vw,1.1rem); line-height:1.55; color:var(--soft);}
+.purpose b{font-weight:600; color:var(--ink);}
 
 /* --- the live log ------------------------------------------------------ */
 .log{margin-top:1.4rem; border-left:2px solid var(--rule);
@@ -563,12 +577,12 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
       <span class="dot" id="dot">…</span>
       <h1 id="headline">Sto guardando</h1>
       <p class="detail" id="detail"></p>
-      <button class="go" id="act" disabled>attendi</button>
-      <div class="log" id="log" hidden></div>
-      <div class="stats" id="stats"></div>
       <p class="purpose">I post che salvi e non riapri mai. Una volta a
         settimana <b>winnow</b> li legge, controlla alla fonte i nomi che
         ci trova, e separa il grano dalla pula.</p>
+      <button class="go" id="act" disabled>attendi</button>
+      <div class="log" id="log" hidden></div>
+      <div class="stats" id="stats"></div>
     </div>
   </section>
 
