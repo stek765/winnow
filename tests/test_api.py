@@ -484,8 +484,8 @@ def test_merging_two_weeks_writes_a_page_and_says_where(tmp_path, monkeypatch):
                        {"weeks": ["2026-08-23", "2026-08-24"]}, Jobs())
     assert code == 200
     page = tmp_path / body["file"]
-    assert page.is_file() and "23 e 24 agosto" in page.read_text(encoding="utf-8")
-    assert body["label"] == "23 e 24 agosto"
+    assert page.is_file() and "August 23 and 24" in page.read_text(encoding="utf-8")
+    assert body["label"] == "August 23 and 24"
 
 
 def test_a_merge_can_be_given_a_name_and_keeps_it(tmp_path, monkeypatch):
@@ -505,7 +505,9 @@ def test_a_merge_can_be_given_a_name_and_keeps_it(tmp_path, monkeypatch):
     assert "Embedded" in page
     # And it still says what it was made from, or the title has nothing
     # behind it a month later.
-    assert "23 agosto" in page and "24 agosto" in page
+    # In the window's language, both of them: the page is built by the same
+    # engine that serves the window, not in whatever language it was made in.
+    assert "August 23" in page and "August 24" in page
     _, listing = route("GET", "/api/recaps", {}, Jobs())
     assert listing["items"][0]["label"] == "Embedded"
 
@@ -524,7 +526,11 @@ def test_a_merge_is_listed_apart_from_the_weeks_it_covers(tmp_path, monkeypatch)
     kinds = {i["kind"] for i in body["items"]}
     assert kinds == {"week", "merge"}
     merge = next(i for i in body["items"] if i["kind"] == "merge")
-    assert merge["label"] == "23–24 agosto" and merge["things"] == 21
+    # The label is rebuilt from the days, never read back: written once, it is
+    # stuck in the language of the day it was made *and* in the wording that
+    # shipped that day — the stored `23–24 agosto` here is exactly such a
+    # fossil. The days are the fact; the sentence about them is not.
+    assert merge["label"] == "August 23 and 24" and merge["things"] == 21
 
 
 def test_merging_fewer_than_two_weeks_is_refused(tmp_path, monkeypatch):
@@ -559,9 +565,13 @@ def test_deleting_a_week_takes_its_page_and_its_judgement(tmp_path, monkeypatch)
 
     code, body = route("DELETE", "/api/recaps/2026-08-24.answer.html", {}, Jobs())
     assert code == 200 and sorted(body["removed"]) == [
-        "2026-08-24.answer.html", "2026-08-24.answer.md", "2026-08-24.md"]
+        "2026-08-24.answer.html", "2026-08-24.answer.md"]
     assert not (tmp_path / "2026-08-24.answer.html").exists()
     assert (tmp_path / "2026-08-23.answer.html").exists()   # nothing else moved
+    # `2026-08-24.md` is the *bundle* — the input, shared by every attempt of
+    # that day. Sweeping it up with one of them would take material away from
+    # the others, and it is not the page nor the judgement behind it.
+    assert (tmp_path / "2026-08-24.md").exists()
 
 
 def test_a_delete_cannot_reach_outside_the_recap_folder(tmp_path, monkeypatch):
@@ -637,3 +647,286 @@ def test_a_slide_request_cannot_climb_out_of_the_shots_folder(
     monkeypatch.setattr(A.paths, "state_dir", lambda: tmp_path)
     assert A.shot_path("/state/shots/../../secret.png") is None
     assert A.shot_path("/state/shots/notes.txt") is None
+
+
+def test_a_draw_of_ideas_starts_like_any_other_run():
+    """One button, one job, one log. A second way of starting work is a second
+    place for a run to be forgotten while it is running."""
+    jobs = Jobs()
+    code, body = route("POST", "/api/ideas", {}, jobs, spawn=lambda *a: None)
+    assert code == 202 and body["kind"] == "ideas"
+    # And not while something else is spending money on the same key.
+    code, _ = route("POST", "/api/ideas", {}, jobs, spawn=lambda *a: None)
+    assert code == 409
+
+
+def test_the_archive_tells_a_draw_from_a_week(tmp_path, monkeypatch):
+    """Three kinds share one stack, so each row has to say which it is: a week
+    was judged, a merge was assembled, a draw judged nothing at all."""
+    import winnow.api as A
+    (tmp_path / "2026-08-25.answer.html").write_text("<html>", encoding="utf-8")
+    (tmp_path / "idee-2026-08-26.answer.html").write_text("<html>",
+                                                          encoding="utf-8")
+    (tmp_path / "idee-2026-08-26.answer.md").write_text(
+        '```json\n{"note": "Pescata sparsa.", "ideas": [{"title": "x"}]}\n```',
+        encoding="utf-8")
+    # The model cannot report what it was charged, so the price is written
+    # beside the answer — or this is the only row in the stack without one.
+    (tmp_path / "idee-2026-08-26.answer.json").write_text(
+        '{"usd": 0.05}', encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+    code, body = route("GET", "/api/recaps", {}, Jobs())
+    assert code == 200
+    drawn = next(r for r in body["items"] if r["kind"] == "ideas")
+    assert drawn["day"] == "2026-08-26" and drawn["ideas"] == 1
+    assert drawn["note"].startswith("Pescata") and drawn["usd"] == 0.05
+    assert {r["kind"] for r in body["items"]} == {"week", "ideas"}
+
+
+def test_the_colours_survive_a_restart(tmp_path, monkeypatch):
+    """`localStorage` cannot hold them: the engine binds port 0, so every
+    launch is a different origin and the browser hands back an empty store.
+    The window's colours were forgotten on every restart."""
+    import winnow.api as A
+    monkeypatch.setattr(A.paths, "look_file", lambda: tmp_path / "look.json")
+
+    code, body = route("GET", "/api/look", {}, Jobs())
+    assert code == 200 and body == {"ground": "chiaro", "accent": "terracotta", "lang": "en"}
+
+    code, body = route("PATCH", "/api/look", {"ground": "scuro",
+                                              "accent": "blu"}, Jobs())
+    assert code == 200 and body["ground"] == "scuro" and body["accent"] == "blu"
+    assert route("GET", "/api/look", {}, Jobs())[1]["accent"] == "blu"
+
+
+def test_a_colour_nobody_offers_is_dropped_not_stored(tmp_path, monkeypatch):
+    """The two names end up in HTML attributes on a page the engine serves,
+    so they are checked against the lists on the way in *and* on the way
+    out — a hand-edited file must not be able to write markup."""
+    import winnow.api as A
+    monkeypatch.setattr(A.paths, "look_file", lambda: tmp_path / "look.json")
+    route("PATCH", "/api/look", {"ground": '"><script>', "accent": "verde"},
+          Jobs())
+    out = route("GET", "/api/look", {}, Jobs())[1]
+    assert out == {"ground": "chiaro", "accent": "verde", "lang": "en"}
+
+    (tmp_path / "look.json").write_text('{"ground": "\\"><script>"}',
+                                        encoding="utf-8")
+    assert route("GET", "/api/look", {}, Jobs())[1]["ground"] == "chiaro"
+
+
+def test_a_broken_look_file_is_not_a_broken_window(tmp_path, monkeypatch):
+    import winnow.api as A
+    monkeypatch.setattr(A.paths, "look_file", lambda: tmp_path / "look.json")
+    (tmp_path / "look.json").write_text("{ not json", encoding="utf-8")
+    assert route("GET", "/api/look", {}, Jobs())[1]["ground"] == "chiaro"
+
+
+def test_a_second_recap_on_one_day_is_in_the_archive(tmp_path, monkeypatch):
+    """`_next_answer_path` never overwrites an earlier answer, so a day whose
+    first attempt failed leaves a file behind and the real recap is written as
+    `-2`. The pattern did not allow the suffix: the page opened itself, then
+    was nowhere to be found."""
+    import winnow.api as A
+    (tmp_path / "2026-08-28.answer.html").write_text("<html>", encoding="utf-8")
+    (tmp_path / "2026-08-28.answer-3.html").write_text("<html>", encoding="utf-8")
+    (tmp_path / "2026-08-28.answer-3.md").write_text(
+        '```json\n{"counts": {"kept": 15}, "discarded": [1, 2]}\n```',
+        encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+    rows = route("GET", "/api/recaps", {}, Jobs())[1]["items"]
+    files = {r["file"] for r in rows}
+    assert "2026-08-28.answer-3.html" in files and len(files) == 2
+    # And it reads *its own* judgement, not one guessed from the date.
+    third = next(r for r in rows if r["file"] == "2026-08-28.answer-3.html")
+    assert third["kept"] == 15 and third["things"] == 17
+
+
+def test_a_page_can_be_given_a_name_without_being_renamed(tmp_path,
+                                                          monkeypatch):
+    """A title, not a filename: renaming the file would break every link
+    already written into a page, and the date in the name is what makes the
+    folder readable from a terminal."""
+    import winnow.api as A
+    (tmp_path / "2026-08-28.answer.html").write_text("<html>", encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+
+    code, body = route("PATCH", "/api/name/2026-08-28.answer.html",
+                       {"title": "  La settimana embedded  "}, Jobs())
+    assert code == 200 and body["title"] == "La settimana embedded"
+    assert (tmp_path / "2026-08-28.answer.html").is_file()
+
+    row = route("GET", "/api/recaps", {}, Jobs())[1]["items"][0]
+    assert row["named"] == "La settimana embedded" and row["week"] == "2026-08-28"
+
+    # Emptied, it goes back to being called by its date.
+    route("PATCH", "/api/name/2026-08-28.answer.html", {"title": "   "}, Jobs())
+    assert route("GET", "/api/recaps", {}, Jobs())[1]["items"][0]["named"] == ""
+
+
+def test_a_name_for_a_page_that_is_not_there_is_refused(tmp_path, monkeypatch):
+    import winnow.api as A
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+    code, _ = route("PATCH", "/api/name/../../etc/passwd", {"title": "x"},
+                    Jobs())
+    assert code == 404
+
+
+def test_deleting_a_page_forgets_its_name(tmp_path, monkeypatch):
+    """A name left behind would land on whatever file takes that name next."""
+    import winnow.api as A
+    (tmp_path / "2026-08-28.answer.html").write_text("<html>", encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+    route("PATCH", "/api/name/2026-08-28.answer.html", {"title": "X"}, Jobs())
+    route("DELETE", "/api/recaps/2026-08-28.answer.html", {}, Jobs())
+    assert A.read_titles() == {}
+
+
+def test_a_hand_given_name_does_not_fight_the_model_s_own(tmp_path,
+                                                          monkeypatch):
+    """A draw already has a title — the model's name for the idea. What the
+    reader calls the page is a different thing and must not be overwritten by
+    it, nor overwrite it."""
+    import winnow.api as A
+    (tmp_path / "idee-2026-08-28.answer.html").write_text("<html>",
+                                                          encoding="utf-8")
+    (tmp_path / "idee-2026-08-28.answer.md").write_text(
+        '```json\n{"title": "Un ponte", "idea": "x"}\n```', encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+    route("PATCH", "/api/name/idee-2026-08-28.answer.html",
+          {"title": "Da provare a settembre"}, Jobs())
+    row = route("GET", "/api/recaps", {}, Jobs())[1]["items"][0]
+    assert row["title"] == "Un ponte"
+    assert row["named"] == "Da provare a settembre"
+
+
+def test_deleting_a_recap_takes_its_own_files_and_nobody_else_s(tmp_path,
+                                                                monkeypatch):
+    """The old glob stripped «.answer» from the stem: `2026-08-28.answer-3`
+    became `2026-08-28-3` and matched nothing — a second recap of a day could
+    not be deleted at all — while `2026-08-28.answer` became `2026-08-28` and
+    matched every other recap of that day. Silent no-op one way, silent data
+    loss the other."""
+    import winnow.api as A
+    for name in ("2026-08-28.answer.html", "2026-08-28.answer.md",
+                 "2026-08-28.answer-3.html", "2026-08-28.answer-3.md"):
+        (tmp_path / name).write_text("x", encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+
+    code, body = route("DELETE", "/api/recaps/2026-08-28.answer-3.html", {},
+                       Jobs())
+    assert code == 200
+    assert sorted(body["removed"]) == ["2026-08-28.answer-3.html",
+                                       "2026-08-28.answer-3.md"]
+    assert (tmp_path / "2026-08-28.answer.html").is_file()
+    assert (tmp_path / "2026-08-28.answer.md").is_file()
+
+
+def test_deleting_a_draw_takes_its_side_file_too(tmp_path, monkeypatch):
+    import winnow.api as A
+    for name in ("idee-2026-08-28.answer.html", "idee-2026-08-28.answer.md",
+                 "idee-2026-08-28.answer.json"):
+        (tmp_path / name).write_text("x", encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+    body = route("DELETE", "/api/recaps/idee-2026-08-28.answer.html", {},
+                 Jobs())[1]
+    assert len(body["removed"]) == 3
+    assert not list(tmp_path.iterdir())
+
+
+def test_two_recaps_of_one_day_are_two_things_to_merge(tmp_path, monkeypatch):
+    """28 August held a first attempt that ran out of tokens and the real
+    recap beside it. Asking for the *date* read whichever file happened to be
+    called `{day}.answer.md` — the failed one — and in the window the second
+    tick untangled the first, so the tray never appeared at all."""
+    import winnow.api as A
+    answer = '```json\n{"week": "%s", "counts": {"posts": 1, "usd": 0.01}, ' \
+             '"categories": [{"name": "X", "items": [{"name": "%s"}]}]}\n```'
+    (tmp_path / "2026-08-28.answer.html").write_text("<html>", encoding="utf-8")
+    (tmp_path / "2026-08-28.answer.md").write_text(
+        answer % ("2026-08-28", "a/troncato"), encoding="utf-8")
+    (tmp_path / "2026-08-28.answer-3.html").write_text("<html>",
+                                                       encoding="utf-8")
+    (tmp_path / "2026-08-28.answer-3.md").write_text(
+        answer % ("2026-08-28", "b/vero"), encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+
+    code, body = route("POST", "/api/merge", {"files": [
+        "2026-08-28.answer.html", "2026-08-28.answer-3.html"]}, Jobs())
+    assert code == 200 and body["things"] == 2
+    page = (tmp_path / body["file"]).read_text(encoding="utf-8")
+    assert "a/troncato" in page and "b/vero" in page
+
+
+def test_a_merge_of_the_same_pages_replaces_itself(tmp_path, monkeypatch):
+    """And a merge of *different* pages of the same day does not: the id is
+    seeded from the pages, not from their dates."""
+    import winnow.api as A
+    answer = '```json\n{"week": "2026-08-28", "counts": {}, "categories": []}\n```'
+    for n in ("2026-08-27.answer", "2026-08-28.answer", "2026-08-28.answer-3"):
+        (tmp_path / f"{n}.html").write_text("<html>", encoding="utf-8")
+        (tmp_path / f"{n}.md").write_text(answer, encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+
+    a = route("POST", "/api/merge", {"files": ["2026-08-27.answer.html",
+                                               "2026-08-28.answer.html"]},
+              Jobs())[1]["file"]
+    again = route("POST", "/api/merge", {"files": ["2026-08-28.answer.html",
+                                                   "2026-08-27.answer.html"]},
+                  Jobs())[1]["file"]
+    other = route("POST", "/api/merge", {"files": ["2026-08-27.answer.html",
+                                                   "2026-08-28.answer-3.html"]},
+                  Jobs())[1]["file"]
+    assert a == again and a != other
+
+
+def test_a_date_still_works_for_a_script(tmp_path, monkeypatch):
+    import winnow.api as A
+    answer = '```json\n{"week": "2026-08-2X", "counts": {}, "categories": []}\n```'
+    for day in ("2026-08-27", "2026-08-28"):
+        (tmp_path / f"{day}.answer.html").write_text("<html>", encoding="utf-8")
+        (tmp_path / f"{day}.answer.md").write_text(answer, encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+    code, _ = route("POST", "/api/merge",
+                    {"weeks": ["2026-08-27", "2026-08-28"]}, Jobs())
+    assert code == 200
+
+
+def test_a_merge_made_before_the_id_was_a_hash_is_still_listed(tmp_path,
+                                                               monkeypatch):
+    """Named after the days it joined, with an underscore between them. The
+    pattern only knew the new shape, so the page sat on disk and out of the
+    archive — invisible, and therefore lost."""
+    import winnow.api as A
+    (tmp_path / "unione-2026-08-23_2026-08-24.html").write_text(
+        "<html>", encoding="utf-8")
+    monkeypatch.setattr(A.paths, "recap_dir", lambda: tmp_path)
+    rows = route("GET", "/api/recaps", {}, Jobs())[1]["items"]
+    assert [r["kind"] for r in rows] == ["merge"]
+
+
+def test_a_link_from_a_recap_is_opened_by_the_engine(monkeypatch):
+    """«open» and «the post» are ordinary `target="_blank"` links — right,
+    because a recap is an artifact that gets mailed and has to work as a plain
+    file. But a webview opens no popups and says nothing about it: inside the
+    app both buttons simply did nothing. The window intercepts the click and
+    asks the engine, which owns the real browser."""
+    import winnow.setup as S
+    opened = []
+    monkeypatch.setattr(S, "open_url", opened.append)
+    code, _ = route("POST", "/api/open",
+                    {"url": "https://github.com/a/b"}, Jobs())
+    assert code == 200 and opened == ["https://github.com/a/b"]
+
+
+@pytest.mark.parametrize("url", [
+    "file:///etc/passwd", "javascript:alert(1)", "", "ftp://x/y",
+])
+def test_only_a_web_link_is_opened(url, monkeypatch):
+    """"Open this link" must not become "run whatever the page says". The two
+    schemes a recap ever carries are the two that are allowed."""
+    import winnow.setup as S
+    opened = []
+    monkeypatch.setattr(S, "open_url", opened.append)
+    code, _ = route("POST", "/api/open", {"url": url}, Jobs())
+    assert code == 400 and opened == []

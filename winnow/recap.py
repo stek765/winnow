@@ -21,6 +21,7 @@ from pathlib import Path
 
 from winnow import config, digest, paths, providers
 from winnow.budget import Halted, check_brake, record_spend
+from winnow.i18n import DEFAULT, language_name
 from winnow.render import extract_json
 
 DAYS = 7
@@ -30,6 +31,47 @@ DAYS = 7
 # once at 128,000 characters — a quarter of the bundle, and the recap came
 # back auditing saved posts against a plan instead of answering them.
 PROFILE_BUDGET = 15_000
+
+# How much of a backlog one recap may swallow. Not a token limit dressed up as
+# a rule: the answer carries a sentence per *rejected* thing, so its length
+# tracks the pile and not what got through — 178 things came back cut off, and
+# 46 posts across five days is not what this tool is for anyway. A recap that
+# covers a fortnight is a page nobody reads.
+#
+# Counted in things and cut on whole days, because the marker that remembers
+# what has been judged moves a day at a time. A single day over the cap is
+# still taken whole: half a day judged is a day that can never be finished.
+THINGS_PER_RECAP = 250
+
+
+def things_in(path: Path) -> int:
+    """How many named things a day holds. A day that cannot be read counts as
+    nothing — `load_days` reports it and drops it further down."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return 0
+    return sum(len(p.get("entities") or []) for p in data.get("posts") or [])
+
+
+def slice_days(files: list[Path], cap: int = THINGS_PER_RECAP
+               ) -> tuple[list[Path], int]:
+    """The oldest days that fit, and how many things are left behind.
+
+    Oldest first on purpose: judging the newest and leaving the old behind
+    would bury them under a marker that only moves forward, and they would
+    never be judged at all.
+    """
+    taken: list[Path] = []
+    total = 0
+    for f in files:
+        n = things_in(f)
+        if taken and total + n > cap:
+            break
+        taken.append(f)
+        total += n
+    left = sum(things_in(f) for f in files[len(taken):])
+    return taken, left
 
 
 def week_files(findings_dir: Path, today: date, days: int = DAYS) -> list[Path]:
@@ -107,15 +149,23 @@ def package_file(name: str) -> str:
     return (Path(__file__).parent / name).read_text(encoding="utf-8")
 
 
-def prompt_body(text: str) -> str:
-    """The half of the prompt file meant for a model.
+def prompt_body(text: str, lang: str = DEFAULT) -> str:
+    """The half of the prompt file meant for a model, in the chosen language.
 
     The file opens by explaining itself to a human reading it on GitHub. Handing
     that to a model wastes its attention on documentation about the instruction
     it is already being given.
+
+    `{language}` is filled in here. It used to say "the language my profile is
+    written in", which was right while the app had no language of its own: it
+    pinned the output to *something* instead of letting the model guess, and a
+    guess can come out differently next week. Now there is a language chosen
+    explicitly in the window, and that is the better anchor — an English window
+    that answers in Italian is winnow disagreeing with a setting the reader
+    just changed.
     """
     _, _, after = text.partition(MARKER)
-    return (after or text).strip()
+    return (after or text).strip().replace("{language}", language_name(lang))
 
 
 def load_days(files: list[Path]) -> list[dict]:
@@ -211,7 +261,7 @@ def ask_confirm(prompt: str) -> bool:
 
 
 def run_recap(now: datetime | None = None, open_file: bool = True,
-              on_event=None, ask=None, confirm=None) -> int:
+              on_event=None, ask=None, confirm=None, should_stop=None) -> int:
     """Prepare, ask, write the page. One run instead of three.
 
     There used to be three — `winnow recap`, paste into a model, `winnow
@@ -222,9 +272,12 @@ def run_recap(now: datetime | None = None, open_file: bool = True,
     guard below must be testable without a terminal attached to stdin.
     """
     from winnow import judge, window
+    from winnow.api import read_look
+    from winnow.i18n import t
     from winnow.render import render_file
 
     now = now or datetime.now()
+    lang = read_look()["lang"]
 
     def say(event: str, **data) -> None:
         if on_event:
@@ -232,16 +285,26 @@ def run_recap(now: datetime | None = None, open_file: bool = True,
 
     profile_path = paths.profile_file()
     if not profile_path.exists():
+        say("failed", why=t("run.failed.profile", lang, path=profile_path))
         print(f"  ❌ no profile: {profile_path}")
         print("     run 'winnow init', it creates one to fill in.")
         return 1
 
     judged = paths.judged_file()
-    files = window.pending_files(paths.findings_dir(),
-                                 window.last_judged(judged))
-    if not files:
+    all_files = window.pending_files(paths.findings_dir(),
+                                     window.last_judged(judged))
+    if not all_files:
         print("  Nothing new since the last recap.")
         return 0
+
+    # A backlog is cut into recaps rather than sent as one. What is left over
+    # is not lost: the marker only moves over the days actually judged, so the
+    # next press picks up exactly where this one stopped.
+    files, left = slice_days(all_files)
+    if left:
+        say("sliced", days=len(files), of=len(all_files), left=left)
+        print(f"  {len(files)} of {len(all_files)} days this time; "
+              f"{left} things left for the next recap.")
 
     # `load_days`, not a raw read: a corrupt day here must be reported and
     # skipped, the same as everywhere else this window is read.
@@ -268,21 +331,24 @@ def run_recap(now: datetime | None = None, open_file: bool = True,
             print(f"        {hint}")
         print("\n      The bundle goes straight to the model provider.")
         if not (confirm or ask_confirm)("  Send it anyway? [y/N] "):
+            say("failed", why=t("run.failed.credential", lang))
             return 1
 
     facts = digest.gather(days, now.date().isoformat())
     # build_bundle wants the PATHS, not the days already read into memory.
-    bundle = build_bundle(prompt_body(package_file("recap-prompt.md")),
+    bundle = build_bundle(prompt_body(package_file("recap-prompt.md"), lang),
                           profile, files, package_file("mentality.md"),
                           now.date().isoformat())
     say("bundling", days=len(files), posts=facts["posts"],
-        things=len(facts["things"]))
+        things=len(facts["things"]), chars=len(bundle))
 
     # `config.py` exposes flat fields (`.provider`, `.model`, `.base_url`),
     # not a nested `.api` namespace — kept in step with the rest of the repo.
     try:
         cfg = config.load_config(paths.config_file())
     except FileNotFoundError:
+        say("failed", why=t("run.failed.config", lang,
+                            path=paths.config_file()))
         print(f"  ❌ no config: {paths.config_file()}")
         print("     run 'winnow init'.")
         return 1
@@ -297,6 +363,7 @@ def run_recap(now: datetime | None = None, open_file: bool = True,
     try:
         check_brake(state_dir, spend_path, cfg.limits, now)
     except Halted as e:
+        say("failed", why=str(e))
         print(f"  ❌ {e}")
         return 1
 
@@ -307,7 +374,11 @@ def run_recap(now: datetime | None = None, open_file: bool = True,
     try:
         text, tin, tout = (ask or judge.ask)(
             bundle, cfg.provider, cfg.model, cfg.base_url,
-            on_event=on_event)
+            on_event=on_event, should_stop=should_stop)
+    except judge.Stopped as e:
+        say("stopped", why=str(e))
+        print(f"  {e}")
+        return 0
     except providers.Truncated as e:
         # This is the one call the "written before it is read" guarantee
         # used to miss: `judge.ask` classifies it correctly (not retryable,
@@ -325,10 +396,12 @@ def run_recap(now: datetime | None = None, open_file: bool = True,
         if tin or tout:
             record_spend(spend_path, providers.cost(
                 cfg.provider, cfg.model, tin, tout), now)
+        say("failed", why=t("run.failed.truncated", lang, file=src.name))
         print(f"  ❌ {e}")
         print(f"     partial answer saved: {src}")
         return 1
     except judge.Fatal as e:
+        say("failed", why=str(e))
         print(f"  ❌ {e}")
         return 1
 
@@ -347,14 +420,19 @@ def run_recap(now: datetime | None = None, open_file: bool = True,
         # "judged" event below needs too, so this is also the one place that
         # result has to be computed.
         data = extract_json(text)
-        out = render_file(src, data=data, embed_shots=True)
+        out = render_file(src, data=data, embed_shots=True, lang=lang)
     except json.JSONDecodeError as e:
+        say("failed", why=t("run.failed.json", lang, why=e.msg,
+                            file=src.name))
         print(f"  ❌ the answer is not valid JSON: {e.msg}")
         print(f"     saved anyway: {src}")
         return 1
 
-    say("judged", kept=(data.get("counts") or {}).get("kept", 0),
-        of=len(facts["things"]), usd=usd)
+    counts = data.get("counts") or {}
+    discarded = data.get("discarded")
+    say("judged", kept=counts.get("kept", 0), of=len(facts["things"]),
+        binned=len(discarded) if isinstance(discarded, list) else None,
+        sections=len(data.get("categories") or []), usd=usd)
     # `progress.line` already prints "  → {path}" for this event — printing
     # the path again here would just show the same line twice from the CLI.
     say("rendered", path=str(out))

@@ -21,11 +21,14 @@ from datetime import datetime
 from pathlib import Path
 
 from winnow import appstate, paths
+from winnow.i18n import t
 from winnow.progress import line
 
 # One run at a time. Two recaps in flight would pay twice and race on the same
 # "how far have I judged" marker; two collections would race on seen.json.
-BUSY_MESSAGE = "something is already running"
+# Looked up per request, so it answers in the window's language.
+def busy_message() -> str:
+    return t("err.busy", lang())
 
 
 class Jobs:
@@ -89,6 +92,13 @@ class Jobs:
         return True
 
 
+def lang() -> str:
+    """The language the window is in. Read per request rather than cached: it
+    changes while the app is open, and a cached copy would answer in the old
+    one until a restart."""
+    return read_look()["lang"]
+
+
 def _facts(jobs: Jobs) -> dict:
     running = jobs.current()
     return appstate.read_facts(
@@ -114,6 +124,53 @@ def shot_path(path: str) -> Path | None:
         return None
     f = paths.state_dir() / "shots" / name
     return f if f.is_file() else None
+
+
+GROUNDS = ("chiaro", "penombra", "scuro")
+ACCENTS = ("terracotta", "rosso", "arancione", "giallo", "verde", "blu",
+           "viola", "rosa", "grafite")
+
+
+def read_look() -> dict:
+    """The chosen ground, accent and language, or the defaults.
+
+    Validated on the way out, not only on the way in: a hand-edited file must
+    not be able to put an arbitrary string into an HTML attribute.
+    """
+    from winnow.i18n import DEFAULT, LANGS
+
+    out = {"ground": "chiaro", "accent": "terracotta", "lang": DEFAULT}
+    f = paths.look_file()
+    if f.is_file():
+        try:
+            saved = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return out
+        if isinstance(saved, dict):
+            if saved.get("ground") in GROUNDS:
+                out["ground"] = saved["ground"]
+            if saved.get("accent") in ACCENTS:
+                out["accent"] = saved["accent"]
+            if saved.get("lang") in LANGS:
+                out["lang"] = saved["lang"]
+    return out
+
+
+def write_look(payload: dict) -> None:
+    """Only these three names, only from their lists. Whatever else arrives is
+    dropped rather than refused: a colour is not worth an error screen."""
+    from winnow.i18n import LANGS
+
+    look = read_look()
+    if payload.get("ground") in GROUNDS:
+        look["ground"] = payload["ground"]
+    if payload.get("accent") in ACCENTS:
+        look["accent"] = payload["accent"]
+    if payload.get("lang") in LANGS:
+        look["lang"] = payload["lang"]
+    f = paths.look_file()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps(look), encoding="utf-8")
 
 
 def _keys_present() -> dict:
@@ -179,8 +236,32 @@ CONFIG_PUBLIC = ("model", "provider", "base_url", "posts_per_run",
 # The archive is the weeks winnow judged. A page dropped into that folder by
 # hand — a demo, an export — is not one of them, and listing it beside them
 # says it is.
-WEEK_PAGE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.answer\.html$")
+# `-2`, `-3`… because `_next_answer_path` never overwrites an earlier answer:
+# a second recap on the same day — and a day whose first attempt failed leaves
+# a file behind — writes beside it. Without the suffix here the page opened
+# fine and simply was not in the archive, which is the same as lost. The ideas
+# pattern below has always allowed it.
+WEEK_PAGE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.answer(?:-\d+)?\.html$")
 WEEK_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+# The names a person gave to pages, keyed by the file they belong to. One
+# small file rather than a field inside each answer: the answers are the
+# model's own words, written once and never edited afterwards.
+def read_titles() -> dict:
+    f = paths.recap_dir() / "titles.json"
+    try:
+        data = json.loads(f.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return {str(k): str(v)[:60] for k, v in data.items()
+            } if isinstance(data, dict) else {}
+
+
+def write_titles(titles: dict) -> None:
+    f = paths.recap_dir() / "titles.json"
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps(titles, ensure_ascii=False), encoding="utf-8")
 
 
 def _verdict(answer: Path) -> dict:
@@ -216,7 +297,63 @@ def _verdict(answer: Path) -> dict:
     }
 
 
-MERGE_PAGE = re.compile(r"^unione-[a-z0-9-]+\.html$")
+# `_` too: merges made before the id became a hash are named after the days
+# they join — `unione-2026-08-23_2026-08-24.html` — and a pattern that only
+# knew the new shape left them on disk and out of the archive, which is the
+# same failure the `.answer-3` pages had.
+MERGE_PAGE = re.compile(r"^unione-[a-z0-9_-]+\.html$")
+# `idee-2026-08-27.answer.html`, and `-2` for a second draw the same day.
+IDEAS_PAGE = re.compile(r"^idee-(\d{4}-\d{2}-\d{2})\.answer(-\d+)?\.html$")
+
+
+def extract_json_file(answer: Path) -> dict:
+    """The JSON a model answered with, from the file it was written to."""
+    from winnow.render import extract_json
+    data = extract_json(answer.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("not an object")
+    return data
+
+
+def _drawn(answer: Path) -> dict:
+    """How many ideas came out, read back from the reply that produced them.
+
+    Same reason `_verdict` exists: a file size tells a reader nothing, and the
+    row has to say what makes this draw different from the last one.
+    """
+    # What the row needs is beside the answer, not inside it: the model does
+    # not know what it was charged, and a title read out of the JSON would
+    # mean parsing a 40 KB reply to draw one line of a list.
+    meta = {}
+    side = answer.with_suffix(".json")
+    if side.is_file():
+        try:
+            meta = json.loads(side.read_text(encoding="utf-8")) or {}
+        except (OSError, json.JSONDecodeError):
+            meta = {}
+    card = {"usd": meta.get("usd"), "title": meta.get("title") or "",
+            "gist": meta.get("gist") or "",
+            "difficulty": meta.get("difficulty") or "",
+            "time": meta.get("time") or ""}
+    if not answer.is_file():
+        return {"ideas": None, "note": "", **card}
+    try:
+        from winnow.render import extract_json
+        data = extract_json(answer.read_text(encoding="utf-8"))
+    except Exception:                                       # noqa: BLE001
+        return {"ideas": None, "note": "", **card}
+    if not isinstance(data, dict):
+        return {"ideas": None, "note": "", **card}
+    from winnow.ideas import as_ideas
+    found = as_ideas(data)
+    first = found[0] if found else {}
+    # An answer written before the side file existed still has to draw a row.
+    return {"ideas": len(found), "note": data.get("note") or "",
+            **{**card,
+               "title": card["title"] or first.get("title") or "",
+               "gist": card["gist"] or first.get("gist") or "",
+               "difficulty": card["difficulty"] or first.get("difficulty") or "",
+               "time": card["time"] or first.get("time") or ""}}
 
 
 def _archive() -> list[dict]:
@@ -231,19 +368,40 @@ def _archive() -> list[dict]:
     A week is placed by when its **page was written**, not by the week it
     covers: a recap of an old backlog produced today is something done today.
     """
+    from winnow.harvest import NAME_DAYS, label_for
+
     out = []
     d = paths.recap_dir()
     if not d.is_dir():
         return out
+    titles = read_titles()
 
-    for f in d.glob("*.answer.html"):
+    # The glob has to be as wide as the pattern, or the pattern is decorative:
+    # `*.answer.html` cannot see `…answer-3.html`, which is where a second
+    # recap of the same day lands.
+    for f in d.glob("*.html"):
         m = WEEK_PAGE.match(f.name)
         if not m:
             continue
         week = m.group(1)
+        # From the page's own stem, not rebuilt from the date: `-3.html` is
+        # answered by `-3.md`, and guessing would read the wrong judgement.
         out.append({"kind": "week", "week": week, "file": f.name,
+                    "made": f.stat().st_mtime, "named": titles.get(f.name, ""),
+                    **_verdict(d / (f.stem + ".md"))})
+
+    for f in d.glob("idee-*.html"):
+        m = IDEAS_PAGE.match(f.name)
+        if not m:
+            continue
+        out.append({"kind": "ideas", "week": "", "file": f.name,
+                    "label": "Idee", "day": m.group(1),
+                    # `title` on a draw is the model's own name for the idea.
+                    # A name given by hand is a different thing and cannot
+                    # overwrite it — it is what the reader called this page.
+                    "named": titles.get(f.name, ""),
                     "made": f.stat().st_mtime,
-                    **_verdict(d / f"{week}.answer.md")})
+                    **_drawn(d / (f.stem + ".md"))})
 
     for f in d.glob("unione-*.html"):
         if not MERGE_PAGE.match(f.name):
@@ -255,9 +413,25 @@ def _archive() -> list[dict]:
                 info = json.loads(side.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 info = {}
+        # Rebuilt, not read back: a label written once is stuck in the
+        # language the window was in that day, and it is stuck in whatever
+        # wording shipped that day — the merge of 23, 24 and 28 August kept
+        # calling itself «from August 23 to August 28» long after that phrase
+        # was found to read as a period. The days are the fact; the sentence
+        # about them is not.
+        weeks = info.get("weeks") or []
+        name = info.get("name") or ""
+        label = (label_for(weeks, name, lang())
+                 if weeks else (info.get("label") or f.stem))
+        # Whether the label already *is* the list of days. Without it the row
+        # printed «August 23, 24 and 28» and, directly underneath, «23 agosto
+        # · 24 agosto · 28 agosto» — the same fact twice. Decided here because
+        # the rule that decides it (NAME_DAYS) lives here.
+        lists_days = bool(weeks) and not name and len(set(weeks)) <= NAME_DAYS
         out.append({"kind": "merge", "file": f.name, "week": "",
-                    "label": info.get("label") or f.stem,
-                    "weeks": info.get("weeks") or [],
+                    "named": titles.get(f.name, ""),
+                    "label": label,
+                    "weeks": weeks, "lists_days": lists_days,
                     "things": info.get("things"),
                     "made": f.stat().st_mtime})
 
@@ -271,7 +445,13 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
     if path == "/api/state":
         if method != "GET":
             return 405, {"error": "GET only"}
-        return 200, appstate.home(_facts(jobs))
+        # The running job's id travels with the state, so the window can stop
+        # a run it did not start. The daily one comes from the scheduler and
+        # this window has never heard of it — «Ferma» used to post to
+        # `/api/stop`, which is not a route, and did nothing at all.
+        now = jobs.current()
+        return 200, {**appstate.home(_facts(jobs), lang=lang()),
+                     "running_id": now["id"] if now else None}
 
     if path == "/api/recaps":
         if method != "GET":
@@ -302,16 +482,40 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
             provider = payload.get("provider")
             if provider not in KEY_ENV:
                 # A model on your own machine has no account and no bill.
-                return 400, {"error": f"{provider!r} non usa una chiave"}
+                return 400, {"error": t("err.no_key_needed", lang(), provider=provider)}
             key = (payload.get("key") or "").strip()
             if not key:
                 # Written through, it looks set and fails at the next run —
                 # which is the exact failure this endpoint exists to stop.
-                return 400, {"error": "la chiave è vuota"}
+                return 400, {"error": t("err.empty_key", lang())}
             write_key(paths.env_file(), KEY_ENV[provider], key)
         elif method != "GET":
             return 405, {"error": "GET or POST"}
         return 200, {"keys": _keys_present()}
+
+    if path == "/api/look":
+        # The window's colours have to survive a restart, and `localStorage`
+        # cannot carry them: the engine binds port 0, so every launch is a
+        # different origin and the browser hands back an empty store. Kept on
+        # disk, and only ever read by the window.
+        if method == "PATCH":
+            was = read_look()["lang"]
+            write_look(payload)
+            now = read_look()["lang"]
+            if now != was:
+                # Every page already on disk, relabelled. The judgement inside
+                # them is the model's words and is not touched — only what
+                # winnow writes around it, which is not part of what was
+                # decided. Without this, a reader who switches to English
+                # opens yesterday's recap and finds «Perché passa» on it with
+                # no way to do anything about it but make a new one.
+                from winnow.relabel import rebuild_all
+                done, failed = rebuild_all(paths.recap_dir(), now)
+                return 200, {**read_look(), "relabelled": done,
+                             "not_relabelled": failed}
+        elif method != "GET":
+            return 405, {"error": "GET or PATCH"}
+        return 200, read_look()
 
     if path == "/api/profile":
         if method != "GET":
@@ -323,8 +527,16 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
             chars = 0
         # Size and path, never the text. It is the most personal file winnow
         # touches, and the window has no reason to hold a copy of it.
+        # `short` is the same path with the home folder written the way a
+        # person writes it: the settings row shows where the file *is*, and
+        # `/Users/<name>/.config/...` is mostly a repetition of who is logged
+        # in — the part that identifies the file is the tail.
+        home = str(Path.home())
+        short = str(prof)
+        if short.startswith(home + "/"):
+            short = "~" + short[len(home):]
         return 200, {"exists": prof.is_file(), "chars": chars,
-                     "path": str(prof)}
+                     "path": str(prof), "short": short}
 
     if path.startswith("/api/console"):
         # Opening the provider's key page in a real browser. The window cannot
@@ -335,8 +547,24 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
         from winnow.setup import open_url
         which = path.partition("?p=")[2]
         if which not in CONSOLE:
-            return 400, {"error": f"nessuna pagina per {which!r}"}
+            return 400, {"error": t("err.no_console", lang(), provider=which)}
         open_url(CONSOLE[which])
+        return 200, {"opened": True}
+
+    if path == "/api/open":
+        # A link inside a recap. In a real browser tab `target="_blank"` is
+        # enough; inside the app's webview nothing happens at all — no popup,
+        # no error, a link that simply does not work. The window intercepts
+        # the click and asks the engine, which owns the real browser.
+        if method != "POST":
+            return 405, {"error": "POST only"}
+        url = str(payload.get("url") or "")
+        # Only the two schemes a recap ever carries. `file:` and `javascript:`
+        # are how "open a link" turns into "run whatever the page says".
+        if not url.startswith(("http://", "https://")):
+            return 400, {"error": t("err.bad_url", lang())}
+        from winnow.setup import open_url
+        open_url(url)
         return 200, {"opened": True}
 
     if path == "/api/profile/open":
@@ -354,7 +582,7 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
             if busy:
                 # Moving the hour reinstalls the job. Doing that under a run
                 # started by the old one is asking for two of them.
-                return 409, {"error": BUSY_MESSAGE, "running": busy["id"],
+                return 409, {"error": busy_message(), "running": busy["id"],
                              "kind": busy["kind"]}
             try:
                 if payload.get("off"):
@@ -378,7 +606,7 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
                 # A collection reads the folder list and the post cap as it
                 # goes: changing them underneath produces a run that half
                 # obeyed two configurations, and no way to tell afterwards.
-                return 409, {"error": BUSY_MESSAGE, "running": busy["id"],
+                return 409, {"error": busy_message(), "running": busy["id"],
                              "kind": busy["kind"]}
             try:
                 return 200, _write_config(payload)
@@ -402,20 +630,32 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
         from winnow.harvest import label_for, merge, merge_id, render_harvest
         from winnow.render import extract_json
 
-        weeks = sorted({w for w in (payload.get("weeks") or [])
-                        if isinstance(w, str) and WEEK_RE.match(w)})
-        if len(weeks) < 2:
-            return 400, {"error": "servono almeno due settimane"}
+        # Pages, not dates. A day can hold two recaps — the first attempt of
+        # 28 August ran out of tokens and the second is the real one — so
+        # asking for «2026-08-28» is ambiguous, and the ambiguity was silent:
+        # it read whichever file happened to be called `{day}.answer.md`,
+        # which is the failed one. Dates are still accepted so a merge can be
+        # asked for from a script, where one recap a day is the normal case.
+        d = paths.recap_dir()
+        files = [f for f in (payload.get("files") or [])
+                 if isinstance(f, str) and WEEK_PAGE.match(Path(f).name)]
+        if not files:
+            files = [f"{w}.answer.html" for w in (payload.get("weeks") or [])
+                     if isinstance(w, str) and WEEK_RE.match(w)]
+        files = sorted({Path(f).name for f in files})
+        if len(files) < 2:
+            return 400, {"error": t("err.two_recaps", lang())}
         # Optional, and the only thing that makes ten scattered weeks
         # findable a month later.
         name = " ".join(str(payload.get("name") or "").split())[:60]
 
-        d = paths.recap_dir()
-        answers, missing = [], []
-        for week in weeks:
-            side = d / f"{week}.answer.md"
+        answers, weeks, missing = [], [], []
+        for page in files:
+            week = WEEK_PAGE.match(page).group(1)
+            side = d / (page[:-len(".html")] + ".md")
             try:
                 answers.append(extract_json(side.read_text(encoding="utf-8")))
+                weeks.append(week)
             except Exception:                              # noqa: BLE001
                 # The page can be reopened without its answer, but it cannot
                 # be merged: the answer *is* the content. Producing a page
@@ -423,21 +663,66 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
                 # this repo keeps paying for.
                 missing.append(week)
         if missing:
-            return 400, {"error": "manca il giudizio di " + ", ".join(missing)}
+            return 400, {"error": t("err.missing_judgement", lang(),
+                                    days=", ".join(missing))}
 
         merged = merge(answers)
-        label = label_for(weeks, name)
-        stem = merge_id(weeks, name)
+        label = label_for(weeks, name, lang())
+        # Seeded from the pages: two different recaps of one day are two
+        # different merges, and a seed made of dates would give them one file.
+        stem = merge_id(files, name)
         d.mkdir(parents=True, exist_ok=True)
-        (d / f"{stem}.html").write_text(render_harvest(merged, label),
-                                        encoding="utf-8")
+        (d / f"{stem}.html").write_text(
+            render_harvest(merged, label, lang()), encoding="utf-8")
         (d / f"{stem}.json").write_text(json.dumps(
-            {"weeks": weeks, "label": label, "name": name,
-             "things": merged["counts"]["things"],
+            {"weeks": sorted(set(weeks)), "files": files, "label": label,
+             "name": name, "things": merged["counts"]["things"],
              "made": datetime.now().isoformat(timespec="seconds")},
             ensure_ascii=False), encoding="utf-8")
         return 200, {"file": f"{stem}.html", "label": label,
                      "things": merged["counts"]["things"]}
+
+    if path.startswith("/api/draw/"):
+        # The ideas as data, so the window can lay them out itself. The page
+        # on disk stays the artifact — it gets mailed and moved — but a
+        # judgement worth reading twice should not be read through an iframe.
+        if method != "GET":
+            return 405, {"error": "GET only"}
+        name = Path(path[len("/api/draw/"):]).name
+        if not IDEAS_PAGE.match(name):
+            return 404, {"error": t("err.no_such_page", lang())}
+        d = paths.recap_dir()
+        answer = d / (name[:-len(".html")] + ".md")
+        try:
+            data = extract_json_file(answer)
+        except Exception:                                  # noqa: BLE001
+            # The page opens perfectly well on its own; only this view of it
+            # is missing. Saying "non esiste" would be a lie about the file.
+            return 409, {"error": t("err.not_readable", lang())}
+        from winnow.ideas import as_ideas
+        return 200, {**_drawn(answer), "note": data.get("note") or "",
+                     "ideas_list": as_ideas(data),
+                     "left": data.get("left") or []}
+
+    if path.startswith("/api/name/"):
+        # A title, not a filename. Renaming the file would break every link
+        # already written into a page, and the date in the name is what makes
+        # the folder readable from a terminal — so the name is stored beside
+        # it and the date never stops being shown.
+        if method != "PATCH":
+            return 405, {"error": "PATCH only"}
+        page = Path(path[len("/api/name/"):]).name
+        d = paths.recap_dir()
+        if not page or not (d / page).is_file() or not page.endswith(".html"):
+            return 404, {"error": t("err.no_such_page", lang())}
+        titles = read_titles()
+        title = " ".join(str(payload.get("title") or "").split())[:60]
+        if title:
+            titles[page] = title
+        else:
+            titles.pop(page, None)          # emptied: back to its date
+        write_titles(titles)
+        return 200, {"file": page, "title": title}
 
     if path.startswith("/api/recaps/"):
         if method != "DELETE":
@@ -447,23 +732,35 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
         d = paths.recap_dir()
         target = d / name
         if not name or not target.is_file() or target.suffix != ".html":
-            return 404, {"error": "non esiste"}
+            return 404, {"error": t("err.no_such_page", lang())}
         # The page and the judgement that produced it go together. Leaving the
         # answer behind is half a delete, and the half that stays is the one
         # holding the reading.
+        titles = read_titles()
+        if titles.pop(name, None) is not None:
+            write_titles(titles)
+        # Exactly this page and the files that belong to it, named one by one.
+        # A glob built by stripping «.answer» from the stem was two bugs in
+        # one line: `2026-08-28.answer-3` became `2026-08-28-3`, which matches
+        # nothing — so deleting a second recap of a day silently did nothing —
+        # while `2026-08-28.answer` became `2026-08-28`, which matches every
+        # *other* recap of that day and would have taken their judgements with
+        # it. A delete has to be exact or it must not be a delete.
         removed = []
-        for f in sorted(d.glob(target.stem.replace(".answer", "") + "*")):
+        for f in (target, d / (target.stem + ".md"),
+                  d / (target.stem + ".json")):
             if f.is_file():
                 f.unlink()
                 removed.append(f.name)
         return 200, {"removed": removed}
 
-    if path in ("/api/collect", "/api/recap", "/api/folders/scan"):
+    if path in ("/api/collect", "/api/recap", "/api/ideas",
+                "/api/folders/scan"):
         if method != "POST":
             return 405, {"error": "POST only"}
         busy = jobs.current()
         if busy:
-            return 409, {"error": BUSY_MESSAGE, "running": busy["id"],
+            return 409, {"error": busy_message(), "running": busy["id"],
                          "kind": busy["kind"]}
         # A scan drives the same browser session a collection does; two of
         # them at once is one Playwright profile with two drivers.
@@ -500,16 +797,33 @@ def _run_job(kind: str, jid: str, jobs: Jobs) -> None:
     def say(event: str, data: dict) -> None:
         jobs.event(jid, event, data)
 
+    def stop_asked() -> bool:
+        """Whether «Ferma» was pressed. Read at the run's own checkpoints —
+        between two posts, before a model call — never mid-request: a reply
+        already on its way is a reply already paid for."""
+        job = jobs.get(jid)
+        return bool(job and job["stopping"])
+
     try:
         if kind == "recap":
             from winnow.recap import run_recap
-            code = run_recap(open_file=False, on_event=say)
+            code = run_recap(open_file=False, on_event=say,
+                             should_stop=stop_asked)
+        elif kind == "ideas":
+            from winnow.ideas import run_ideas
+            code = run_ideas(open_file=False, on_event=say,
+                             should_stop=stop_asked)
         elif kind == "folders":
             jobs.finish(jid, 0, result={"folders": scan_folders()})
             return
         else:
+            # Through the CLI on purpose — the session, the http client and
+            # the error wording live there — but with the window's two hooks,
+            # which is why `main` takes them. Without `on_event` a collection
+            # ran for minutes and the window showed nothing at all.
             from winnow.cli import main as cli_main
-            code = cli_main(["collect"])
+            code = cli_main(["collect"], on_event=say,
+                            should_stop=stop_asked)
     except Exception as exc:                       # noqa: BLE001
         # A crashed thread with nobody watching is a spinner that never stops.
         # Whatever went wrong, the window has to hear about it.
@@ -601,6 +915,27 @@ def make_handler(jobs: Jobs, ui_dir: Path):
                 self.end_headers()
                 self.wfile.write(data)
                 return
+            # The page arrives already coloured. Fetching the look after
+            # load would paint the default first and repaint a frame later —
+            # a white flash on a dark ground, on every single launch.
+            if self.path in ("/", "/index.html") or self.path.startswith("/?"):
+                page = (ui_dir / "index.html").read_text(encoding="utf-8")
+                look = read_look()
+                # The `lang` attribute is the real one — a screen reader
+                # reads it — and the page's own strings key off it too.
+                page = page.replace(
+                    '<html lang="it">',
+                    f'<html lang="{look["lang"]}" '
+                    f'data-ground="{look["ground"]}" '
+                    f'data-accent="{look["accent"]}">', 1)
+                data = page.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
+
             if self.path.startswith("/recap/"):
                 name = Path(self.path[len("/recap/"):]).name
                 page = paths.recap_dir() / name

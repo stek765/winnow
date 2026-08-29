@@ -21,6 +21,15 @@ class Fatal(RuntimeError):
     """Will not pass on its own: stopping is the right answer."""
 
 
+class Stopped(RuntimeError):
+    """The person asked for it to stop, which is not a failure.
+
+    Checked between attempts and inside the backoff rather than mid-call: an
+    HTTP request already in flight cannot be taken back, and pretending
+    otherwise would mean paying for a reply and then throwing it away.
+    """
+
+
 # What time fixes. Compared on message text because the three providers
 # raise different exceptions for the identical situation.
 RETRY_MARKS = ("429", "rate limit", "500", "502", "503", "504",
@@ -47,9 +56,18 @@ def backoff(attempt: int) -> float:
     return min(5.0 * (3 ** (attempt - 1)), 120.0)
 
 
+# What a judgement is allowed to write. Measured 2026-08-28: 46 posts and 178
+# things came back cut off mid-JSON at 16,000 — the reject list carries a
+# sentence per thing, so the answer grows with the *pile*, not with what got
+# through. A backlog is exactly when a recap matters most, and exactly when
+# the old ceiling broke it. Nothing is charged for room that goes unused.
+MAX_OUT = 48_000
+
+
 def ask(bundle: str, provider: str, model: str, base_url: str | None,
         on_event=None, sleep=time.sleep, complete=None,
-        attempts: int = 5) -> tuple[str, int, int]:
+        attempts: int = 5, should_stop=None,
+        max_tokens: int = MAX_OUT) -> tuple[str, int, int]:
     """The model's response and the tokens it cost.
 
     `complete` and `sleep` are injected: that is what makes every branch of
@@ -61,13 +79,32 @@ def ask(bundle: str, provider: str, model: str, base_url: str | None,
         if on_event:
             on_event(event, data)
 
+    def stop_asked() -> bool:
+        return bool(should_stop and should_stop())
+
+    # A recap of a backlog is minutes of one call. Said in characters as they
+    # arrive — every 2,000, so the log grows at a readable pace instead of
+    # once per token — because the alternative is a screen that has said «le
+    # sto facendo leggere al modello» for three minutes and looks hung.
+    STEP = 2000
+    told = [0]
+
+    def progress(chars: int) -> None:
+        if chars - told[0] >= STEP:
+            told[0] = chars
+            say("writing", chars=chars)
+
     last: Exception | None = None
     for attempt in range(1, attempts + 1):
+        if stop_asked():
+            raise Stopped("fermata prima di chiamare il modello")
         say("asking", attempt=attempt, of=attempts)
         try:
+            told[0] = 0
             return call(provider=provider, model=model, base_url=base_url,
                         system="", text=bundle, images=[],
-                        max_tokens=16000, temperature=0.0)
+                        max_tokens=max_tokens, temperature=0.0,
+                        on_progress=progress)
         except providers.Truncated:
             # Not retryable (more tokens will not fix a fixed max_tokens),
             # but wrapping it in Fatal would strip the `.partial` text it
@@ -84,5 +121,13 @@ def ask(bundle: str, provider: str, model: str, base_url: str | None,
             # Said, not silent: a frozen screen for forty-five seconds is
             # indistinguishable from a crashed program.
             say("waiting", seconds=wait, attempt=attempt, why=str(exc)[:120])
-            sleep(wait)
+            # Slept in slices, so «Ferma» during a two-minute backoff is
+            # answered in a second and not in two minutes.
+            waited = 0.0
+            while waited < wait:
+                if stop_asked():
+                    raise Stopped("fermata mentre aspettava di riprovare")
+                step = min(1.0, wait - waited)
+                sleep(step)
+                waited += step
     raise Fatal(f"{attempts} attempts, still failing: {last}")

@@ -42,7 +42,11 @@ def test_a_run_in_flight_beats_everything_else():
                     halted=True, pending_posts=30))
     assert s["state"] == BUSY
     assert s["action"] == "stop"
-    assert "36" in s["headline"] and "41" in s["headline"]
+    # Not a fraction any more: the numbers reaching here are a count of
+    # events over a total nobody knows, which produced «22 su 0». How far
+    # along a run is belongs to the strip under the button, which reads it
+    # from the events themselves.
+    assert s["headline"] == "Collecting"
 
 
 def test_a_dead_session_outranks_having_posts_to_judge():
@@ -155,14 +159,19 @@ def test_the_home_says_the_span_instead_of_counting_days():
     from winnow.appstate import home
     s = home({"logged_in": True, "pending_posts": 30, "pending_days": 3,
               "pending_from": "2026-08-23", "pending_to": "2026-08-25"})
-    assert s["detail"] == "Raccolti fra il 23 e il 25 agosto"
+    assert s["detail"] == "Collected between August 23 and 25"
+    # And in the other language, where the month goes at the other end.
+    s2 = home({"logged_in": True, "pending_posts": 30, "pending_days": 3,
+               "pending_from": "2026-08-23", "pending_to": "2026-08-25"},
+              lang="it")
+    assert s2["detail"] == "Raccolti fra il 23 e il 25 agosto"
 
 
 def test_one_day_is_named_and_not_turned_into_a_span():
     from winnow.appstate import home
     s = home({"logged_in": True, "pending_posts": 8, "pending_days": 1,
               "pending_from": "2026-08-25", "pending_to": "2026-08-25"})
-    assert s["detail"] == "Raccolti il 25 agosto"
+    assert s["detail"] == "Collected on August 25"
 
 
 def test_without_the_dates_it_falls_back_to_counting(tmp_path):
@@ -170,4 +179,54 @@ def test_without_the_dates_it_falls_back_to_counting(tmp_path):
     still has to say something true."""
     from winnow.appstate import home
     s = home({"logged_in": True, "pending_posts": 8, "pending_days": 2})
-    assert "2 giorni" in s["detail"]
+    assert "2 days" in s["detail"]
+
+
+def test_a_manual_collection_is_offered_beside_the_recap():
+    """The scheduled run is once a day. Somebody who has just saved something
+    had no way to say «now» except a terminal — the home screen's one button
+    was already spoken for by the recap."""
+    from winnow.appstate import home
+
+    face = home({"logged_in": True, "pending_posts": 12, "pending_days": 2})
+    assert face["action"] == "recap" and face["also"] == "collect"
+    assert face["also_button"]
+
+
+def test_nothing_is_offered_twice():
+    """With nothing to judge the main button already collects."""
+    from winnow.appstate import home
+
+    face = home({"logged_in": True, "pending_posts": 0})
+    assert face["action"] == "collect" and "also" not in face
+
+
+def test_a_run_in_flight_offers_only_the_way_to_stop_it():
+    from winnow.appstate import home
+
+    face = home({"logged_in": True, "pending_posts": 12,
+                 "running": {"kind": "collect", "done": 3, "of": 8}})
+    assert face["action"] == "stop" and "also" not in face
+
+
+def test_a_run_says_what_it_is_doing_not_a_broken_fraction():
+    """«22 su 0» is what a count of events over a total nobody knows looks
+    like, and it reads as a program that has lost track of itself."""
+    from winnow.appstate import home
+
+    face = home({"logged_in": True, "spend_usd": 0.2,
+                 "running": {"kind": "recap", "done": 22, "of": 0}})
+    assert face["headline"] == "Making the recap"
+    assert "0" not in face["headline"]
+
+
+def test_english_is_the_default_and_italian_is_a_choice():
+    """The tool is published in English; Italian is what the reader picks."""
+    from winnow.appstate import home
+
+    facts = {"logged_in": True, "pending_posts": 0}
+    assert home(facts)["headline"] == "All judged"
+    assert home(facts, lang="it")["headline"] == "Tutto giudicato"
+    # An unknown language falls back to English rather than to a key: a gap in
+    # a translation should still leave a sentence somebody can act on.
+    assert home(facts, lang="de")["headline"] == "All judged"

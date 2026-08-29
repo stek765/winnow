@@ -23,6 +23,8 @@ import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from winnow.i18n import DEFAULT, STRINGS, t
+
 READY = "ready"
 NOTHING_NEW = "nothing_new"
 BUSY = "busy"
@@ -50,30 +52,31 @@ def _stale(last_collect: str | None, now: datetime) -> bool:
     return now - when > STALE_AFTER
 
 
-def _span(facts: dict) -> str:
-    """Which days are waiting, said as days.
-
-    «3 giorni» is a quantity of something the sentence never names, and it was
-    read exactly that way. The dates answer the question instead of restating
-    the headline's own number in a different unit.
-    """
+def _span(facts: dict, lang: str) -> str:
     from winnow.harvest import say_day
 
     first, last = facts.get("pending_from"), facts.get("pending_to")
     if not first or not last:
         days = facts.get("pending_days", 0)
-        word = "giorno" if days == 1 else "giorni"
-        return f"{days} {word} non ancora giudicati"
+        key = "home.days_pending_one" if days == 1 else "home.days_pending"
+        return t(key, lang, n=days)
     if first == last:
-        return f"Raccolti il {say_day(first)}"
-    a, b = say_day(first), say_day(last)
-    # The month once when it is the same one, as everywhere else.
-    if a.split()[-1] == b.split()[-1]:
-        a = a.split()[0]
-    return f"Raccolti fra il {a} e il {b}"
+        return t("home.collected_on", lang, day=say_day(first, lang))
+    a, b = say_day(first, lang), say_day(last, lang)
+    # The month said once when both dates share it — and the month is at the
+    # other end of the phrase in English, so «which word is the month» cannot
+    # be a fixed index. `23 e 24 agosto`, `August 23 and 27`.
+    month = (lambda d: d.split()[-1] if lang == "it" else d.split()[0])
+    day = (lambda d: d.split()[0] if lang == "it" else d.split()[-1])
+    if month(a) == month(b):
+        if lang == "it":
+            a = day(a)
+        else:
+            b = day(b)
+    return t("home.collected_between", lang, a=a, b=b)
 
 
-def home(facts: dict, now: datetime | None = None) -> dict:
+def home(facts: dict, now: datetime | None = None, lang: str = DEFAULT) -> dict:
     """One face, one sentence, one button. Never an empty screen."""
     now = now or datetime.now()
     out = {
@@ -88,36 +91,54 @@ def home(facts: dict, now: datetime | None = None) -> dict:
 
     running = facts.get("running")
     if running:
-        done, of = running.get("done", 0), running.get("of", 0)
-        return {**out, "state": BUSY, "action": "stop", "button": "Ferma",
-                "headline": f"{done} su {of}",
-                "detail": f"${facts.get('spend_usd', 0):.2f} finora"}
+        # «22 su 0» — which is what a count of events over a total nobody
+        # knows produces — is the sentence of a program that has lost track of
+        # itself. What kind of run is going is a fact; how far along it is
+        # is not, and the strip under the button says that part properly.
+        kind = running.get("kind")
+        key = (f"home.busy.{kind}" if f"home.busy.{kind}" in STRINGS
+               else "home.busy.other")
+        return {**out, "state": BUSY, "action": "stop",
+                "button": t("home.stop", lang),
+                "headline": t(key, lang),
+                "detail": t("home.busy.spent", lang,
+                            usd=f"{facts.get('spend_usd', 0):.2f}")}
 
     if not facts.get("logged_in", True):
         return {**out, "state": LOGGED_OUT, "action": "login",
-                "button": "Rientra",
-                "headline": "Instagram ha chiuso la sessione",
-                "detail": "Finché non rientri non arriva niente di nuovo."}
+                "button": t("home.login", lang),
+                "headline": t("home.logged_out", lang),
+                "detail": t("home.logged_out.detail", lang)}
 
     if facts.get("halted"):
         return {**out, "state": BRAKE, "action": "reset-halt",
-                "button": "Riparti", "headline": "Freno tirato",
+                "button": t("home.restart", lang),
+                "headline": t("home.brake", lang),
                 "detail": facts.get("halt_reason")
-                or "La spesa ha superato il limite della settimana."}
+                or t("home.brake.detail", lang)}
 
     posts = facts.get("pending_posts", 0)
     if posts:
-        days = facts.get("pending_days", 0)
-        day_word = "giorno" if days == 1 else "giorni"
+        # One face, one sentence, one button — and one quiet way out of it.
+        # The scheduled run is once a day, so somebody who has just saved
+        # something has no way to say «now» except waiting until tomorrow;
+        # before this, the only path was a terminal. It is a second action and
+        # not a second button: it never competes with the one that matters.
+        key = "home.ready.one" if posts == 1 else "home.ready"
         return {**out, "state": READY, "action": "recap",
-                "button": "Fai il recap",
-                "headline": f"{posts} post da giudicare",
-                "detail": _span(facts)}
+                "button": t("home.recap", lang), "also": "collect",
+                "also_button": t("home.collect_now", lang),
+                "headline": t(key, lang, n=posts),
+                "detail": _span(facts, lang)}
 
+    # It used to say «Un recap adesso costerebbe e non direbbe niente»:
+    # an argument against a thing nobody had asked to do, on the one screen
+    # where there is nothing wrong. What a reader needs here is the state of
+    # play and the one move available, which is the button right underneath.
     return {**out, "state": NOTHING_NEW, "action": "collect",
-            "button": "Raccogli ora",
-            "headline": "Niente di nuovo dall'ultimo recap",
-            "detail": "Un recap adesso costerebbe e non direbbe niente."}
+            "button": t("home.collect_now", lang),
+            "headline": t("home.nothing", lang),
+            "detail": t("home.nothing.detail", lang)}
 
 
 def read_facts(state_dir: Path, findings_dir: Path, judged: Path,

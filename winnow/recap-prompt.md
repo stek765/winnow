@@ -12,8 +12,8 @@ block 4.
 
 <!-- PROMPT -->
 
-> **Write the recap in the language my profile is written in** — that is the
-> language I think in, and this is for me to read, not to publish.
+> **Write the recap in {language}.** That is the language winnow is set to,
+> and this is for me to read, not to publish.
 >
 > Produce it in this shape, in this order. Nothing else.
 >

@@ -204,18 +204,25 @@ def test_has_github_token_reads_the_environment():
     assert not has_github_token({"GITHUB_TOKEN": ""})
 
 
-def test_a_full_run_does_not_list_the_folders_below(tmp_path, monkeypatch):
-    """Listing a folder means scrolling it. Once the run is full there is
-    nothing to gain, and a minute of scrolling a real account to lose."""
+def test_every_active_folder_is_listed_every_run(tmp_path, monkeypatch):
+    """The run used to stop at the first folder that could fill it.
+
+    Measured on a real account on 2026-08-29: seven active folders, six days
+    of runs, and `seen.json` held posts from exactly two of them — `github`
+    (61) and `must-rewatch` (24). The other five had never been opened, so
+    adding a folder changed nothing at all, for ever, and nothing said so.
+    A folder that is never read is a folder that does not exist.
+    """
     import winnow.run as run
     from winnow.config import Config, Folder, Limits
     from winnow.extract import PostExtraction
+    from winnow.state import load_seen
 
     listed: list[str] = []
 
     def fake_list(page, url, **kw):
         listed.append(url)
-        return ["AAA", "BBB", "CCC"]
+        return ["A1", "A2", "A3"] if "uno" in url else ["B1", "B2", "B3"]
 
     monkeypatch.setattr(run, "list_shortcodes", fake_list)
     monkeypatch.setattr(run, "capture_post",
@@ -233,19 +240,60 @@ def test_a_full_run_does_not_list_the_folders_below(tmp_path, monkeypatch):
     http = httpx.Client(transport=httpx.MockTransport(
         lambda r: httpx.Response(200, json={"items": []})))
 
-    events: list[str] = []
-    run.collect(cfg, tmp_path / "state", tmp_path / "findings", tmp_path / "shots",
-                http, _FakePage(), datetime(2026, 8, 21), search_delay=0,
-                on_event=lambda e, d: events.append(f"{e}:{d.get('name', '')}"))
+    run.collect(cfg, tmp_path / "state", tmp_path / "findings",
+                tmp_path / "shots", http, _FakePage(),
+                datetime(2026, 8, 21), search_delay=0)
 
-    assert listed == ["/tizio/saved/uno/111/"]     # la seconda non viene aperta
-    assert "folder_skipped:due" in events          # ma viene detto
+    assert listed == ["/tizio/saved/uno/111/", "/tizio/saved/due/222/"]
+    # Two slots, two folders: one each, not two from the first.
+    seen = load_seen(tmp_path / "state" / "seen.json")
+    assert set(seen) == {"A1", "B1"}
 
 
-def test_a_skipped_folder_does_not_read_as_an_empty_one():
-    """Silence would look like "nothing new there", which is a lie."""
-    from winnow.progress import line
-    assert "skipped" in line("folder_skipped", {"name": "must-rewatch"})
+def test_the_run_is_dealt_one_post_at_a_time_to_each_folder():
+    """A share, not a queue: the second folder must not wait for the first
+    to run out of saved posts — which on a real account it never does."""
+    from winnow.run import deal
+
+    pools = [("github", ["g1", "g2", "g3", "g4"]),
+             ("ai", ["a1", "a2"]),
+             ("hacking", ["h1"])]
+    assert deal(pools, 4) == [("g1", "github"), ("a1", "ai"),
+                              ("h1", "hacking"), ("g2", "github")]
+
+
+def test_a_folder_with_nothing_new_gives_its_slot_away():
+    """Fair does not mean idle: an exhausted folder must not cost the run
+    a post that another folder could have filled."""
+    from winnow.run import deal
+
+    pools = [("github", ["g1", "g2", "g3"]), ("ai", [])]
+    assert deal(pools, 3) == [("g1", "github"), ("g2", "github"),
+                              ("g3", "github")]
+
+
+def test_when_there_are_more_folders_than_slots_the_hungriest_go_first():
+    """With eight posts and twelve folders somebody is always left out, and
+    dealing in config order leaves out the same four every single day —
+    which is the bug this whole change is about, one level down. The folder
+    that has given least so far picks first, so the queue turns over."""
+    from winnow.run import deal
+
+    pools = [("github", ["g1"]), ("ai", ["a1"]), ("nuova", ["n1"])]
+    tally = {"github": 61, "ai": 24}          # `nuova` has given nothing
+    assert deal(pools, 2, tally) == [("n1", "nuova"), ("a1", "ai")]
+
+
+def test_the_tally_is_read_from_the_posts_already_seen():
+    """No new state file: `seen.json` has recorded the folder per post since
+    the first run, so the count is already on disk."""
+    from winnow.run import tally_by_folder
+
+    seen = {"AAA": {"date": "2026-08-23", "folder": "github"},
+            "BBB": {"date": "2026-08-24", "folder": "github"},
+            "CCC": {"date": "2026-08-24", "folder": "ai"},
+            "DDD": "vecchio formato senza cartella"}
+    assert tally_by_folder(seen) == {"github": 2, "ai": 1}
 
 
 # --- a broken key must not eat the backlog ---------------------------------
@@ -358,3 +406,101 @@ def test_a_corrupt_day_file_is_set_aside_not_silently_dropped(tmp_path):
 
     assert [p["shortcode"] for p in json.loads(path.read_text())["posts"]] == ["AAA"]
     assert (tmp_path / "2026-08-21.json.corrupt").exists()
+
+
+def test_ferma_stops_between_posts_and_keeps_what_was_read(tmp_path, monkeypatch):
+    """«Ferma» never worked: `stopping` was set on the job and read by nobody,
+    so the button was decoration on every run in the app. Stopping happens
+    between two posts — never inside one, or a post is paid for and thrown
+    away — and everything read so far is written exactly as if the queue had
+    ended there."""
+    import winnow.run as run
+    from winnow.config import Config, Folder, Limits
+    from winnow.extract import PostExtraction
+
+    cfg = Config(
+        username="tizio", browser_profile=tmp_path / "prof",
+        folders=[Folder("github", "/tizio/saved/github/111/", True)],
+        limits=Limits(3.0, 10.0, 5, 15, 0.92), model="claude-haiku-4-5",
+    )
+    monkeypatch.setattr(run, "list_shortcodes",
+                        lambda page, url, **kw: ["AAA", "BBB", "CCC"])
+    monkeypatch.setattr(run, "capture_post",
+                        lambda *a, **k: ("cap", "acct", [], False))
+    monkeypatch.setattr(run, "extract_post",
+                        lambda cfg, code, account, caption, shots, is_video=False:
+                        PostExtraction(code, account, caption, [], 0.001))
+
+    read = []
+    said = []
+    http = httpx.Client(transport=httpx.MockTransport(
+        lambda r: httpx.Response(200, json={"items": []})))
+    summary = run.collect(
+        cfg, tmp_path / "state", tmp_path / "findings", tmp_path / "shots",
+        http, _FakePage(), datetime(2026, 8, 28, 3, 0), search_delay=0,
+        on_event=lambda e, d: (said.append(e), read.append(d)),
+        # Pressed while the first post is being read.
+        should_stop=lambda: len([e for e in said if e == "post"]) >= 1,
+    )
+
+    assert summary["posts"] == 1, "quello già letto resta, gli altri due no"
+    assert "stopped" in said
+    out = json.loads((tmp_path / "findings" / "2026-08-28.json").read_text())
+    assert [p["shortcode"] for p in out["posts"]] == ["AAA"]
+
+
+def test_ferma_is_answered_between_two_names_not_only_two_posts(tmp_path,
+                                                                monkeypatch):
+    """Without a GitHub token a source lookup waits up to a minute, and a post
+    with twelve names is twelve of them. «Ferma» pressed there used to wait
+    for the whole post to finish."""
+    import winnow.run as run
+    from winnow.config import Config, Folder, Limits
+    from winnow.extract import Entity, PostExtraction
+
+    cfg = Config(
+        username="tizio", browser_profile=tmp_path / "prof",
+        folders=[Folder("github", "/tizio/saved/github/111/", True)],
+        limits=Limits(3.0, 10.0, 5, 15, 0.92), model="claude-haiku-4-5",
+    )
+    monkeypatch.setattr(run, "list_shortcodes", lambda page, url, **kw: ["AAA"])
+    monkeypatch.setattr(run, "capture_post",
+                        lambda *a, **k: ("cap", "acct", [], False))
+    names = [Entity(kind="repo", name=f"o/r{i}", blurb="", slide=1)
+             for i in range(6)]
+    monkeypatch.setattr(run, "extract_post",
+                        lambda *a, **k: PostExtraction("AAA", "acct", "cap",
+                                                       names, 0.001))
+    looked = []
+    monkeypatch.setattr(run, "enrich",
+                        lambda *a, **k: looked.append(a[1]) or run.Verification(
+                            checked=True, exists=True))
+
+    http = httpx.Client(transport=httpx.MockTransport(
+        lambda r: httpx.Response(200, json={"items": []})))
+    run.collect(cfg, tmp_path / "state", tmp_path / "findings",
+                tmp_path / "shots", http, _FakePage(),
+                datetime(2026, 8, 28, 3, 0), search_delay=0,
+                should_stop=lambda: len(looked) >= 2)
+    assert len(looked) == 2, "deve fermarsi a metà del post, non alla fine"
+
+
+def test_the_wait_between_lookups_is_slept_in_slices(monkeypatch):
+    """A minute answered in a minute is a button that does not work."""
+    import winnow.run as run
+    from winnow.extract import Entity
+
+    slept = []
+    monkeypatch.setattr(run.time, "sleep", slept.append)
+    monkeypatch.setattr(run, "resolve_repo",
+                        lambda http, name: run.Verification(checked=True,
+                                                            exists=True))
+    stop = {"now": False}
+
+    def watching():
+        stop["now"] = len(slept) >= 3
+        return stop["now"]
+
+    run.enrich(None, Entity(kind="repo", name="o/r", blurb="", slide=1), {},
+               delay=60.0, should_stop=watching)
+    assert sum(slept) <= 4, "non deve dormire i sessanta secondi interi"

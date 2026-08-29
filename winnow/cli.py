@@ -1,4 +1,4 @@
-"""winnow collect | status | recap | config | schedule | reset-halt"""
+"""winnow collect | status | recap | ideas | config | schedule | reset-halt"""
 from __future__ import annotations
 
 import argparse
@@ -30,6 +30,8 @@ them to your profile to be filtered.
   winnow collect       one pass now, instead of waiting for the next
   winnow status        is it alive? what did it find? what has it cost?
   winnow recap         judge the days not judged yet, and open the page
+  winnow ideas         draw at random from everything kept, and ask what it
+                       would change in your life
   winnow render        an answer you saved by hand, as a page you click
   winnow config        change folders, model, posts per run, hour, profile
   winnow app           open winnow as a window
@@ -57,7 +59,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--config", default=None, type=Path, help=argparse.SUPPRESS)
     p.add_argument(
         "command", nargs="?",
-        choices=["init", "login", "collect", "status", "recap", "render",
+        choices=["init", "login", "collect", "status", "recap", "ideas", "render",
                  "config", "schedule", "update", "reset-halt", "where",
                  "app", "serve"],
         metavar="COMMAND",
@@ -83,6 +85,19 @@ def _parser() -> argparse.ArgumentParser:
 def _cmd_init(args) -> int:
     from winnow.setup import run_init
     return run_init()
+
+
+def _cmd_ideas(args) -> int:
+    """The other half of the judgement: not what is worth reading, but what it
+    would do here. Same shape as `_cmd_recap` — the events do the talking."""
+    from winnow.ideas import run_ideas
+
+    def show(event: str, data: dict) -> None:
+        text = line(event, data)
+        if text:
+            print(text)
+
+    return run_ideas(open_file=not args.no_open, on_event=show)
 
 
 def _cmd_recap(args) -> int:
@@ -285,13 +300,12 @@ def _cmd_reset_halt(args) -> int:
 
 
 def _cmd_collect(args) -> int:
-    from winnow.setup import apply_env_file
-
     # La chiave sta in un file con permessi 600, non nella definizione dello
     # scheduler: cosi' il job programmato e' un semplice `winnow collect`.
-    apply_env_file(paths.env_file())
-
-    from winnow.browser import SessionExpired, open_session
+    # Caricarla non e' piu' compito di questo comando: `providers.load_key`
+    # lo fa subito prima della chiamata, per chiunque la faccia.
+    from winnow.browser import SessionExpired, Stopped as BrowserStopped
+    from winnow.browser import open_session
     from winnow.run import Unusable, collect, make_http
 
     from winnow.progress import line
@@ -303,6 +317,7 @@ def _cmd_collect(args) -> int:
         if text:
             print(text, flush=True)
 
+    watcher = getattr(args, "on_event", None) or show
     cfg = load_config(args.config)
     if args.posts is not None:
         from winnow.config import override_posts
@@ -321,13 +336,26 @@ def _cmd_collect(args) -> int:
               f"{'present' if token else 'absent'} ({delay:.0f}s between "
               f"checks)", flush=True)
 
+    stop = getattr(args, "should_stop", None)
     try:
         with open_session(cfg.browser_profile) as page, make_http() as http:
+            # Opening the browser is ten seconds of its own, and «Ferma»
+            # pressed during them used to be swallowed: the first checkpoint
+            # was inside `collect`, which had not been reached yet.
+            if stop and stop():
+                watcher("stopped", {"done": 0, "of": 0})
+                return 0
             summary = collect(
                 cfg, args.state_dir, args.findings_dir, paths.shots_dir(),
                 http, page, datetime.now(),
-                search_delay=delay, on_event=show,
+                search_delay=delay, on_event=watcher, should_stop=stop,
             )
+    except BrowserStopped as e:
+        # Not a failure: nobody broke anything, they changed their mind. The
+        # posts read before it are already written by `collect`.
+        watcher("stopped", {"done": 0, "of": 0})
+        print(f"  {e}")
+        return 0
     except Unusable as e:
         print(f"\nMODEL UNREACHABLE: {e}", file=sys.stderr)
         print("The run stopped and the posts were NOT marked as seen: try "
@@ -372,8 +400,17 @@ def _cmd_where(args) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, on_event=None, should_stop=None) -> int:
+    """The command line, and the same commands called from the window.
+
+    `on_event` and `should_stop` ride on `args` rather than through every
+    handler's signature: the window needs them for a collection, and the
+    alternative was a second copy of `_cmd_collect` — session, http client,
+    error wording and all — living in `api.py` and drifting from this one.
+    """
     args = _parser().parse_args(argv)
+    args.on_event = on_event
+    args.should_stop = should_stop
     if args.command is None:
         _parser().print_help()
         return 2
@@ -398,6 +435,7 @@ def _dispatch(args) -> int:
         "reset-halt": _cmd_reset_halt,
         "collect": _cmd_collect,
         "recap": _cmd_recap,
+        "ideas": _cmd_ideas,
         "render": _cmd_render,
         "update": _cmd_update,
         "app": _cmd_app,

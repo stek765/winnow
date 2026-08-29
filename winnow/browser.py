@@ -116,7 +116,12 @@ def _merge(into: list[str], page) -> None:
             into.append(code)
 
 
-def list_shortcodes(page, folder_url: str, enough=None) -> list[str]:
+class Stopped(RuntimeError):
+    """The person pressed «Ferma». Not a failure, and not something to retry."""
+
+
+def list_shortcodes(page, folder_url: str, enough=None,
+                    should_stop=None) -> list[str]:
     """List the posts in a saved folder — the whole folder, not the first screen.
 
     The grid is lazy-loaded, so we wait for the links themselves rather than for
@@ -137,7 +142,17 @@ def list_shortcodes(page, folder_url: str, enough=None) -> list[str]:
 
     codes: list[str] = []
     stalls = 0
+
+    def stop_asked() -> bool:
+        return bool(should_stop and should_stop())
+
     while True:
+        # A folder of 300 saved posts is a minute of scrolling before a single
+        # post is opened, and «Ferma» pressed in that minute used to do
+        # nothing at all: the only checkpoint was between two posts, which had
+        # not started yet.
+        if stop_asked():
+            raise Stopped("fermata mentre leggeva la cartella")
         _merge(codes, page)
         before = len(codes)
         if before >= MAX_POSTS_PER_FOLDER:
@@ -148,6 +163,8 @@ def list_shortcodes(page, folder_url: str, enough=None) -> list[str]:
         deadline = time.time() + SCROLL_WAIT_S
         while time.time() < deadline:
             time.sleep(0.4)
+            if stop_asked():
+                raise Stopped("fermata mentre leggeva la cartella")
             _merge(codes, page)
             if len(codes) > before:
                 break

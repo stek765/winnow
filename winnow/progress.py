@@ -31,9 +31,6 @@ def line(event: str, data: dict) -> str:
         return (f"  folder     {data['name']} · {data['found']} posts, "
                 f"{data['new']} new")
 
-    if event == "folder_skipped":
-        return f"  folder     {data['name']} · skipped, the run is already full"
-
     if event == "post":
         n = data["slides"]
         return (f"\n  {data['i']}/{data['n']}  @{data['account']} · "
@@ -63,6 +60,10 @@ def line(event: str, data: dict) -> str:
         return f"  HALTED     {data.get('reason', '')}"
 
     # --- il recap --------------------------------------------------------
+    if event == "sliced":
+        return (f"  slicing    {data.get('days', 0)} of {data.get('of', 0)} "
+                f"days · {data.get('left', 0)} things left for next time")
+
     if event == "bundling":
         days = data.get("days", 0)
         day_word = "day" if days == 1 else "days"
@@ -75,13 +76,44 @@ def line(event: str, data: dict) -> str:
         if attempt <= 1:
             return "  asking     the model is reading it…"
         return f"  asking     attempt {attempt} of {data.get('of', '?')}"
+    if event == "writing":
+        return f"  writing    {data.get('chars', 0):,} characters so far"
+
     if event == "waiting":
         secs = data.get("seconds", 0)
         return (f"  waiting    {secs:.0f}s before trying again "
                 f"({data.get('why', 'no reason given')})")
     if event == "judged":
+        binned = data.get("binned")
+        tail = f" · {binned} binned" if binned is not None else ""
         return (f"  judged     {data.get('kept', 0)} of "
-                f"{data.get('of', 0)} · USD {data.get('usd', 0):.2f}")
+                f"{data.get('of', 0)}{tail} · USD {data.get('usd', 0):.2f}")
+    # --- le idee ---------------------------------------------------------
+    if event == "drawing":
+        return (f"  drawing    {data.get('drawn', 0)} things out of "
+                f"{data.get('of', 0)}, at random")
+    if event == "dreamt":
+        return (f"  ideas      {data.get('ideas', 0)} from "
+                f"{data.get('of', 0)} things · USD {data.get('usd', 0):.2f}")
+
+    # Said, not only printed. The CLI reads the reason off stdout; the window
+    # cannot, and a run that ends with a code and no sentence leaves a spinner
+    # turning over a thing that already gave up.
+    if event == "failed":
+        # Two different things share this name: a run that gave up (`why`) and
+        # one post of fifty that could not be read (`shortcode`). Printing the
+        # first wording for the second turned a skipped post into «the run
+        # failed», which is a lie in the only place a reader trusts.
+        if data.get("why"):
+            return f"  failed     {data['why']}"
+        return (f"    ✗          {data.get('shortcode', '?')} — "
+                f"{data.get('error', 'unreadable')}, post skipped")
+
+    if event == "stopped":
+        done, of = data.get("done"), data.get("of")
+        where = f" at {done} of {of}" if done is not None else ""
+        return f"  stopped    you asked it to stop{where}"
+
     if event == "rendered":
         return f"  → {data.get('path', '')}"
 

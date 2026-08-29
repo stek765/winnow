@@ -53,14 +53,16 @@ import re
 from datetime import date
 from pathlib import Path
 
+from winnow.i18n import DEFAULT, t
+
 # What a chip says when there is no date to say it with. Words, not symbols:
 # a tick and a quarter-circle need a legend, and a page with a legend is a page
 # that failed to say it the first time.
-STATES = {
-    "alive":   "trovato alla fonte",
-    "stale":   "fermo da anni",
-    "unknown": "nessuna fonte da chiedere",
-    "absent":  "la fonte non lo trova",
+STATE_KEYS = {
+    "alive":   "page.source_found",
+    "stale":   "page.stale",
+    "unknown": "page.source_none",
+    "absent":  "page.source_missing",
 }
 
 # The order verdicts appear in, when the judgement does not impose one. Source
@@ -170,8 +172,28 @@ def shot_for(item: dict, shots: Path | None,
     return str(shots / (exact if exact in names else names[0]))
 
 
-# What a sibling chip says about the one that got through.
+# What a sibling chip says about the one that got through. The value is a
+# key, like every other verdict: it is compared against, not printed as it is.
 KEPT = "TENUTA"
+
+
+def say_verdict(verdict: str, lang: str = DEFAULT) -> str:
+    """A verdict as the reader reads it.
+
+    The stored value is Italian and stays Italian: it is what the prompt asks
+    the model to write, what `VERDICT_ORDER` sorts by and what a merge groups
+    on. A key that moved with the language would make two recaps of the same
+    week ungroupable, so only what is *printed* moves.
+
+    A verdict the model invented has no translation and is printed as it came:
+    better one word in the wrong language than a group that disappears.
+    """
+    v = (verdict or "").strip()
+    if v == KEPT:
+        return t("verdict.kept", lang)
+    key = f"verdict.{v}"
+    said = t(key, lang)
+    return v if said == key else said
 
 
 def siblings_map(kept: list[dict], stopped: list[dict]) -> dict:
@@ -209,7 +231,7 @@ def siblings_of(item: dict, siblings: dict | None) -> list[tuple[str, str]]:
 
 def slide_note(item: dict, shapes: dict[str, str] | None = None,
                shared: set[tuple[str, int]] | None = None,
-               siblings: dict | None = None) -> str:
+               siblings: dict | None = None, lang: str = DEFAULT) -> str:
     """What the picture is, when it is not a picture of this thing.
 
     A caption that says the slide names many projects turns a confusing image
@@ -231,9 +253,9 @@ def slide_note(item: dict, shapes: dict[str, str] | None = None,
     if n > 1:
         # A number where one is available: it is what tells you whether this
         # came off a list of three or of fifty.
-        return f"una di {n} su questa slide"
+        return t("page.one_of_n", lang, n=n)
     if (post, slide) in (shared or set()):
-        return "questa slide ne nomina molti"
+        return t("page.many_on_slide", lang)
     return ""
 
 
@@ -278,7 +300,7 @@ def plate(item: dict) -> str:
             f'<span class="plate-n">{_esc(label)}</span></span>')
 
 
-def state_chip(item: dict) -> str:
+def state_chip(item: dict, lang: str = DEFAULT) -> str:
     """What was actually checked, in words that mean something on their own.
 
     This used to print the internal state — `vivo`, `fermo` — which is a word
@@ -290,10 +312,10 @@ def state_chip(item: dict) -> str:
     state = (item.get("state") or "unknown").strip().lower()
     when = (item.get("last_commit") or "").strip()
     if when and state == "alive":
-        return f"ultimo commit {when}"
+        return t("page.last_commit", lang, when=when)
     if when and state == "stale":
-        return f"fermo dal {when}"
-    return STATES.get(state, STATES["unknown"])
+        return t("page.stopped_since", lang, when=when)
+    return t(STATE_KEYS.get(state, STATE_KEYS["unknown"]), lang)
 
 
 def _facts(item: dict) -> str:
@@ -321,29 +343,30 @@ def _stamp(item: dict) -> str:
     return f'<span class="stamp">{_esc(name.rsplit("/", 1)[-1])}</span>'
 
 
-def _siblings_html(item: dict, siblings: dict | None) -> str:
+def _siblings_html(item: dict, siblings: dict | None,
+                   lang: str = DEFAULT) -> str:
     rows = siblings_of(item, siblings)
     if not rows:
         return ""
     chips = "".join(
         f'<span class="sib{" kept" if verdict == KEPT else ""}">'
-        f'{_esc(name)}<b>{_esc(verdict)}</b></span>'
+        f'{_esc(name)}<b>{_esc(say_verdict(verdict, lang))}</b></span>'
         for name, verdict in sorted(rows, key=lambda r: r[0].lower()))
-    return (f'<div class="sibs"><span class="lab">Sulla stessa slide, '
-            f'e cosa ne è stato</span>{chips}</div>')
+    return (f'<div class="sibs"><span class="lab">'
+            f'{t("page.same_slide", lang)}</span>{chips}</div>')
 
 
 def kept_html(item: dict, i: int, cat: str, shots: Path | None,
               out_dir: Path | None, shapes: dict[str, str] | None = None,
               shared: set | None = None, siblings: dict | None = None,
-              embed_shots: bool = False) -> str:
+              embed_shots: bool = False, lang: str = DEFAULT) -> str:
     """One thing that got through: the slide, then why it got through."""
     found = shot_for(item, shots, shapes, shared)
     src = (_inline(found) if embed_shots and found
            else _rel(found, out_dir))
     pic = (f'<img loading="lazy" src="{_esc(src)}" alt="">' if src
            else plate(item))
-    note = slide_note(item, shapes, shared, siblings)
+    note = slide_note(item, shapes, shared, siblings, lang)
     post = post_of(item)
     n = _slide_of(item)
     caption = f"slide {n}" if post and n > 0 else ""
@@ -353,11 +376,11 @@ def kept_html(item: dict, i: int, cat: str, shots: Path | None,
     links = []
     if item.get("url"):
         links.append(f'<a class="go" href="{url}" target="_blank" '
-                     f'rel="noopener">apri</a>')
+                     f'rel="noopener">{t("page.open", lang)}</a>')
     if post:
         links.append(f'<a class="ghost" target="_blank" rel="noopener" '
                      f'href="https://www.instagram.com/p/{_esc(post)}/">'
-                     f'il post</a>')
+                     f'{t("page.the_post", lang)}</a>')
     state = _esc(item.get("state", "unknown"))
     doubt = _esc(item.get("doubt"))
     return f"""<article class="pass" data-cat="{_esc(cat)}">
@@ -367,19 +390,19 @@ def kept_html(item: dict, i: int, cat: str, shots: Path | None,
   </figure>
   <div class="body">
     <p class="tags"><span class="cat">{_esc(cat)}</span><span
-       class="st s-{state}">{_esc(state_chip(item))}</span></p>
+       class="st s-{state}">{_esc(state_chip(item, lang))}</span></p>
     <h3>{_esc(item.get("title") or item.get("does"))}</h3>
     <p class="does">{_md(item.get("does"))}</p>
-    <p class="why"><span class="lab">Perché passa</span>{_md(item.get("why"))}</p>
-    {f'<p class="doubt"><span class="lab">Dubbio</span>{doubt}</p>' if doubt else ''}
-    {_siblings_html(item, siblings)}
+    <p class="why"><span class="lab">{t("page.why_label", lang)}</span>{_md(item.get("why"))}</p>
+    {f'<p class="doubt"><span class="lab">{t("page.doubt_label", lang)}</span>{doubt}</p>' if doubt else ''}
+    {_siblings_html(item, siblings, lang)}
     <p class="foot">{_facts(item)}</p>
     <p class="links">{" ".join(links)}</p>
   </div>
 </article>"""
 
 
-def stopped_html(rows: list[dict]) -> str:
+def stopped_html(rows: list[dict], lang: str = DEFAULT) -> str:
     """What was thrown away, grouped by the verdict that threw it away.
 
     One line per thing — a bucket cannot be corrected, because the reader
@@ -395,8 +418,10 @@ def stopped_html(rows: list[dict]) -> str:
     order = [v for v in VERDICT_ORDER if v in groups]
     order += sorted(k for k in groups if k not in VERDICT_ORDER)
 
+    # `data-v` keeps the key — the filter matches on it — while what is
+    # printed follows the reader's language.
     chips = "".join(
-        f'<button class="vf" data-v="{_esc(v)}">{_esc(v)}'
+        f'<button class="vf" data-v="{_esc(v)}">{_esc(say_verdict(v, lang))}'
         f'<b>{len(groups[v])}</b></button>' for v in order)
     blocks = []
     for v in order:
@@ -406,27 +431,26 @@ def stopped_html(rows: list[dict]) -> str:
             for r in groups[v])
         blocks.append(
             f'<section class="vg" data-v="{_esc(v)}">'
-            f'<h3>{_esc(v)}<b>{len(groups[v])}</b></h3>'
+            f'<h3>{_esc(say_verdict(v, lang))}<b>{len(groups[v])}</b></h3>'
             f'<ol class="rows">{lis}</ol></section>')
     return f"""<section class="stopped">
-  <p class="eyebrow">Fermate</p>
-  <h2>{len(rows)} cose non sono passate</h2>
-  <p class="intro">Ognuna col suo nome e il suo motivo, perché un mucchio non
-    si può correggere. I numeri qui sotto sono la forma del ragionamento:
-    se uno è sbagliato, è lì che si vede.</p>
-  <div class="vfs"><button class="vf on" data-v="*">Tutte<b>{len(rows)}</b></button>{chips}</div>
+  <p class="eyebrow">{t("page.stopped_eyebrow", lang)}</p>
+  <h2>{t("page.stopped_heading", lang, n=len(rows))}</h2>
+  <p class="intro">{t("page.stopped_intro", lang)}</p>
+  <div class="vfs"><button class="vf on" data-v="*">{t("page.all", lang)}<b>{len(rows)}</b></button>{chips}</div>
   <div class="vgs">{"".join(blocks)}</div>
 </section>"""
 
 
-def counts_html(counts: dict) -> str:
+def counts_html(counts: dict, lang: str = DEFAULT) -> str:
     usd = counts.get("usd")
-    cells = [(counts.get("posts"), "post letti"),
-             (counts.get("kept"), "passate"),
-             (counts.get("failed"), "illeggibili"),
+    cells = [(counts.get("posts"), t("page.posts_read", lang)),
+             (counts.get("kept"), t("page.kept", lang)),
+             (counts.get("failed"), t("page.unreadable", lang)),
              # The cost used to be a bare label with no number, which left it
              # with no first baseline to align on: it floated above the row.
-             (f"${usd:.2f}" if usd is not None else None, "spesi")]
+             (f"${usd:.2f}" if usd is not None else None,
+              t("page.spent", lang))]
     out = []
     for v, label in cells:
         if v is None:
@@ -848,7 +872,7 @@ def shapes_from(findings_dir: Path | None) -> dict[str, str]:
 def render(data: dict, shots: Path | None = None,
            out_dir: Path | None = None,
            shapes: dict[str, str] | None = None,
-           embed_shots: bool = False) -> str:
+           embed_shots: bool = False, lang: str = DEFAULT) -> str:
     """Judgement (as data) -> the week, cut in half and both halves shown."""
     week = _esc(data.get("week"))
     lede = "".join(f"<p>{_md(p.strip())}</p>"
@@ -867,7 +891,7 @@ def render(data: dict, shots: Path | None = None,
     shared = shared_slides(kept + list(stopped))
     siblings = siblings_map(kept, list(stopped))
     passed = "".join(kept_html(it, i, cat, shots, out_dir, shapes, shared,
-                               siblings, embed_shots)
+                               siblings, embed_shots, lang)
                      for i, (cat, it) in enumerate(flat))
     chips = "".join(f'<button class="cf" data-cat="{_esc(c.get("name"))}">'
                     f'{_esc(c.get("name"))}</button>' for c in cats)
@@ -875,7 +899,7 @@ def render(data: dict, shots: Path | None = None,
     art = painting_data_uri()
     total = len(kept) + len(stopped)
     return f"""<!doctype html>
-<html lang="it"><head><meta charset="utf-8">
+<html lang="{lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>winnow · {week}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -885,24 +909,24 @@ def render(data: dict, shots: Path | None = None,
 <body>
 
 <header class="head">
-  {f'<img class="art" src="{art}" alt="Un contadino lancia il grano in aria: il vento porta via la pula.">' if art else ""}
+  {f'<img class="art" src="{art}" alt="{_esc(t("page.art_alt", lang))}">' if art else ""}
   <div class="say">
     <p class="wordmark">{logo_svg()}<span>winnow</span><b>{week}</b></p>
-    <h1>{total} cose salvate.<br><em>{len(kept)} valgono il tuo tempo.</em></h1>
-    {f'<div class="comment"><p class="lab">Il commento della settimana</p>{lede}</div>' if lede else ""}
-    <div class="stats">{counts_html(counts)}</div>
+    <h1>{t("page.saved", lang, n=total)}<br><em>{t("page.worth", lang, n=len(kept))}</em></h1>
+    {f'<div class="comment"><p class="lab">{t("page.comment", lang)}</p>{lede}</div>' if lede else ""}
+    <div class="stats">{counts_html(counts, lang)}</div>
   </div>
-  <p class="credit">Jean-François Millet, <em>Il vagliatore</em>, 1847–48. Pubblico dominio.</p>
+  <p class="credit">{t("page.credit", lang)}</p>
 </header>
 
 <section class="passed">
-  <p class="eyebrow">Passate</p>
-  <h2>Cosa vale il tuo tempo</h2>
-  <div class="cats"><button class="cf on" data-cat="*">Tutte</button>{chips}</div>
+  <p class="eyebrow">{t("page.kept_eyebrow", lang)}</p>
+  <h2>{t("page.kept_heading", lang)}</h2>
+  <div class="cats"><button class="cf on" data-cat="*">{t("page.all", lang)}</button>{chips}</div>
   <div class="list">{passed}</div>
 </section>
 
-{stopped_html(stopped)}
+{stopped_html(stopped, lang)}
 
 <script>{JS}</script></body></html>
 """
@@ -1014,7 +1038,7 @@ def render_file(src: Path, out: Path | None = None,
                 shots: Path | None = None,
                 findings: Path | None = None,
                 data: dict | None = None,
-                embed_shots: bool = False) -> Path:
+                embed_shots: bool = False, lang: str = DEFAULT) -> Path:
     if data is None:
         data = extract_json(src.read_text(encoding="utf-8"))
     out = out or src.with_suffix(".html")
@@ -1025,6 +1049,6 @@ def render_file(src: Path, out: Path | None = None,
     shapes = shapes_from(findings if findings is not None else paths.findings_dir())
     out.write_text(
         render(data, shots if shots.is_dir() else None, out.parent, shapes,
-               embed_shots),
+               embed_shots, lang),
         encoding="utf-8")
     return out

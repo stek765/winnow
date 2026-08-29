@@ -93,7 +93,7 @@ def test_prompt_body_starts_at_the_marker():
     assert "The judge is not code" in full
     assert "The judge is not code" not in body
     assert body.startswith(">")
-    assert "language my profile is written in" in body
+    assert "Write the recap in English." in body
 
 
 def test_prompt_body_falls_back_to_the_whole_file():
@@ -180,14 +180,24 @@ def test_find_secrets_reports_the_line_number():
     assert hits and hits[0].startswith("riga 3:")
 
 
-def test_the_prompt_pins_the_output_language_to_the_profile():
+def test_the_prompt_pins_the_output_language_to_the_chosen_one():
     """Prompt in English, profile in Italian, and nothing saying which language
     to answer in: the model guessed, and could guess differently next week.
-    Tying it to the profile is what makes it right for everyone, not just for
-    whoever wrote the tool."""
+
+    It was pinned to the profile's language first, which was the best anchor
+    available while the app had no language of its own. Now it has one, chosen
+    explicitly in the window — and an English window whose ideas come back in
+    Italian is winnow disagreeing with a setting the reader has just changed.
+    Both prompts are pinned, not only the recap's: the draw is a page too."""
     from winnow.recap import package_file, prompt_body
-    body = prompt_body(package_file("recap-prompt.md"))
-    assert "language my profile is written in" in body
+    for name in ("recap-prompt.md", "ideas-prompt.md"):
+        assert "{language}" in package_file(name), (
+            f"{name} no longer says which language to answer in")
+        assert "in English." in prompt_body(package_file(name), "en")
+        assert "in Italian." in prompt_body(package_file(name), "it")
+        # Never the raw placeholder: a model handed `{language}` answers in
+        # whatever it feels like, which is the state this replaced.
+        assert "{language}" not in prompt_body(package_file(name), "it")
 
 
 def test_the_bundle_carries_its_own_instructions():
@@ -644,3 +654,76 @@ def test_the_readme_does_not_describe_a_flow_that_is_gone():
     body = text.lower()
     assert "copy the model's whole answer" not in body
     assert "winnow recap" in body
+
+
+def test_every_way_a_recap_can_end_badly_says_why(tmp_path, monkeypatch):
+    """The window cannot read stdout. On 2026-08-28 a real recap was cut off
+    at 16,000 tokens and the panel said «non ha detto perché» — which is the
+    one thing a run that cost money must never do."""
+    from winnow import paths, providers, recap
+
+    monkeypatch.setattr(paths, "profile_file", lambda: tmp_path / "nope.md")
+    said = []
+    assert recap.run_recap(on_event=lambda e, d: said.append((e, d))) == 1
+    assert said and said[-1][0] == "failed" and said[-1][1]["why"]
+
+
+def test_the_ceiling_leaves_room_for_a_backlog():
+    """The answer grows with the pile, not with what got through: every
+    rejected thing carries a sentence. A backlog is when a recap matters most
+    and it is exactly what broke the old ceiling."""
+    from winnow.judge import MAX_OUT
+
+    assert MAX_OUT >= 32_000
+
+
+def _day(tmp_path, name, things):
+    """A findings file holding `things` named things, spread over posts."""
+    posts = [{"shortcode": f"{name}-{i}", "entities": [{"name": f"t{i}-{j}"}
+                                                       for j in range(2)]}
+             for i in range((things + 1) // 2)]
+    p = tmp_path / f"{name}.json"
+    p.write_text(json.dumps({"posts": posts, "spend_usd": 0.0, "failed": []}),
+                 encoding="utf-8")
+    return p
+
+
+def test_a_backlog_is_cut_into_recaps_oldest_first(tmp_path):
+    """46 posts over five days came back cut off mid-JSON. Oldest first
+    matters: judging the newest first would bury the old days under a marker
+    that only moves forward, and they would never be judged at all."""
+    from winnow.recap import slice_days
+
+    files = [_day(tmp_path, "2026-08-20", 100), _day(tmp_path, "2026-08-21", 100),
+             _day(tmp_path, "2026-08-22", 100)]
+    taken, left = slice_days(files, cap=250)
+    assert [f.stem for f in taken] == ["2026-08-20", "2026-08-21"]
+    assert left == 100
+
+
+def test_a_single_day_over_the_cap_is_still_taken_whole(tmp_path):
+    """Half a day judged is a day that can never be finished: the marker moves
+    a day at a time."""
+    from winnow.recap import slice_days
+
+    files = [_day(tmp_path, "2026-08-20", 400), _day(tmp_path, "2026-08-21", 10)]
+    taken, left = slice_days(files, cap=250)
+    assert [f.stem for f in taken] == ["2026-08-20"] and left == 10
+
+
+def test_a_pile_that_fits_is_not_cut(tmp_path):
+    from winnow.recap import slice_days
+
+    files = [_day(tmp_path, "2026-08-20", 40), _day(tmp_path, "2026-08-21", 40)]
+    taken, left = slice_days(files, cap=250)
+    assert len(taken) == 2 and left == 0
+
+
+def test_a_day_that_cannot_be_read_does_not_stop_the_slicing(tmp_path):
+    from winnow.recap import slice_days
+
+    bad = tmp_path / "2026-08-20.json"
+    bad.write_text("{ not json", encoding="utf-8")
+    files = [bad, _day(tmp_path, "2026-08-21", 40)]
+    taken, left = slice_days(files, cap=250)
+    assert len(taken) == 2 and left == 0

@@ -1,7 +1,7 @@
 [project]
 name = "winnow"
-version = "1.0.0"
-description = "Filter your saved social posts against who you actually are"
+version = "1.1.0"
+description = "Sift the posts you save against who you actually are"
 requires-python = ">=3.11"
 dependencies = [
     "playwright>=1.47",

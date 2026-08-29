@@ -113,7 +113,17 @@ def accepts_temperature(create) -> bool:
 
 
 def _anthropic(model: str, system: str, text: str, images: list[Path],
-               max_tokens: int, temperature: float) -> tuple[str, int, int]:
+               max_tokens: int, temperature: float,
+               on_progress=None) -> tuple[str, int, int]:
+    """One call, streamed.
+
+    Streaming is not a nicety here, it is the only way the call is allowed to
+    happen: the SDK refuses a plain `create` whose `max_tokens` could take it
+    past ten minutes — «Streaming is required for operations that may take
+    longer than 10 minutes» — and a weekly recap of a backlog is exactly that
+    request. It also turns three silent minutes into something a person can
+    watch, which is what `on_progress` is for.
+    """
     import anthropic
 
     content: list[dict] = [{"type": "text", "text": text}]
@@ -124,11 +134,22 @@ def _anthropic(model: str, system: str, text: str, images: list[Path],
                 for p in images]
     messages = anthropic.Anthropic().messages
     extra = {"temperature": temperature} if accepts_temperature(
-        messages.create) else {}
-    r = messages.create(
-        model=model, max_tokens=max_tokens, system=system, **extra,
-        messages=[{"role": "user", "content": content}])
-    reply = next((b.text for b in r.content if b.type == "text"), "[]")
+        messages.stream) else {}
+
+    chunks: list[str] = []
+    with messages.stream(
+            model=model, max_tokens=max_tokens, system=system, **extra,
+            messages=[{"role": "user", "content": content}]) as stream:
+        for piece in stream.text_stream:
+            chunks.append(piece)
+            if on_progress:
+                # Characters, not tokens: it is what has actually arrived, and
+                # the caller decides how often to say anything about it.
+                on_progress(sum(len(c) for c in chunks))
+        r = stream.get_final_message()
+
+    reply = "".join(chunks) or next(
+        (b.text for b in r.content if b.type == "text"), "[]")
     if r.stop_reason == "max_tokens":
         # Truncated JSON parses as "malformed", which sends the reader looking
         # for a prompt bug. Say what actually happened. Measured 2026-08-21: a
@@ -136,13 +157,12 @@ def _anthropic(model: str, system: str, text: str, images: list[Path],
         exc = Truncated(f"reply truncated at {max_tokens} tokens: the post has "
                         "too many entries. Raise max_tokens.")
         # The cut-off text already cost real money (this is the weekly recap's
-        # heaviest call, max_tokens=16000). Carried on the exception, not
-        # returned, so the signature stays "one reply or an error" — a caller
-        # that has somewhere to put a partial answer can still reach it.
+        # heaviest call). Carried on the exception, not returned, so the
+        # signature stays "one reply or an error" — a caller that has somewhere
+        # to put a partial answer can still reach it.
         exc.partial = reply
-        # Same reasoning for the tokens: the API already billed for them
-        # (`r.usage` is populated even when `stop_reason == "max_tokens"`), so
-        # a caller that wants to record the spend does not have to guess it.
+        # Same reasoning for the tokens: the API already billed for them, so a
+        # caller that wants to record the spend does not have to guess it.
         exc.input_tokens = r.usage.input_tokens
         exc.output_tokens = r.usage.output_tokens
         raise exc
@@ -157,7 +177,11 @@ def openai_payload(model: str, system: str, text: str, images: list[Path],
                 for p in images]
     return {
         "model": model,
-        "max_tokens": max_tokens,
+        # The recap asks for room a backlog might need (48,000). Anthropic
+        # grants it and streams; most OpenAI-compatible models cap far lower
+        # and refuse the whole request rather than writing less, so the ask is
+        # clamped here instead of failing at the far end.
+        "max_tokens": min(max_tokens, 16000),
         "temperature": temperature,
         "messages": [{"role": "system", "content": system},
                      {"role": "user", "content": content}],
@@ -201,12 +225,38 @@ def _openai_compatible(base_url: str, key: str | None, model: str, system: str,
     return read_openai_reply(r.json())
 
 
+def load_key(provider: str) -> None:
+    """The key file, applied at the moment the key is needed.
+
+    It used to be applied by `winnow collect` and nowhere else, which was true
+    for as long as the collector was the only thing that called a model. The
+    window then started runs of its own — a recap, a draw — inside a server
+    process that never went through that command, and every one of them died
+    on «Could not resolve authentication method», with the key sitting in
+    `config/env` the whole time.
+
+    So it belongs here: one place, the last one before the call, reached by
+    the CLI, the window and the scheduled job alike. `setdefault`, never an
+    overwrite — a key exported in the shell wins over the file, which is what
+    lets a second account be used for one run without editing anything.
+    """
+    var = KEY_ENV.get(provider)
+    if not var or os.environ.get(var):
+        return
+    from winnow import paths
+    from winnow.setup import apply_env_file
+    apply_env_file(paths.env_file())
+
+
 def complete(provider: str, model: str, base_url: str | None, system: str,
              text: str, images: list[Path], max_tokens: int = 8000,
-             temperature: float = 0.0) -> tuple[str, int, int]:
+             temperature: float = 0.0,
+             on_progress=None) -> tuple[str, int, int]:
     """One call, one reply, and the tokens it took. Same contract everywhere."""
+    load_key(provider)
     if provider == ANTHROPIC:
-        return _anthropic(model, system, text, images, max_tokens, temperature)
+        return _anthropic(model, system, text, images, max_tokens, temperature,
+                          on_progress)
     if provider == OPENAI:
         return _openai_compatible("https://api.openai.com/v1",
                                   os.environ.get(KEY_ENV[OPENAI]), model,

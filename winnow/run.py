@@ -89,6 +89,7 @@ def enrich(
     entity: Entity,
     cache: dict[tuple[str, str], Verification],
     delay: float = 0.0,
+    should_stop=None,
 ) -> Verification:
     key = (entity.kind, entity.name.lower())
     if key in cache:
@@ -110,8 +111,71 @@ def enrich(
 
     cache[key] = v
     if delay and entity.kind in ("repo", "model"):
-        time.sleep(delay)
+        # Without a GitHub token this is up to a minute between two names, and
+        # it is where an unattended run spends most of its life. Slept in
+        # slices so «Ferma» is answered in a second rather than at the end of
+        # the wait — the same reason `judge.ask` slices its backoff.
+        waited = 0.0
+        while waited < delay:
+            if should_stop and should_stop():
+                break
+            step = min(1.0, delay - waited)
+            time.sleep(step)
+            waited += step
     return v
+
+
+def tally_by_folder(seen: dict[str, dict]) -> dict[str, int]:
+    """How many posts each folder has already given, from `seen.json`.
+
+    No new state file: the folder has been recorded beside every post since
+    the first run, so the count is already on disk. Records written by an
+    older version, or by hand, simply do not count towards anyone.
+    """
+    out: dict[str, int] = {}
+    for rec in seen.values():
+        name = rec.get("folder") if isinstance(rec, dict) else None
+        if name:
+            out[name] = out.get(name, 0) + 1
+    return out
+
+
+def deal(pools: list[tuple[str, list[str]]], want: int,
+         tally: dict[str, int] | None = None) -> list[tuple[str, str]]:
+    """Share a run between the folders instead of queueing them.
+
+    The run used to take the first folder's posts until it was full, and a
+    folder that never runs dry — a saved-repos folder with three hundred
+    posts in it — meant every folder under it was skipped for ever. Measured
+    on a real account on 2026-08-29: seven folders on, and six days of runs
+    had read exactly two of them.
+
+    So: one post from each folder in turn, and round again. A folder with
+    nothing new hands its slot to the others, or fairness would cost posts.
+
+    The order only matters when there are more folders than slots, and there
+    it matters a great deal: config order would leave out the same folders
+    every day, which is the bug one level down. The folder that has given
+    least so far picks first, so the queue turns over on its own.
+    """
+    tally = tally or {}
+    order = sorted(range(len(pools)),
+                   key=lambda i: (tally.get(pools[i][0], 0), i))
+    todo: list[tuple[str, str]] = []
+    depth = 0
+    while len(todo) < want:
+        took = False
+        for i in order:
+            if len(todo) >= want:
+                break
+            name, new = pools[i]
+            if depth < len(new):
+                todo.append((new[depth], name))
+                took = True
+        if not took:
+            break
+        depth += 1
+    return todo
 
 
 def findings_path(root: Path, day: date) -> Path:
@@ -196,6 +260,7 @@ def collect(
     now: datetime,
     search_delay: float = SEARCH_DELAY_S,
     on_event: Callable[[str, dict], None] | None = None,
+    should_stop: Callable[[], bool] | None = None,
 ) -> dict:
     spend_path = state_dir / "spend.json"
     seen_path = state_dir / "seen.json"
@@ -209,20 +274,29 @@ def collect(
     status = check_brake(state_dir, spend_path, cfg.limits, now)  # may raise Halted
 
     seen = load_seen(seen_path)
-    todo: list[tuple[str, str]] = []
-    for folder in active_folders(cfg):
-        missing = cfg.limits.posts_per_run - len(todo)
-        if missing <= 0:
-            # Listing it would cost a minute of scrolling to then drop every
-            # post on the floor. Say so: silence here reads as "empty folder".
-            say("folder_skipped", name=folder.name)
-            continue
+    folders = active_folders(cfg)
+    want = cfg.limits.posts_per_run
+    # Ceil, not the plain average: eight posts over seven folders asks two of
+    # each rather than one, so a folder that comes back empty costs the run
+    # nothing. It only caps the *scrolling* — whatever a screenful turned up
+    # beyond it is kept and dealt below.
+    share = -(-want // len(folders)) if folders else 0
+
+    pools: list[tuple[str, list[str]]] = []
+    for folder in folders:
+        if should_stop and should_stop():
+            say("stopped", done=0, of=0)
+            break
         codes = list_shortcodes(
             page, folder.url,
-            enough=lambda cs, n=missing: len(filter_new(seen, cs)) >= n)
+            enough=lambda cs, n=share: len(filter_new(seen, cs)) >= n,
+            should_stop=should_stop)
         new = filter_new(seen, codes)
         say("folder", name=folder.name, found=len(codes), new=len(new))
-        todo.extend((code, folder.name) for code in new[:missing])
+        if new:
+            pools.append((folder.name, new))
+
+    todo = deal(pools, want, tally_by_folder(seen))
 
     extractions: list[PostExtraction] = []
     verifications: dict[tuple[str, str], Verification] = {}
@@ -232,6 +306,12 @@ def collect(
     failed: list[dict] = []
 
     for n, (code, folder_name) in enumerate(todo, start=1):
+        # Between posts, never inside one: a post half read is a post paid for
+        # and thrown away. Everything read so far is written below exactly as
+        # if the queue had ended here.
+        if should_stop and should_stop():
+            say("stopped", done=n - 1, of=len(todo))
+            break
         # One bad post must not kill the run. Record it, mark it seen (or it
         # gets paid for again every run) and carry on.
         try:
@@ -250,7 +330,13 @@ def collect(
                 shape=ex.shape)
 
             for e in ex.entities:
-                v = enrich(http, e, cache, search_delay)
+                # Between two names, not only between two posts: a post with
+                # twelve names is twelve source lookups, and without a token
+                # that is minutes.
+                if should_stop and should_stop():
+                    break
+                v = enrich(http, e, cache, search_delay,
+                           should_stop=should_stop)
                 verifications[(code, e.name)] = v
                 say("verified", name=e.name, checked=v.checked, exists=v.exists,
                     stars=v.stars, note=v.note)

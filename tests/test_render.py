@@ -51,7 +51,7 @@ def test_the_state_is_a_word_and_not_a_symbol():
     """A tick and a quarter-circle need a legend, and a page with a legend is
     a page that did not say it the first time."""
     out = kept_html({"title": "x", "state": "stale"}, 0, "c", None, None)
-    assert "fermo" in out
+    assert "untouched" in out
 
 
 @pytest.mark.parametrize("n,text", [
@@ -139,10 +139,10 @@ def test_a_list_slide_is_shown_and_labelled_rather_than_withheld(tmp_path):
     twin = {"post": "LIST", "slide": 3, "name": "o/y"}
     shared = shared_slides([item, twin])
     assert shot_for(item, tmp_path, None, shared).endswith("_03.png")
-    assert slide_note(item, None, shared) == "questa slide ne nomina molti"
+    assert slide_note(item, None, shared) == "this slide names many"
     out = kept_html(item | {"title": "x"}, 0, "c", tmp_path, tmp_path,
                     None, shared)
-    assert "<img" in out and "ne nomina molti" in out
+    assert "<img" in out and "this slide names many" in out
 
 
 def test_the_caption_follows_the_slide_and_not_the_shape_of_the_post(tmp_path):
@@ -165,7 +165,7 @@ def test_one_slide_shared_by_two_things_says_so(tmp_path):
     c = {"post": "P", "slide": 5, "name": "o/c"}
     shared = shared_slides([a, b, c])
     assert shared == {("P", 2)}
-    assert slide_note(a, {}, shared) == "questa slide ne nomina molti"
+    assert slide_note(a, {}, shared) == "this slide names many"
     assert slide_note(c, {}, shared) == ""
 
 
@@ -180,11 +180,11 @@ def test_the_doubt_is_on_the_page_next_to_the_thing():
     """Knowing where the weak points are is the reason to trust the rest — so
     it is read, not revealed by a click."""
     out = kept_html({"title": "x", "doubt": "quattro omonimi"}, 0, "c", None, None)
-    assert "quattro omonimi" in out and "Dubbio" in out
+    assert "quattro omonimi" in out and "Doubt" in out
 
 
 def test_no_doubt_means_no_label():
-    assert "Dubbio" not in kept_html({"title": "x"}, 0, "c", None, None)
+    assert "Doubt" not in kept_html({"title": "x"}, 0, "c", None, None)
 
 
 def test_why_it_got_through_is_labelled_as_such():
@@ -192,7 +192,7 @@ def test_why_it_got_through_is_labelled_as_such():
     valued over another. The reason is a labelled field, not a paragraph the
     reader has to guess the purpose of."""
     out = kept_html({"title": "x", "why": "tocca la tesi"}, 0, "c", None, None)
-    assert "Perché passa" in out and "tocca la tesi" in out
+    assert "Why it got through" in out and "tocca la tesi" in out
 
 
 # --- what was stopped ---------------------------------------------------------
@@ -407,7 +407,7 @@ def test_a_thing_from_a_list_slide_shows_what_happened_to_its_neighbours():
                 "verdict": "NON ESISTE"}]
     sib = siblings_map(kept, stopped)
     out = kept_html(kept[0], 0, "c", None, None, siblings=sib)
-    assert "o/other" in out and "LO CONOSCI" in out
+    assert "o/other" in out and "YOU KNOW IT" in out
     assert "o/elsewhere" not in out          # different slide, not a neighbour
     assert out.count("o/keeper") == 1        # never lists itself
 
@@ -482,13 +482,13 @@ def test_the_chip_states_a_fact_and_not_a_category():
     space — it says the thing that was actually checked."""
     from winnow.render import state_chip
     assert state_chip({"state": "alive", "last_commit": "2026-08"}) \
-        == "ultimo commit 2026-08"
+        == "last commit 2026-08"
     assert state_chip({"state": "stale", "last_commit": "2016-01"}) \
-        == "fermo dal 2016-01"
-    assert state_chip({"state": "unknown"}) == "nessuna fonte da chiedere"
-    assert state_chip({"state": "absent"}) == "la fonte non lo trova"
+        == "untouched since 2016-01"
+    assert state_chip({"state": "unknown"}) == "no source to ask"
+    assert state_chip({"state": "absent"}) == "the source does not find it"
     # A date is not always there, and inventing one is worse than a plain word.
-    assert state_chip({"state": "alive"}) == "trovato alla fonte"
+    assert state_chip({"state": "alive"}) == "found at the source"
 
 
 def test_the_date_is_not_printed_twice():
@@ -542,7 +542,7 @@ def test_the_comment_is_marked_as_a_comment():
     from winnow.render import render
     page = render({"comment": "qualcosa"})
     assert 'class="comment"' in page
-    assert "Il commento" in page
+    assert "The week's comment" in page
 
 
 def test_the_painting_bleeds_instead_of_floating():
@@ -563,7 +563,7 @@ def test_the_headline_is_a_sentence_and_not_two_numbers():
     page = render({"counts": {"kept": 15},
                    "categories": [{"name": "c", "items": [{"title": "t"}]}],
                    "discarded": [{"name": "x"}] * 8})
-    assert "valgono il tuo tempo" in page
+    assert "are worth your time" in page
 
 
 def test_the_mark_sits_on_the_same_line_as_the_name():
@@ -581,7 +581,7 @@ def test_the_cost_is_a_stat_like_the_others():
     to align on and floated above the row. A number and a label, like its
     neighbours."""
     out = counts_html({"posts": 30, "usd": 0.13})
-    assert "<b>$0.13</b>" in out and "spesi" in out
+    assert "<b>$0.13</b>" in out and "spent" in out
 
 
 def test_an_unparsable_answer_is_still_written_down(monkeypatch, tmp_path):

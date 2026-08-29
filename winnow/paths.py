@@ -42,6 +42,13 @@ def profile_file() -> Path:
     return config_dir() / "profile.md"
 
 
+def look_file() -> Path:
+    """How the window is coloured. Beside the config because it is a
+    preference of this installation — but its own file, so nothing that reads
+    `config.toml` (the collector, the scheduled job) ever has to parse it."""
+    return config_dir() / "look.json"
+
+
 def recap_dir() -> Path:
     return data_dir() / "recap"
 
@@ -53,6 +60,18 @@ def state_dir() -> Path:
 def judged_file() -> Path:
     """How far the judgement has progressed. Like seen.json, but for recaps."""
     return state_dir() / "judged.json"
+
+
+def drawn_file() -> Path:
+    """Everything a draw has already put in front of the model.
+
+    Not derivable from the pages: deleting an idea deletes its sidecar, and
+    with it the only record of the eight things that draw had read — so the
+    next press could offer them all over again. A page is an artifact and may
+    be thrown away; what has already been asked is state, and state does not
+    live inside the artifact. Same reason `judged.json` exists.
+    """
+    return state_dir() / "drawn.json"
 
 
 def findings_dir() -> Path:

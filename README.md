@@ -2,11 +2,12 @@
 
 # winnow
 
-**You save a post on Instagram and forget it. winnow doesn't. Analytical tool to find, verify and resume what you need, aligned with your goals.**
+**The posts you save on Instagram pile up. winnow sifts them every day and hands
+back only what serves what you are actually trying to do.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Code style: pytest](https://img.shields.io/badge/tested%20with-pytest-0a9edc.svg)](https://docs.pytest.org/)
+[![Tests](https://img.shields.io/badge/tests-596%20offline-0a9edc.svg)](tests/)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 <img src="assets/winnower-millet.jpg" alt="Jean-François Millet, The Winnower (c. 1847-48)" width="360">
@@ -16,22 +17,99 @@
 </div>
 
 <br>
-<br>
-
-## How it works
 
 You save a post and forget it. Once a day winnow opens the new ones, reads
-**every slide of the carousel**, and checks each name at the source. Once a week
-those facts meet **your profile**, and what comes back is about you.
+**every slide of the carousel**, and checks each name it finds **at the
+source** — GitHub, Hugging Face — so a beautiful post about a repo dead since
+2024 stops looking like a live one. Once a week those facts meet **your
+profile**, and what comes back is about you.
 
 <p align="center"><img src="assets/winnow-demo.gif" alt="Six drawn scenes: a post is saved on Instagram, the saved folder fills up, winnow opens every slide of the carousel, pulls out the names, checks each one at the source with real star counts, and your profile decides which ones survive into the weekly recap." width="840"></p>
 
-## What you actually do
+<br>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/diagrams/winnow-flow-dark.png">
-  <img src="assets/diagrams/winnow-flow.png" alt="Once: winnow init, five minutes. Every day, on its own via launchd: winnow collect writes one findings file. Every week, one command from you: winnow recap sends the week to your model and opens the page itself.">
-</picture>
+## The window
+
+Everything below can be done from a terminal. Nobody wants to.
+
+```bash
+winnow app
+```
+
+That opens winnow in your browser, and it is the whole app: every screen in
+this README is that page. If you would rather have it in the Dock, with its
+own window and its own icon, build the shell — [how](#the-app-in-the-dock).
+
+<p align="center"><img src="assets/app/home.jpg" alt="The home screen: eight posts waiting to be judged, collected on 29 August, a Make the recap button with Collect now beside it, and the week's spend along the bottom." width="880"></p>
+
+One screen, one sentence, one button — and one quiet way out of it. What the
+button says is what there is to do: **Make the recap** when there is a pile
+waiting, **Collect now** when there is not, **Sign back in** when Instagram has
+closed the session, **Start again** when the spend brake stopped everything.
+
+A run says what it is doing while it does it, because minutes of silence and a
+crash look identical:
+
+<p align="center"><img src="assets/app/working.jpg" alt="A recap in flight: a progress bar, the sentence The model is writing the judgement, a running clock, and the log underneath." width="880"></p>
+
+A bar that fills where there is a total to fill it with, a shuttle where there
+is not — inventing a percentage is worse than admitting there is none — and a
+clock ticking every second, which is the one thing that keeps moving while a
+model writes. **Stop** stops it at the run's own checkpoints: between two
+posts, before a model call. Never mid-request — a reply already on its way is a
+reply already paid for.
+
+<br>
+
+## What it makes
+
+Three things, and they are different on purpose.
+
+### The recap — once a week, one command
+
+<p align="center"><img src="assets/app/recap.jpg" alt="A recap open in the window: 60 things saved, 12 worth your time, the week's comment underneath, and the painting on the right." width="880"></p>
+
+The week's findings, your profile and the ask go to your model in one call. The
+answer is saved before anything is built from it, then turned into a page and
+opened. Nothing to copy, nothing to paste.
+
+The page shows what got through — each with the slide you would have seen on
+Instagram — and, under it, **every single thing that did not**, grouped by the
+verdict that stopped it, with a count beside each. That last part is the one to
+argue with: if *31 out of scope* looks wrong, you can see which 31.
+
+> A backlog is cut into several recaps rather than sent as one. The answer
+> carries a sentence per *rejected* thing, so its length tracks the pile and
+> not what survived — and a recap covering a fortnight is a page nobody reads
+> even when it fits.
+
+### The merge — several recaps as one page
+
+<p align="center"><img src="assets/app/archive.jpg" alt="The archive: recaps of 29 and 28 August with their ratios, comments and costs, one of them renamed by hand. Filters across the top and a legend under them." width="880"></p>
+
+Tick two recaps or ten and press **Merge**. A thing kept twice appears once,
+carrying both readings and both categories, with `2 recap` beside its name —
+the one thing a merge can say that no single recap can. Nothing is re-judged
+and nothing is dropped: merging arranges, it never weighs.
+
+Everything in the archive can be given a name, and the date stays beside it.
+
+### The idea — what any of it would do in your life
+
+<p align="center"><img src="assets/app/idea.jpg" alt="An idea called Embed inference into your firmware: the two things it draws on, three lines that stand alone, a difficulty and a time, a Discover button, and a die on the weather above it for another one." width="880"></p>
+
+A README tells you what a thing *is*. **Make an idea** asks the question nobody
+else can answer: *what would this change for me?* It draws a handful at random
+out of everything winnow has ever kept — at random on purpose, because a judge
+that starts from what matters most keeps landing on what you are already doing,
+and an idea you already had is not an idea.
+
+One idea per press. Three lines you can read at a glance, how hard it is and
+how long it takes, and behind **Discover** the whole thing: how it would work,
+what to try tonight, and what is weak about it. The die gives you another, for
+about a cent. Things drawn before go to the back of the bag.
+
+<br>
 
 ## Start to finish
 
@@ -50,95 +128,32 @@ model** (an API key — Anthropic, OpenAI, or anything OpenAI-compatible on
 localhost), **the browser** Playwright drives, **the Instagram login** (a real
 window; you type it, the session is kept), **which saved folders** to follow,
 **your `profile.md`**, and **the daily run**. → [the six steps in
-detail](#info)
+detail](#the-six-steps)
 
 > ⚠️ Step five is the one that decides everything. `profile.md` is what turns a
-> pile of facts into a recap addressed to you — [what goes in it](#once-a-week).
+> pile of facts into a recap addressed to you — [what goes in
+> it](#your-half--one-file-written-once).
 
 ### Every day — nothing
 
-A launchd job runs `winnow collect` at 13:00. It opens the posts you saved
+A scheduled job runs `winnow collect` at 13:00. It opens the posts you saved
 since yesterday, reads **every slide** of each carousel, checks each name at
 GitHub or Hugging Face, and writes one file into `findings/`. About **$0.008 a
 post**, and it stops itself for good past €10 in a week.
 
-Nothing to do. `winnow status` tells you it is alive.
+Nothing to do. The home screen tells you it is alive; so does `winnow status`.
 
-### Every week — one command
+### Every week — one press
 
-```bash
-winnow recap
-```
-
-It bundles the days you have not judged yet, sends them to your model, and
-opens the page. Nothing to copy, nothing to paste.
+**Make the recap**, or `winnow recap` if you prefer the terminal.
 
 If the network drops it waits and tries again — 5s, 15s, 45s, 120s — and says
 so while it waits. If the key is dead it stops at once, because that one does
 not fix itself.
 
-The page shows what got through — each with the slide you would have seen on
-Instagram — and, under it, **every single thing that did not**, grouped by the
-verdict that stopped it, with the count beside each. That last part is the one
-to argue with: if *31 out of scope* looks wrong, you can see which 31.
-
-`winnow render answer.md` still turns a saved answer into a page, for when you
-want to fix one by hand.
-
-### Keeping it current
-
-```bash
-winnow update
-```
-
-⚠️ **`pipx upgrade winnow` does not work here, and does not say so.** It
-compares version strings, the version does not move between commits, and it
-answers *"already at latest version"* without fetching anything — `--force`
-included. `winnow update` reads the commit it was built from, asks the remote
-what it has, and reinstalls only when those differ. It also puts back anything
-you had injected into the venv, which `pipx install --force` removes without a
-word.
-
-## Commands
-
-Eight. Everything else `init` does for you.
-
-| | |
-|---|---|
-| `winnow init` | set up, or fix whatever is missing |
-| `winnow collect` | one pass now, instead of waiting for the next run |
-| `winnow status` | is it alive, what did it find, what has it cost |
-| `winnow recap` | the week judged and opened as a page — one command |
-| `winnow render` | a saved answer, turned into a page that opens itself |
-| `winnow config` | change folders, model, posts per run, hour, profile |
-| `winnow update` | pull the newest winnow, if there is one |
-| `winnow reset-halt` | restart after the spend brake stopped it |
-
-
-<br>
 <br>
 
----
-
-<br>
-
-```console
-$ winnow status                               (Example)
-state        active
-spend 7d     USD 0.5796
-scheduled    every day at 13:00 (launchd)
-posts seen   141
-last run     21/08 16:19 (0h ago) — 126 posts, 351 entities, 122 verified
-to read      2 file(s) in findings/  →  winnow recap
-```
-
-`status` speaks up on its own when the last run is over 36h old, when posts
-failed, or when the brake stopped it.
-
-`winnow schedule --at 20:00 | --off`, `winnow login` and `winnow where` are
-still there for when you want them directly.
-
-## Once a week
+## Your half — one file, written once
 
 <table>
 <tr>
@@ -155,19 +170,13 @@ still there for when you want them directly.
 </td>
 <td valign="top">
 
-**Your half — one file, written once.**
+**Your half — one file.**
 
-`winnow init` → rewrite `profile.md` → `winnow recap`
+`winnow init` → write `profile.md` → press the button
 
 </td>
 </tr>
 </table>
-
-### `winnow recap` sends the prompt, your profile and the week's findings to your model, and judges the week in one call.
-
-The answer is saved to `recap/` before anything is built from it, then turned
-straight into the page and opened. Nothing to copy, nothing to paste, nothing
-lost if a browser tab was already closed.
 
 <details>
 <summary><b>What actually goes to the model</b> — four blocks, in this order</summary>
@@ -204,7 +213,11 @@ larger than they needed to be.
 
 The caption never tells you which is which — the check does. winnow throws
 nothing away on its own: it records what it found and what the source said, and
-the deciding happens once a week, [with your profile](#once-a-week).
+the deciding happens once a week, with your profile.
+
+**A network failure, a rate limit and a genuine 404 are three different
+outcomes**, and they are never collapsed into one. *Not checked* is not
+*absent*, and neither is ever printed as *found*.
 
 ## What gets read
 
@@ -217,9 +230,11 @@ picks by content. Everything it skips, it skips mechanically:
 | **not seen before** | one pass per post, ever — even a failed one, so a broken post is never paid for twice |
 | **8 per run** | `posts_per_run`, newest saved first |
 
-Folders are read **in config order**, and the cap applies to the whole queue:
-a folder with a big backlog can starve the ones below it for a few days.
-Reorder the `[[folders]]` blocks to change who goes first.
+The run is **shared between your folders**: one post from each in turn, until
+it is full. A folder with nothing new hands its slot to the others, so
+fairness never costs you a post. If you have more folders than slots, the
+folder that has given the fewest posts so far goes first — so the ones that
+missed out today are the ones served tomorrow.
 
 ### The first run, when you already have hundreds saved
 
@@ -240,15 +255,19 @@ echo 'GITHUB_TOKEN=ghp_...' >> ~/.config/winnow/env    # any token, no scopes
 That turns two hours of backlog into about forty minutes. The daily run keeps
 its own cap either way.
 
+<br>
+
 ## What it costs
 
-Measured, not estimated — two runs of 8 posts, 20 and 21 August, Claude Haiku:
+Measured, not estimated — Claude Haiku, real runs:
 
 | | |
 |---|---|
-| one post | **$0.0046** |
-| one full run (8 posts) | **$0.037** |
+| one post | **$0.005** |
+| one full run (8 posts) | **$0.04** |
 | a week of daily runs | **~$0.26** |
+| one recap | **$0.06 – $0.20**, depending on how big the pile is |
+| one idea | **~$0.01** |
 | warning expense | `warn_eur_week = 3.0€` in `config.toml` |
 | **max expense** | `halt_eur_week = 10.0€` — restart with `winnow reset-halt` |
 
@@ -261,6 +280,94 @@ a bug — a loop re-reading everything, a corrupt state file.
 
 <br>
 
+## Commands
+
+The window does all of it. These are for when you would rather type.
+
+| | |
+|---|---|
+| `winnow app` | the window |
+| `winnow init` | set up, or fix whatever is missing |
+| `winnow collect` | one pass now, instead of waiting for the next run |
+| `winnow status` | is it alive, what did it find, what has it cost |
+| `winnow recap` | the days not judged yet, judged and opened as a page |
+| `winnow ideas` | a handful of everything kept, drawn at random, asked what one of them would change in your life |
+| `winnow render` | a saved answer, turned into a page that opens itself |
+| `winnow config` | change folders, model, posts per run, hour, profile |
+| `winnow update` | pull the newest winnow, if there is one |
+| `winnow reset-halt` | restart after the spend brake stopped it |
+
+`winnow schedule --at 20:00 | --off`, `winnow login`, `winnow where` and
+`winnow serve` are there too.
+
+```console
+$ winnow status                               (Example)
+state        active
+spend 7d     USD 0.5796
+scheduled    every day at 13:00 (launchd)
+posts seen   141
+last run     21/08 16:19 (0h ago) — 126 posts, 351 entities, 122 verified
+to read      2 file(s) in findings/  →  winnow recap
+```
+
+`status` speaks up on its own when the last run is over 36h old, when posts
+failed, or when the brake stopped it.
+
+### The app in the Dock
+
+`winnow app` is enough, and needs nothing else. The desktop app is the same
+page in a window of its own, and it is what the screenshots above were taken
+in. Building it needs [Rust](https://rustup.rs) and the Tauri CLI:
+
+```bash
+cargo install tauri-cli --version "^2"
+cd app/src-tauri && cargo tauri build
+```
+
+It writes a `.app` and a `.dmg` under `app/src-tauri/target/release/bundle/`.
+Drag the `.app` into `/Applications` and that is it — there is nothing to
+configure, because it configures nothing.
+
+The shell owns almost nothing on purpose: it starts `winnow serve`, reads back
+the port the OS handed it, and points a webview at that. Every decision — which
+face the home screen wears, what a button does, what a run costs — stays in
+Python, where it is tested offline. So the app never needs rebuilding when
+winnow changes: `winnow update` is enough, and the window picks it up the next
+time it opens.
+
+> ⚠️ It looks for `winnow` in `~/.local/bin`, in the pipx venv, and in
+> Homebrew's `bin` — an app launched from Finder inherits a PATH that has none
+> of them. Install winnow first; the app is a window onto it, not a copy of it.
+
+### Keeping it current
+
+```bash
+winnow update
+```
+
+⚠️ **`pipx upgrade winnow` does not work here, and does not say so.** It
+compares version strings, the version does not move between commits, and it
+answers *"already at latest version"* without fetching anything — `--force`
+included. `winnow update` reads the commit it was built from, asks the remote
+what it has, and reinstalls only when those differ. It also puts back anything
+you had injected into the venv, which `pipx install --force` removes without a
+word.
+
+<br>
+
+## Making it yours
+
+<p align="center"><img src="assets/app/theme.jpg" alt="The theme sheet: three grounds — Light, Dim, Dark — each showing its own two colours, and a row of nine accent dots with the chosen one named underneath." width="880"></p>
+
+Two axes: a **ground** (light, dim, dark) and an **accent** (nine).
+Everything else — the pressed button, the merge rows, the sky behind the die —
+is derived from those two, so all twenty-seven combinations work and none of
+them is the one nobody checked. It is kept per installation, in
+`~/.config/winnow/look.json`, and the engine writes it into the page it serves
+so the window never opens in the wrong colour for a frame.
+
+<br>
+
 ## Where things live
 
 Nothing sits next to the code, so the command works from any directory.
@@ -270,11 +377,17 @@ Nothing sits next to the code, so the command works from any directory.
 ~/.config/winnow/
 ├── config.toml          your username and saved folders
 ├── profile.md           who you are — the judge reads this
+├── look.json            ground and accent
 └── env                  ANTHROPIC_API_KEY, mode 600
 
 ~/.local/share/winnow/
 ├── findings/2026-08-21.json    what a run found, one file per day
-├── recap/2026-08-21.answer.md  what the model answered, saved before it is read
+├── recap/
+│   ├── 2026-08-21.answer.md    what the model answered, saved before it is read
+│   ├── 2026-08-21.answer.html  the page
+│   ├── idee-2026-08-21.*       a draw and the idea it produced
+│   ├── unione-*.html           several recaps as one page
+│   └── titles.json             names you gave them by hand
 ├── state/
 │   ├── seen.json               posts already paid for
 │   ├── judged.json             the last day already judged — recap picks up after it
@@ -289,12 +402,13 @@ source. Saved posts never leave the machine except as slides sent to the
 extraction model. Override the two roots with `XDG_CONFIG_HOME` /
 `XDG_DATA_HOME`, or `WINNOW_CONFIG_DIR` / `WINNOW_DATA_DIR`.
 
+<br>
 
 ---
 
 <br>
 
-## Info
+## The six steps
 
 `winnow init` is six numbered steps, in the only order they can happen in. Stop
 whenever you like — re-running picks up where you left off.
@@ -372,10 +486,25 @@ default is **13:00, not 3am**, and deliberately: collecting opens a browser
 window, so it needs the machine awake, unlocked and with a graphical session.
 Pick an hour that is true for you — `winnow schedule --at 20:00`.
 
+## What is not done
+
+Honest list, because a tool that filters other people's claims should not
+oversell its own.
+
+- **The judgement has been read over a handful of weeks, not a year.** How well
+  a recap holds up over months, and whether merges stay useful as they grow, is
+  something only time answers.
+- **The profile has been written by one person so far.** The structure is meant
+  to hold any set of interests, and `mentality.md` deliberately mentions no
+  particular person — but "meant to" is not "shown to".
+- **Instagram only.** Nothing in the collector assumes it forever, but nothing
+  else is written.
+
 ## More
 
-The recap prompt: [`winnow/recap-prompt.md`](winnow/recap-prompt.md) — it ships
-with the package, so `winnow recap` works without a checkout.
-Why it is built this way: [`docs/superpowers/specs/`](docs/superpowers/specs/).
+The recap prompt: [`winnow/recap-prompt.md`](winnow/recap-prompt.md), and the
+ideas one beside it — both ship with the package, so the commands work without
+a checkout. How to work on this: [`CLAUDE.md`](CLAUDE.md). Why it is built this
+way: [`docs/superpowers/specs/`](docs/superpowers/specs/).
 
 MIT — see [LICENSE](LICENSE).

@@ -61,7 +61,9 @@ def test_it_waits_and_tries_again_when_the_network_is_gone():
     text, _, _ = ask("p", "anthropic", "m", None,
                      complete=flaky, sleep=slept.append)
     assert text == "arrivata"
-    assert len(calls) == 3 and len(slept) == 2
+    # Slept in slices now, so «Ferma» during a backoff is answered in a
+    # second: what matters is the total waited, not how many naps it took.
+    assert len(calls) == 3 and sum(slept) == 20
 
 
 def test_it_says_it_is_waiting_instead_of_going_quiet():
@@ -112,3 +114,77 @@ def test_a_first_attempt_still_says_it_is_working():
     ask("p", "anthropic", "m", None, complete=lambda **k: ("ok", 1, 1),
         on_event=lambda e, d: seen.append(e))
     assert seen == ["asking"]
+
+
+def test_a_stop_asked_before_the_call_is_not_a_failure():
+    """«Ferma» pressed in the first second must not read as an error: nobody
+    broke anything, they changed their mind."""
+    from winnow.judge import Stopped, ask
+    import pytest as _pytest
+
+    with _pytest.raises(Stopped):
+        ask("p", "anthropic", "m", None, should_stop=lambda: True,
+            complete=lambda **kw: ("mai chiamato", 0, 0))
+
+
+def test_a_stop_during_the_backoff_does_not_wait_out_the_backoff():
+    """A two-minute wait answered in two minutes is a button that does not
+    work. The sleep is sliced so the flag is seen within a second."""
+    import httpx
+
+    from winnow.judge import Stopped, ask
+    import pytest as _pytest
+
+    slept = []
+    stop = {"now": False}
+
+    def flaky(**kw):
+        stop["now"] = True                 # the person presses while it waits
+        raise httpx.ConnectError("network is unreachable")
+
+    with _pytest.raises(Stopped):
+        ask("p", "anthropic", "m", None, complete=flaky,
+            sleep=slept.append, should_stop=lambda: stop["now"])
+    assert sum(slept) <= 1                 # not the whole five seconds
+
+
+def test_the_call_reports_what_has_arrived_so_far():
+    """A recap of a backlog is minutes of one call. Without this the window
+    said «le sto facendo leggere al modello» and then nothing at all, which is
+    indistinguishable from a run that died."""
+    from winnow.judge import ask
+
+    said = []
+
+    def slow(on_progress=None, **kw):
+        for n in (500, 2600, 3000, 9000):
+            on_progress(n)
+        return "fatto", 10, 5
+
+    ask("p", "anthropic", "m", None, complete=slow,
+        on_event=lambda e, d: said.append((e, d)))
+    # Every 2,000 characters, not every token: a log that scrolls once per
+    # token is a log nobody can read.
+    assert [d["chars"] for e, d in said if e == "writing"] == [2600, 9000]
+
+
+def test_a_retry_does_not_carry_the_last_attempt_s_progress():
+    """Counted from zero on each attempt, or the second try looks like it
+    started three thousand characters in."""
+    import httpx
+
+    from winnow.judge import ask
+
+    said = []
+    calls = []
+
+    def flaky(on_progress=None, **kw):
+        calls.append(1)
+        on_progress(2500)
+        if len(calls) == 1:
+            raise httpx.ConnectError("network is unreachable")
+        return "fatto", 10, 5
+
+    ask("p", "anthropic", "m", None, complete=flaky, sleep=lambda s: None,
+        on_event=lambda e, d: said.append((e, d)))
+    assert [d["chars"] for e, d in said if e == "writing"] == [2500, 2500]

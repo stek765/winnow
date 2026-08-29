@@ -17,6 +17,43 @@
   --display:"Familjen Grotesk","Helvetica Neue",Arial,sans-serif;
   --body:"Instrument Sans",-apple-system,"Segoe UI",sans-serif;
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  /* Everything a theme moves lives here. A literal anywhere else is a colour
+     one theme cannot reach — which is how a theme ends up half applied. */
+  /* Two axes, and nothing else: a ground and an accent. Every other colour
+     is *derived* from those two rather than written down, which is what lets
+     nine accents and three grounds be nine plus three lines instead of
+     twenty-seven palettes — and what stops one combination being the one
+     nobody checked. `color-mix` in oklab keeps a tint readable at the same
+     strength whatever the hue, which straight rgb mixing does not. */
+  --deep:color-mix(in oklab, var(--grease) 80%, #000);   /* pressed */
+  --on-accent:#fff;            /* type that sits on the accent */
+  --raise:#fff;                /* a row lifted under the pointer */
+  /* Merges are tinted with the accent; draws stay neutral on purpose — two
+     things tinted the same colour stop being two things. */
+  --warm:color-mix(in oklab, var(--grease) 7%, var(--lit));
+  --warm-lit:color-mix(in oklab, var(--grease) 3%, var(--lit));
+  --warm-line:color-mix(in oklab, var(--grease) 42%, var(--lit));
+  --cool:color-mix(in oklab, var(--ink) 5%, var(--lit));
+  --cool-lit:color-mix(in oklab, var(--ink) 2%, var(--lit));
+  --cool-line:color-mix(in oklab, var(--ink) 28%, var(--lit));
+  /* The die's weather: the accent opening up into light. */
+  --sky-1:color-mix(in oklab, var(--grease) 22%, #fdf4e2);
+  --sky-2:color-mix(in oklab, var(--grease) 48%, #fbe6c8);
+  --sky-3:color-mix(in oklab, var(--grease) 78%, #f2c79c);
+  --sky-4:var(--grease);
+  /* The glow under a button is the accent's own colour, softened — written
+     as terracotta rgba it stayed terracotta under a blue button, which is
+     the one thing a reader notices immediately. */
+  --cast:color-mix(in srgb, var(--grease) 55%, transparent);
+  --cast-soft:color-mix(in srgb, var(--grease) 22%, transparent);
+  --pool:color-mix(in srgb, var(--grease) 10%, transparent);
+  --art:.46;                   /* how present the painting is */
+  --sheen:rgba(255,255,255,1); /* the light poured over the top of the page */
+  --lamp:rgba(255,255,255,.9); /* the slow pool of light in the corner */
+  --scrim:240,242,243;         /* the header's own ground, as an RGB triple */
+  /* macOS rounds the window itself; anything painted into those corners is
+     clipped and leaves a step. Matched by eye against a Sequoia window. */
+  --corner:11px;
   --pad:clamp(1.5rem,5vw,3.5rem);
   /* One column for everything that is a table or a list. Fixed caps left the
      content in a strip on the left of a wide window with the rest of it
@@ -24,8 +61,62 @@
      window and still stops before a row becomes unreadable. Prose keeps its
      own measure in `ch` — that one really is a width, not a limit. */
   --column:min(100%, 76rem);
+  /* Every archive row is this tall: the padding, a title line, and the two
+     lines the comment always reserves. Written once so a change to any of
+     the three is made in one place. */
+  --row:6.75rem;
   --lift:0 1px 2px rgba(16,20,26,.14), 0 14px 34px -22px rgba(16,20,26,.5);
 }
+/* --- the ground --------------------------------------------------------
+   Three, and only the neutrals move: the accent is chosen separately, so
+   every accent has to work on every one of these. */
+
+/* Penombra — the room with the lamp on but the light off. Grey, not black:
+   the middle setting is the one people actually leave it on. */
+:root[data-ground="penombra"]{
+  --glass:#2b3036; --lit:#343a42; --ink:#eceff2; --soft:#b3bcc5;
+  --faint:#828d97; --rule:#434a53; --raise:#3c434c;
+  --art:.34; --sheen:rgba(255,255,255,.06); --lamp:rgba(255,255,255,.05);
+  --scrim:39,44,50;
+  --lift:0 1px 2px rgba(0,0,0,.4), 0 14px 34px -22px rgba(0,0,0,.8);
+}
+
+/* Scuro — near black, for a window open at night beside a terminal. */
+:root[data-ground="scuro"]{
+  --glass:#111417; --lit:#191d22; --ink:#f0f3f6; --soft:#a7b1bb;
+  --faint:#6e7883; --rule:#282e35; --raise:#20252b;
+  --art:.26; --sheen:rgba(255,255,255,.03); --lamp:rgba(255,255,255,.035);
+  --scrim:16,19,22;
+  --lift:0 1px 2px rgba(0,0,0,.55), 0 14px 34px -22px rgba(0,0,0,.95);
+}
+
+/* --- the accent --------------------------------------------------------
+   One line each, because everything else is derived above. */
+:root[data-accent="rosso"]{--grease:#d2382f;}
+:root[data-accent="arancione"]{--grease:#e07b26;}
+:root[data-accent="giallo"]{--grease:#d9a412; --on-accent:#1a1508;}
+:root[data-accent="verde"]{--grease:#2f8f57;}
+:root[data-accent="blu"]{--grease:#2f6fd0;}
+:root[data-accent="viola"]{--grease:#8455c4;}
+:root[data-accent="rosa"]{--grease:#cf4d8e;}
+:root[data-accent="grafite"]{--grease:#6b7683;}
+
+/* On a dark ground a mid accent has no room left to darken into, so pressing
+   it would look like nothing happened. It brightens instead. */
+:root[data-ground="penombra"], :root[data-ground="scuro"]{
+  --deep:color-mix(in oklab, var(--grease) 80%, #fff);
+  --warm:color-mix(in oklab, var(--grease) 13%, var(--lit));
+  --warm-lit:color-mix(in oklab, var(--grease) 20%, var(--lit));
+  --warm-line:color-mix(in oklab, var(--grease) 55%, var(--lit));
+  --cool:color-mix(in oklab, var(--ink) 7%, var(--lit));
+  --cool-lit:color-mix(in oklab, var(--ink) 12%, var(--lit));
+  --cool-line:color-mix(in oklab, var(--ink) 30%, var(--lit));
+  --sky-1:color-mix(in oklab, var(--grease) 30%, #241d16);
+  --sky-2:color-mix(in oklab, var(--grease) 55%, #2e2118);
+  --sky-3:color-mix(in oklab, var(--grease) 80%, #38251a);
+  --sky-4:var(--grease);
+}
+
 *{box-sizing:border-box;}
 html,body{height:100%;}
 
@@ -73,7 +164,7 @@ html,body{height:100%;}
   background:url("/winnower.jpg") no-repeat 62% 42%/cover;
   /* Present, not fogged. At .29 over a pale ground the picture read as
      haze; the figure only becomes a figure once it holds its own darks. */
-  opacity:.46; filter:saturate(.95) contrast(1.16);
+  opacity:var(--art); filter:saturate(.95) contrast(1.16);
   -webkit-mask-image:radial-gradient(140% 100% at 64% 50%, #000 0%,
     #000 62%, rgba(0,0,0,.55) 88%, transparent 100%);
   mask-image:radial-gradient(140% 100% at 64% 50%, #000 0%,
@@ -88,10 +179,10 @@ html,body{height:100%;}
    pools of warmth just make the room feel lit from somewhere. */
 .glow{position:absolute; border-radius:50%; filter:blur(70px);}
 .g1{width:52vw; height:52vw; left:-12vw; top:-18vw;
-  background:radial-gradient(circle, rgba(255,255,255,.9), transparent 68%);
+  background:radial-gradient(circle, var(--lamp), transparent 68%);
   animation:drift1 34s ease-in-out infinite;}
 .g2{width:42vw; height:42vw; right:2vw; bottom:-16vw;
-  background:radial-gradient(circle, rgba(206,58,36,.10), transparent 66%);
+  background:radial-gradient(circle, var(--pool), transparent 66%);
   animation:drift2 46s ease-in-out infinite;}
 @keyframes drift1{0%,100%{transform:translate3d(0,0,0);}
   50%{transform:translate3d(4%,3%,0);}}
@@ -113,7 +204,8 @@ html,body{height:100%;}
 body{
   margin:0; color:var(--ink); font-family:var(--body); font-size:16px;
   -webkit-font-smoothing:antialiased; overflow:hidden;
-  background:radial-gradient(120% 80% at 50% -20%, #fff 0%, rgba(255,255,255,0) 62%), var(--glass);
+  background:radial-gradient(120% 80% at 50% -20%, var(--sheen) 0%,
+    transparent 62%), var(--glass);
 }
 button{font:inherit; cursor:pointer; border:0; background:none; color:inherit;}
 a{color:inherit;}
@@ -127,10 +219,26 @@ a{color:inherit;}
 /* A scrim under the header, now that the painting holds real darks: without
    it ARCHIVIO and IMPOSTAZIONI sat on the winnower's shoulder and stopped
    being readable. It fades to nothing, so the picture still comes up to the
-   top of the window — the type just wins where the type is. */
+   top of the window — the type just wins where the type is.
+
+   ⚠️ It has to carry the window's own corner radius. macOS rounds the window;
+   a square scrim painted to `inset:0` fills those two corners with a colour
+   the window then clips, and what is left is a hard little step against the
+   desktop — visible on every screenshot of the app, top left and top right.
+   The radius is on the scrim rather than on `.app`, because `overflow:hidden`
+   on the shell would cut the sheet and the draw window as well. */
 .bar::before{content:""; position:absolute; inset:0; z-index:-1;
-  background:linear-gradient(to bottom, rgba(240,242,243,.92) 0%,
-    rgba(240,242,243,.62) 55%, rgba(240,242,243,0) 100%);}
+  border-radius:var(--corner) var(--corner) 0 0;
+  background:linear-gradient(to bottom, rgba(var(--scrim),.92) 0%,
+    rgba(var(--scrim),.62) 55%, rgba(var(--scrim),0) 100%);
+}
+/* The hairline that closes the band. Drawn as its own layer so it can fade
+   out at both ends: a rule that stops dead at the window edge draws attention
+   to the edge, which is the one thing a title bar should never do. */
+.bar::after{content:""; position:absolute; left:0; right:0; bottom:0;
+  height:1px; z-index:-1; opacity:.7;
+  background:linear-gradient(to right, transparent 0%,
+    var(--rule) 14%, var(--rule) 86%, transparent 100%);}
 /* Tauri drags only when the event's own target carries the attribute, so the
    mark and the wordmark hand their clicks up to the bar instead of eating
    them. The tabs keep theirs — they are buttons. */
@@ -160,6 +268,9 @@ a{color:inherit;}
    empty air below it — did nothing, and only a thin strip up top worked.
    The bar now owns the whole top of the window. */
 .native .bar{padding-top:2.6rem; padding-bottom:2rem;}
+/* Only the native window is rounded. In a browser tab the page fills a
+   rectangle, and a radius there would be a corner cut out of nothing. */
+html:not(.native) .bar::before{border-radius:0;}
 
 .screen{flex:1; overflow-y:auto; padding:0 var(--pad) var(--pad);}
 .screen[hidden]{display:none;}
@@ -190,18 +301,35 @@ a{color:inherit;}
 h1{font-family:var(--display); font-weight:700;
   font-size:clamp(1.9rem,5.2vw,4.4rem); line-height:1.02;
   letter-spacing:-.035em; margin:0 0 .7rem; max-width:18ch;}
-.detail{color:var(--faint); margin:0 0 clamp(1.1rem,2vw,1.5rem);
-  max-width:46ch; font-size:clamp(1rem,1.3vw,1.12rem);}
+/* Smaller and dimmer than `.purpose` directly above it: two grey paragraphs
+   of the same weight read as one block, and this one has to read as the
+   button's lead-in. Proximity does the rest — no rule, no bar. A bar was
+   tried on the recap's comment and read as decoration stuck on the side. */
+.detail{color:var(--faint); margin:0 0 clamp(1.2rem,2.4vw,1.7rem);
+  max-width:46ch; font-size:clamp(.92rem,1.1vw,1.02rem); line-height:1.5;}
+/* A state with nothing to add must not leave a gap the size of a sentence. */
+.detail:empty{display:none;}
 .go{
   display:inline-flex; align-items:center; gap:.7rem; align-self:flex-start;
-  background:var(--grease); color:#fff; font-family:var(--mono);
+  background:var(--grease); color:var(--on-accent); font-family:var(--mono);
   font-size:.76rem; letter-spacing:.12em; text-transform:uppercase;
   padding:1rem 1.6rem; border-radius:999px;
-  box-shadow:0 2px 6px rgba(206,58,36,.22), 0 12px 26px -14px rgba(206,58,36,.6);
+  box-shadow:0 2px 6px var(--cast-soft), 0 12px 26px -14px var(--cast);
   transition:transform .16s cubic-bezier(.2,.8,.3,1), box-shadow .16s, background .16s;
 }
-.go:hover{transform:translateY(-1px); background:#b8331f;}
+.go:hover{transform:translateY(-1px); background:var(--deep);}
 .go:active{transform:translateY(0);}
+/* `.acts` was already the sheet's footer. Renamed before it could quietly
+   hand this row a top margin and take a flex-wrap in exchange. */
+.choice{display:flex; align-items:center; gap:1.1rem; flex-wrap:wrap;}
+/* Beside the action, not under it, and written like a link: it is the thing
+   you do when the big button is not the thing you meant. */
+.also{font-family:var(--mono); font-size:.7rem; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--faint); padding:.5rem 0;
+  border-bottom:1px solid transparent; transition:color .15s, border-color .15s;}
+.also:hover{color:var(--ink); border-color:var(--ink);}
+.also[hidden]{display:none;}
+.also[disabled]{opacity:.45; pointer-events:none;}
 .go[disabled]{background:var(--faint); box-shadow:none; cursor:default;
   transform:none;}
 .go .arrow{transition:transform .16s;}
@@ -226,11 +354,35 @@ h1{font-family:var(--display); font-weight:700;
    footnote to the numbers, and the two things that matter on this screen —
    what winnow is for, and the one thing to press — were at opposite ends of
    the window with the leftover space in between. */
-.purpose{margin:0 0 clamp(1.8rem,4vw,2.6rem); max-width:44ch;
+.purpose{margin:0 0 clamp(1rem,2vw,1.4rem); max-width:44ch;
   font-size:clamp(.98rem,1.2vw,1.1rem); line-height:1.55; color:var(--soft);}
 .purpose b{font-weight:600; color:var(--ink);}
 
 /* --- the live log ------------------------------------------------------ */
+.work{margin-top:1.3rem; max-width:34rem;}
+.work[hidden]{display:none;}
+/* `.gauge`, not `.bar`: the header is `.bar`, and a progress rule declared
+   later in the same stylesheet handed it `border-radius:999px` and a lighter
+   background — the whole title bar turned into a pill. Second collision of
+   the session after `.dot`; in one stylesheet with no scoping, a generic
+   name is a bug waiting for the next screen. */
+.gauge{height:4px; border-radius:999px; background:var(--rule);
+  overflow:hidden;}
+.gauge i{display:block; height:100%; border-radius:999px;
+  background:var(--grease); width:0;
+  transition:width .45s cubic-bezier(.2,.8,.3,1);}
+/* When there is no total to divide by — the model writing, a folder being
+   scrolled — a filling bar would be a lie. A shuttle says «working» without
+   claiming to know how far. */
+.gauge.unknown i{width:34%; animation:shuttle 1.6s ease-in-out infinite;
+  transition:none;}
+@keyframes shuttle{0%{margin-left:-34%;} 100%{margin-left:100%;}}
+.phase{display:flex; align-items:baseline; gap:.7rem; margin:.55rem 0 0;
+  font-size:.86rem; color:var(--soft);}
+.phase b{margin-left:auto; font-family:var(--mono); font-size:.72rem;
+  font-weight:400; color:var(--faint); font-variant-numeric:tabular-nums;}
+@media (prefers-reduced-motion:reduce){.gauge.unknown i{animation:none; width:100%;}}
+
 .log{margin-top:1.4rem; border-left:2px solid var(--rule);
   padding-left:1rem; max-height:14rem; overflow-y:auto;}
 .log p{margin:0 0 .4rem; font-family:var(--mono); font-size:.76rem;
@@ -246,45 +398,364 @@ h1{font-family:var(--display); font-weight:700;
   font-size:clamp(1.7rem,3.4vw,2.2rem); margin:1.4rem 0 .4rem; line-height:1.1;}
 .lead-in{margin:0 0 1.8rem; max-width:56ch; color:var(--soft);
   font-size:.9rem; line-height:1.5;}
-.filters{display:flex; gap:.2rem; margin:0 0 1.1rem;}
+.filters{display:flex; align-items:center; gap:.2rem; margin:0 0 1.3rem;}
 .f{font-family:var(--mono); font-size:.66rem; letter-spacing:.12em;
   text-transform:uppercase; color:var(--faint); padding:.4rem .8rem;
   border-radius:999px; transition:background .15s, color .15s;}
 .f:hover{color:var(--ink);}
 .f.on{background:var(--ink); color:var(--lit);}
+/* It stands in the row of filters and is not one: it spends money and makes
+   a page. Outlined rather than filled — the filled button is the home
+   screen's one action, and two of those on two screens would compete. */
+.dream{margin-left:auto; display:inline-flex; align-items:center; gap:.55rem;
+  font-family:var(--mono); font-size:.74rem; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--lit); background:var(--grease);
+  border-radius:999px; padding:.7rem 1.3rem;
+  box-shadow:0 8px 20px -6px var(--cast);
+  transition:transform .15s, box-shadow .15s, background .15s;}
+.dream:hover{background:var(--deep); transform:translateY(-1px);
+  box-shadow:0 12px 26px -6px var(--cast);}
+.dream:active{transform:translateY(0);}
+.dream .arrow{transition:transform .15s;}
+.dream:hover .arrow{transform:translateX(3px);}
+.dream[disabled]{opacity:.4; pointer-events:none;}
+/* --- the draw's own window ------------------------------------------------
+   Two halves on purpose: weather above, one idea below. The top is the only
+   place in this app allowed to be warm and to move — everything else is a
+   ledger, and a ledger that animates is a toy. */
+.sow{position:fixed; inset:0; z-index:60; display:flex; align-items:center;
+  justify-content:center; padding:clamp(1rem,4vw,3rem);
+  background:rgba(16,20,26,.46); animation:veil .25s ease-out;}
+.sow[hidden]{display:none;}
+@keyframes veil{from{opacity:0;} to{opacity:1;}}
+.sow-in{position:relative; width:min(44rem,94vw); max-height:90vh;
+  display:flex; flex-direction:column; background:var(--lit);
+  border-radius:6px; overflow:hidden;
+  box-shadow:0 30px 80px rgba(0,0,0,.34); animation:rise .34s cubic-bezier(.2,.8,.3,1);}
+@keyframes rise{from{opacity:0; transform:translateY(14px) scale(.985);}
+  to{opacity:1; transform:none;}}
+.sky{height:8.5rem; flex:none; position:relative; overflow:hidden;
+  background:linear-gradient(150deg,var(--sky-1) 0%,var(--sky-2) 42%,var(--sky-3) 78%,var(--sky-4) 100%);}
+/* The painting, low and faint, so the weather has a horizon and not a
+   gradient. Served over the socket — the window polls, and inlining 93 KB of
+   base64 into every repaint is what the recap page does for other reasons. */
+.sky::after{content:""; position:absolute; inset:0;
+  background:url("/winnower.jpg") no-repeat 50% 26%/cover;
+  opacity:.30; mix-blend-mode:multiply;
+  /* Faded at both ends, or the picture has two vertical edges and reads as a
+     panel pasted on top of the weather instead of being the weather. */
+  -webkit-mask-image:linear-gradient(100deg,transparent 0%,#000 38%,#000 72%,transparent 100%);
+  mask-image:linear-gradient(100deg,transparent 0%,#000 38%,#000 72%,transparent 100%);}
+.seed{position:absolute; left:-6%; width:3px; height:7px; border-radius:50%;
+  background:rgba(255,252,244,.9); animation:drift linear infinite;
+  will-change:transform;}
+@keyframes drift{
+  from{transform:translate3d(0,0,0) rotate(0deg); opacity:0;}
+  8%{opacity:.95;}
+  92%{opacity:.9;}
+  to{transform:translate3d(115vw,-2.6rem,0) rotate(340deg); opacity:0;}}
+/* Sitting on the seam between the weather and the leaf, half in each: it is
+   the only control that makes something, and a dark disc in a corner read as
+   a close button's twin. Raised off the page instead — a real shadow, a
+   lighter top edge — so it looks like a thing you press. */
+.die{position:absolute; top:6.9rem; right:1.6rem; z-index:3; width:3.3rem;
+  height:3.3rem; border-radius:999px; color:var(--ink); background:var(--lit);
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 12px 26px rgba(16,20,26,.30), 0 3px 6px rgba(16,20,26,.18),
+    inset 0 1px 0 color-mix(in srgb, var(--lit) 92%, #fff);
+  transition:transform .18s cubic-bezier(.2,.8,.3,1), box-shadow .18s;}
+.die svg{width:1.65rem; height:1.65rem; fill:currentColor;}
+.die:hover{transform:translateY(-3px) rotate(-9deg);
+  box-shadow:0 18px 34px rgba(16,20,26,.34), 0 4px 8px rgba(16,20,26,.2),
+    inset 0 1px 0 color-mix(in srgb, var(--lit) 92%, #fff);}
+.die:active{transform:translateY(1px) scale(.95);}
+.die[disabled]{cursor:default;}
+/* Two turns per second and a wobble in the middle: a die is thrown, it does
+   not tick round like a spinner. */
+.die.rolling{animation:roll 1.1s cubic-bezier(.42,0,.35,1) infinite;
+  box-shadow:0 6px 14px rgba(16,20,26,.24);}
+@keyframes roll{
+  0%{transform:rotate(0) scale(1);}
+  35%{transform:rotate(280deg) scale(1.1);}
+  70%{transform:rotate(540deg) scale(.94);}
+  100%{transform:rotate(720deg) scale(1);}}
+.x{position:absolute; top:.7rem; right:.85rem; z-index:2; width:1.9rem;
+  height:1.9rem; border-radius:999px; color:var(--on-accent); font-size:.8rem;
+  background:rgba(16,20,26,.28); transition:background .15s;}
+.x:hover{background:rgba(16,20,26,.55);}
 
+/* The leaf. A day torn off a calendar: the stamp, a rule, and then a lot of
+   air around very little text. */
+.leaf{flex:1; min-height:0; overflow:auto; text-align:center;
+  padding:2rem clamp(1.4rem,5vw,3.4rem) 1.8rem;}
+.leaf .stamp{margin:0 0 1.2rem; font-family:var(--mono); font-size:.64rem;
+  letter-spacing:.24em; text-transform:uppercase; color:var(--faint);}
+.leaf h3{margin:0 auto 1.1rem; max-width:22ch; font-family:var(--display);
+  font-weight:700; letter-spacing:-.03em; font-size:clamp(1.5rem,4vw,2.1rem);
+  line-height:1.12;}
+.leaf .uses{margin:0 auto 1.5rem; font-family:var(--mono); font-size:.64rem;
+  letter-spacing:.08em; color:var(--soft);}
+.leaf .uses b{font-weight:500; padding:.2rem .5rem; border-radius:3px;
+  background:var(--glass); margin:0 .18rem; display:inline-block;}
+/* Wider measure than the rest of the card on purpose: three lines is the
+   brief, so the line has to hold enough words to say something in three. */
+.leaf .gist{margin:0 auto 1.3rem; max-width:42ch; font-size:1.14rem;
+  line-height:1.5; color:var(--ink);}
+/* A model that runs long is a bad glance, not a broken card: it gets a size
+   down rather than a scrollbar, and never a clamp — half a sentence with an
+   ellipsis is worse than four lines. */
+.leaf .gist.long{font-size:1.02rem; line-height:1.45;}
+.leaf .meta{display:flex; justify-content:center; gap:2.4rem; margin:0 auto;
+  max-width:34ch; padding:.85rem 0; border-top:1px solid var(--rule);
+  border-bottom:1px solid var(--rule);}
+.leaf .meta[hidden]{display:none;}
+.leaf .meta .m{font-size:.95rem; color:var(--ink);}
+.leaf .meta i{display:block; font-family:var(--mono); font-size:.56rem;
+  letter-spacing:.2em; text-transform:uppercase; color:var(--faint);
+  font-style:normal; margin-bottom:.2rem;}
+/* Hard on purpose: «tosta» should be visible before it is read. */
+.leaf .meta .m.hard b{color:var(--grease);}
+.more{display:block; margin:1.3rem auto 0; font-family:var(--mono);
+  font-size:.66rem; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--soft); border:1px solid var(--rule); border-radius:999px;
+  padding:.5rem 1.4rem; transition:border-color .15s, color .15s;}
+.more:hover{color:var(--ink); border-color:var(--ink);}
+.more[hidden]{display:none;}
+.full[hidden]{display:none;}
+.leaf .say{margin:1.6rem auto 0; max-width:38ch; font-size:1rem;
+  line-height:1.65; color:var(--ink);}
+.leaf .one, .leaf .but{margin:1.5rem auto 0; max-width:38ch; font-size:.9rem;
+  line-height:1.55; padding-top:1.1rem; border-top:1px solid var(--rule);}
+.leaf .one{color:var(--ink);}
+/* Written into the markup, not into `content:`. As CSS these two labels were
+   Italian on an English window and nothing could reach them — a phrase table
+   cannot translate a stylesheet. */
+.leaf .one b, .leaf .but b{display:block; font-family:var(--mono);
+  font-weight:400;
+  font-size:.58rem; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--faint); margin-bottom:.35rem;}
+.leaf .one b{color:var(--grease);}
+.leaf .but{color:var(--soft);}
+.leaf .lines{font-family:var(--mono); font-size:.7rem; line-height:1.8;
+  color:var(--soft); text-align:left; max-width:34rem; margin:0 auto 1.2rem;}
+.leaf .lines p{margin:0; white-space:pre-wrap;}
+.leaf .lines .bad{color:var(--grease);}
+.leaf .gone{list-style:none; margin:0 auto; padding:0; max-width:38ch;
+  text-align:left; font-size:.9rem; color:var(--soft);}
+.leaf .gone li{padding:.4rem 0; line-height:1.45; border-bottom:1px solid var(--rule);}
+.leaf .gone b{font-family:var(--display); color:var(--ink); margin-right:.4rem;}
+
+.flip{flex:none; display:flex; align-items:center; justify-content:center;
+  gap:1.1rem; padding:.9rem; border-top:1px solid var(--rule);}
+.flip[hidden]{display:none;}
+.arrowb{width:2rem; height:2rem; border-radius:999px; color:var(--soft);
+  font-size:1.1rem; line-height:1; transition:background .15s, color .15s;}
+.arrowb:hover:not([disabled]){background:var(--glass); color:var(--ink);}
+.arrowb[disabled]{opacity:.25;}
+.dots{display:flex; gap:.4rem;}
+.dots i{width:5px; height:5px; border-radius:999px; background:var(--rule);
+  transition:background .2s, transform .2s;}
+.dots i.on{background:var(--grease); transform:scale(1.35);}
+@media (prefers-reduced-motion:reduce){
+  .seed{animation:none; opacity:.5;}
+  .sow, .sow-in{animation:none;}}
+
+.key{display:flex; gap:1.3rem; margin:-.5rem 0 1.1rem; font-family:var(--mono);
+  font-size:.6rem; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--faint);}
+.key span{display:flex; align-items:center; gap:.45rem;}
+.key .sw{width:10px; height:10px; border-radius:2px; display:inline-block;}
+/* Filled, not tinted: the card's own background is pale enough to vanish at
+   10px, and a key you have to squint at is not a key. */
+.key .sw.merge{background:var(--warm-line); border:1px solid var(--warm-line);}
+.key .sw.single{background:var(--lit); border:1px solid var(--rule);}
+.key[hidden]{display:none;}
+
+/* `display:grid` beats the hidden attribute, so an empty-but-hidden stack
+   still drew its own border: a hairline across the page under «ancora
+   niente», which reads as a list that failed to load. */
+/* Three grounds side by side, each showing its own two colours: a swatch
+   that is a sample of the thing beats a swatch that describes one. */
+.grounds{display:grid; grid-template-columns:repeat(3,1fr); gap:.5rem;
+  margin:0 0 1.3rem;}
+/* Two languages, and each name is a word rather than a swatch: side by side
+   at a third of the width they would be two buttons in a row of three. */
+.grounds.langs{grid-template-columns:repeat(2,1fr);}
+.grounds.langs .ground{text-align:left; padding:.9rem 1rem;}
+.ground{text-align:center; padding:.7rem .6rem .8rem; border-radius:6px;
+  border:1px solid var(--rule); background:var(--lit);
+  transition:border-color .15s, transform .15s;}
+.ground:hover{transform:translateY(-1px);}
+.ground.on{border-color:var(--grease); box-shadow:inset 0 0 0 1px var(--grease);}
+.ground .prev{display:flex; align-items:center; justify-content:center;
+  height:3.1rem; border-radius:4px; margin-bottom:.55rem;
+  border:1px solid rgba(128,128,128,.28); font-family:var(--display);
+  font-weight:700; font-size:1.05rem;}
+.ground b{display:block; font-family:var(--display); font-size:.92rem;
+  font-weight:600;}
+.ground span:not(.prev){display:block; font-size:.72rem; color:var(--faint);
+  line-height:1.35; margin-top:.15rem;}
+
+/* The accents, in one row. Apple names the chosen one under the row rather
+   than beside every dot, and it is right: nine labels is a list, one is an
+   answer. */
+/* `.dot` was taken — twice: the home screen's status light, which draws a
+   grey circle through `::before`, and the draw window's pagination. Both
+   landed inside these swatches, so every colour had a grey pip in the middle
+   of it. Named for what it is instead. */
+.swatches{display:flex; flex-wrap:wrap; gap:.7rem; margin:0 0 .5rem;}
+.swatch{width:1.6rem; height:1.6rem; border-radius:999px; background:var(--c);
+  border:1px solid rgba(0,0,0,.14); transition:transform .15s;}
+.swatch:hover{transform:scale(1.12);}
+/* A ring outside the swatch, never a border on it: a border eats into the
+   colour, and the one you picked would show *less* of itself than the rest. */
+.swatch.on{box-shadow:0 0 0 2px var(--lit), 0 0 0 3.5px var(--c);}
+#accent-name{min-height:1.1em;}
+/* A press that could not start anything. Not a warning — nothing went wrong
+   — so it is said in the accent's colour rather than in red, and it goes away
+   on its own once the run it was waiting for is over. */
+.refused{margin:-.6rem 0 1.1rem; font-family:var(--mono); font-size:.72rem;
+  letter-spacing:.04em; color:var(--grease);
+  animation:fade .2s ease both;}
+.refused[hidden]{display:none;}
+/* Dimmed while something else is running, so the state is visible *before*
+   the press. Still clickable on purpose: a disabled button swallows the
+   click, and a button that swallows a click reads as an app that is broken
+   rather than one that is busy. */
+.dream.busy, .go.busy{opacity:.45;}
+
+.cards[hidden]{display:none;}
 .cards{display:grid; gap:1px; background:var(--rule);
   border:1px solid var(--rule); border-radius:4px; overflow:hidden;
   max-width:var(--column);}
 .card{display:block; width:100%; text-align:left; background:var(--lit);
   padding:1.15rem 1.3rem; transition:background .16s;}
-.card:hover{background:#fff;}
+.card:hover{background:var(--raise);}
 .card .top{display:flex; align-items:baseline; gap:.9rem;}
 .card b{font-family:var(--display); font-size:1.15rem; font-weight:600;
   letter-spacing:-.02em;}
+/* A name somebody typed can be any length, and a title that wraps is the one
+   thing left that could make a row taller than every other. One line, and an
+   ellipsis so the cut is visible: clipped without one it reads as a name that
+   was saved wrong rather than one that is too long for the row. */
+.card .top b{min-width:0; overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap;}
 /* The ratio is the product, so it is the line under the date and not a
    number in the corner — "186 KB" was a fact about a disk. */
-.card .score{font-family:var(--mono); font-size:.72rem; color:var(--soft);}
+.card .score{font-family:var(--mono); font-size:.72rem; color:var(--soft);
+  flex:none; white-space:nowrap;}
 .card .score b{font-family:var(--mono); font-size:.72rem; color:var(--grease);}
-.card .cost{font-family:var(--mono); font-size:.7rem; color:var(--faint);
-  margin-left:auto;}
+/* Its own column at the right of the row, centred on it like the pencil and
+   the bin — not hung from the title's baseline, where it sat at the top of a
+   row two lines tall and looked adrift. Fixed width and tabular figures so
+   every price lines up on its decimal point. */
+.card .cost{flex:none; align-self:center; width:4rem; text-align:right;
+  font-family:var(--mono); font-size:.7rem; color:var(--faint);
+  font-variant-numeric:tabular-nums;}
+/* Two lines, always: clamped at two but *reserving* two as well. Left to
+   its content the block was one line under one comment and two under the
+   next, so a stack of five rows had three different heights and read as a
+   list that had been assembled rather than laid out. Reserving is the half
+   that was missing — clamping alone only stops a row growing. */
 .card .said{margin:.5rem 0 0; font-size:.85rem; color:var(--faint);
   line-height:1.45; display:-webkit-box; -webkit-line-clamp:2;
-  -webkit-box-orient:vertical; overflow:hidden;}
+  -webkit-box-orient:vertical; overflow:hidden;
+  min-height:calc(2 * 1.45em);}
 
 /* The row is a div, not a button: it carries two controls of its own, and a
    button inside a button is invalid markup. */
-.card{display:flex; gap:1rem; cursor:pointer;}
+/* One height for every row in the stack, whatever it holds. A merge with no
+   comment under it, a week with one line and a week with two were 67, 87 and
+   107 pixels tall in the same list, and a reader saw it before working out
+   why. Top-aligned and not centred: `.card .gap` exists so that every title
+   starts on the same vertical line, and centring the short ones would undo
+   that in the other direction — the spare room falls under the row instead.
+   `.box` declares `align-self:stretch`, so the tick's target is still the
+   full height; `.cost` and `.tool` declare their own centring. */
+.card{display:flex; gap:1rem; cursor:pointer;
+  min-height:var(--row); align-items:flex-start;}
 .card .body{flex:1; min-width:0;}
-.card.picked{background:#fff; box-shadow:inset 3px 0 0 var(--grease);}
+.card.picked{background:var(--raise); box-shadow:inset 3px 0 0 var(--grease);}
 /* A merge is a different kind of thing in the same stack, so it is a
    different colour rather than a different list — warm, because it is
    something the reader made rather than something winnow produced. */
-.card.merge{background:#faf3ef; box-shadow:inset 3px 0 0 #e7b9a6;}
-.card.merge:hover{background:#fdf7f4;}
+.card.merge{background:var(--warm); box-shadow:inset 3px 0 0 var(--warm-line);}
+.card.merge:hover{background:var(--warm-lit);}
+/* A draw is the third kind: nothing was judged and nothing was put together,
+   so it is neither the plain row nor the warm one. Cool and quiet, because
+   what is on it is speculation and the stack should not shout it. */
+.card.ideas{background:var(--cool); box-shadow:inset 3px 0 0 var(--cool-line);}
+.card.ideas:hover{background:var(--cool-lit);}
+/* A measure, not a column width. The gist ran the whole window and read like
+   a paragraph of a document; at 68 characters it reads like a caption, which
+   is what it is. */
+.card.ideas .said{max-width:68ch; font-size:.88rem; color:var(--soft);
+  margin-top:.35rem;}
+/* One line taller than every other row, and derived from it rather than
+   written down again: a draw carries a third element under the title — the
+   chips — and squeezing it into the same box would mean cutting the gist to
+   a single line, which is the only sentence saying what the idea is. The two
+   never appear side by side: «all» keeps draws out of the stack on purpose.
+   Declared so a draw *without* a gist is the same height as one with it. */
+.card.ideas{min-height:calc(var(--row) + 2rem);}
+.card.ideas .cost{font-size:.66rem; opacity:.55;}
+.card.merge .cost{width:5rem;}
+/* What kind of row this is, said in a word. The tint already said it, but
+   only to somebody who had worked the tint out — and on a merge whose label
+   is the list of days the line under the title was empty, which read as a
+   row nudged out of alignment rather than as a row with nothing to add. */
+.card .kind{display:inline-block; font-family:var(--mono); font-size:.62rem;
+  letter-spacing:.1em; text-transform:uppercase; vertical-align:1px;
+  color:var(--grease); border-radius:999px; padding:.18rem .55rem;
+  margin-right:.55rem;
+  border:1px solid color-mix(in srgb, var(--grease) 45%, transparent);}
+/* `.chips` is already the fuse window's. Named for the row it belongs to
+   instead — the guard caught this one before it reached a screenshot. */
+.facts{display:flex; flex-wrap:wrap; gap:.4rem; margin:.75rem 0 0;}
+.chip{font-family:var(--mono); font-size:.62rem; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--soft); border:1px solid var(--rule);
+  border-radius:999px; padding:.22rem .6rem;}
+/* Only the difficulty is coloured, and only the top of it. Three coloured
+   chips in a row is a traffic light, and none of the other facts is a
+   warning. */
+.chip.hard{color:var(--grease); border-color:color-mix(in srgb,
+  var(--grease) 45%, transparent);}
+.chip.mid{color:var(--amber); border-color:color-mix(in srgb,
+  var(--amber) 40%, transparent);}
+.chip.easy{color:var(--good); border-color:color-mix(in srgb,
+  var(--good) 40%, transparent);}
+.chip.day{color:var(--faint); border-color:transparent; padding-left:0;}
+
+/* The question. Small, centred, and the same shape as the draw's window —
+   one dialog language for the whole app. */
+.ask{position:fixed; inset:0; z-index:70; display:flex; align-items:center;
+  justify-content:center; padding:2rem; background:rgba(8,10,13,.55);
+  animation:veil .18s ease-out;}
+.ask[hidden]{display:none;}
+.ask-in{width:min(24rem,92vw); background:var(--lit); border-radius:8px;
+  border:1px solid var(--rule); padding:1.6rem 1.6rem 1.3rem;
+  box-shadow:0 26px 70px rgba(0,0,0,.4);
+  animation:rise .24s cubic-bezier(.2,.8,.3,1);}
+.ask-in h3{font-family:var(--display); font-weight:700; letter-spacing:-.02em;
+  font-size:1.3rem; margin:0 0 .45rem;}
+.ask-in p{margin:0; font-size:.92rem; line-height:1.5; color:var(--ink);}
+/* The consequence, said once and set quietly: shouted, it reads as a scare;
+   missing, the button is a trap. */
+.ask-in .fine{margin:.55rem 0 0; font-size:.82rem; color:var(--faint);}
+.ask-do{display:flex; align-items:center; justify-content:flex-end;
+  gap:.4rem; margin:1.4rem 0 0;}
+/* The only red thing in winnow that is not the accent: deleting is the one
+   action that cannot be taken back, and on a red-accented theme the ordinary
+   button would look exactly like it. */
+.go.danger{background:#c23a2b; color:#fff;
+  /* Its own shadow too: `.go` casts the accent, so a red button on a purple
+     theme sat in a purple halo. */
+  box-shadow:0 2px 6px rgba(194,58,43,.22), 0 12px 26px -14px rgba(194,58,43,.55);}
+.go.danger:hover{background:#a52f22;}
 /* Where the tick would be, so every title starts on the same line. A merge
    cannot be merged again, so it has no tick — but it must not be indented
    differently for it. */
+/* Where the tick would be, so every title starts on the same vertical line. */
 .card .gap{width:17px; flex:none;}
 .card[hidden]{display:none;}
 /* At rest the row is the card that was there before the controls arrived:
@@ -294,22 +765,72 @@ h1{font-family:var(--display); font-weight:700;
 
    They keep their space at all times: appearing controls that also *move*
    the text are two things happening at once, and the second one is a flinch. */
-.box{width:17px; height:17px; flex:none; align-self:center; border-radius:4px;
-  border:1px solid var(--rule); background:#fff; position:relative;
+/* The tick is 17px, and 17px is not a target. The whole left margin of the
+   row is: the box sits in a column as tall as the card, so anywhere in that
+   strip — beside the tick, above it, below it — chooses the row. Nothing
+   moves and nothing new is drawn; the hit area was simply the same size as
+   the drawing, which is the commonest way a control ends up feeling broken. */
+/* `position:relative` is load-bearing: the tick below is absolute, and with
+   nothing positioned between it and `.app` it anchored to the shell instead —
+   a checkmark parked on the screen, sliding over the rows as they scrolled.
+   It used to live on the old 17px box and was lost when the box became the
+   strip. */
+/* The hit area grows; the drawing does not move. Padding pushes the target
+   out to the card's edge, to where the type starts, and to the full height of
+   the row — and an equal negative margin gives every one of those pixels back
+   to the layout, so the square and the title stay exactly where they were.
+   The first attempt widened the box itself and centred the tick inside it,
+   which shoved the whole row seventy pixels right.
+   `content-box` is the point: with the global `border-box` the padding would
+   eat the 17px instead of surrounding it. */
+.box{box-sizing:content-box; width:17px; flex:none; cursor:pointer;
+  position:relative; align-self:stretch;
+  /* Stretched, so the target is the whole height of the row — and a flex
+     centre inside it, so the square is drawn in the middle of that height
+     rather than at the top of it. */
+  display:flex; align-items:center;
+  /* Block padding as well, or the target stops at the card's *content* box
+     and the top and bottom bands of the row do nothing. The negative margin
+     hands all four sides back to the layout. */
+  padding:1.15rem 1rem 1.15rem 1.3rem;
+  margin:-1.15rem -1rem -1.15rem -1.3rem;}
+.box::before{content:""; flex:none; width:17px; height:17px;
+  border-radius:4px;
+  border:1px solid var(--rule); background:var(--raise);
   opacity:0; transition:opacity .18s, border-color .15s, background .15s;}
-.card:hover .box,.cards.choosing .box,.card.picked .box{opacity:1;}
-.card:hover .box{border-color:var(--soft);}
-.card.picked .box{background:var(--grease); border-color:var(--grease);}
-.card.picked .box::after{content:""; position:absolute; left:5px; top:2px;
-  width:4px; height:9px; border:solid #fff; border-width:0 1.8px 1.8px 0;
-  transform:rotate(42deg);}
-.bin{flex:none; align-self:center; width:30px; height:30px;
+.card:hover .box::before,.cards.choosing .box::before,
+.card.picked .box::before{opacity:1;}
+.card:hover .box::before{border-color:var(--soft);}
+/* The strip itself lights up under the pointer, so it is visible that the
+   margin is the button and not just the square inside it. */
+.box:hover::before{border-color:var(--grease);}
+.card.picked .box::before{background:var(--grease); border-color:var(--grease);}
+/* On the square, which starts where the padding ends — not on the middle of
+   the padded box, which is somewhere out in the empty lane. */
+.card.picked .box::after{content:""; position:absolute; left:1.3rem; top:50%;
+  width:4px; height:9px; border:solid var(--on-accent);
+  border-width:0 1.8px 1.8px 0; margin-left:8.5px;
+  transform:translate(-50%,-60%) rotate(42deg);}
+.tool{flex:none; align-self:center; width:30px; height:30px;
   border-radius:50%; color:var(--faint); display:inline-flex;
   align-items:center; justify-content:center; opacity:0;
   transition:opacity .18s, background .15s, color .15s;}
-.card:hover .bin{opacity:1;}
-.bin:hover{background:rgba(206,58,36,.1); color:var(--grease);}
-.bin svg{width:14px; height:14px;}
+.card:hover .tool{opacity:1;}
+.tool:hover{background:color-mix(in srgb, var(--grease) 12%,
+  transparent); color:var(--grease);}
+.tool svg{width:14px; height:14px;}
+/* The name of a page, given by hand, with its date still beside it: a name
+   *instead of* the date would make the shelf impossible to put in order. */
+/* `flex:none` and one line: squeezed by a long name it broke «August 28»
+   over two lines and made that one row 13px taller than the rest. The name
+   is the part that gives way — it has an ellipsis for exactly that. */
+.card .when{font-family:var(--mono); font-size:.7rem; color:var(--faint);
+  flex:none; white-space:nowrap;}
+/* Typed in place, so the row never turns into a form. */
+.card .rename{font-family:var(--display); font-size:1.15rem; font-weight:600;
+  color:var(--ink); background:transparent; border:0; outline:0;
+  border-bottom:1px solid var(--grease); padding:0 0 2px; min-width:8rem;
+  max-width:22rem;}
 
 /* Appears only when something is chosen, and says what it will do. */
 .tray{position:sticky; bottom:0; margin-top:1.2rem; max-width:var(--column);
@@ -320,32 +841,44 @@ h1{font-family:var(--display); font-weight:700;
 .tray[hidden]{display:none;}
 .tray .n{font-family:var(--mono); font-size:.72rem; color:var(--soft);}
 .tray .go{padding:.7rem 1.2rem; font-size:.7rem;}
-/* Optional, and the thing that makes a shelf of merges findable a month
-   later: ten weeks picked out of a year are a theme, and a theme has a name. */
-.tray input{flex:1; min-width:8rem; margin-left:auto; font-family:var(--body);
-  font-size:.86rem;}
-@media (max-width:640px){.tray{flex-wrap:wrap;} .tray input{order:9; width:100%;}}
+.tray .n{margin-right:auto;}
+@media (max-width:640px){.tray{flex-wrap:wrap;}}
 
 /* --- the reader ---------------------------------------------------------
    The page opens inside the app. `window.open` does nothing in this webview
    — which is why clicking a week appeared to do nothing at all — and even
    where it works, a recap that opens in a browser leaves the app behind. */
 .reader{display:flex; flex-direction:column; padding:0; overflow:hidden;}
-.readbar{display:flex; align-items:baseline; gap:1rem; flex:none;
-  padding:0 var(--pad) .9rem; position:relative; z-index:1;
+/* `align-items:baseline` lines up the *text* of three things set at three
+   sizes, which puts none of them in the middle of the bar: the way back sat
+   high and looked like a caption that had come loose. Centred, and with room
+   above and below so the row has a height of its own. */
+.readbar{display:flex; align-items:center; gap:1.1rem; flex:none;
+  /* Symmetric, or «centred» is centred in a box that is not. */
+  padding:.7rem var(--pad); position:relative; z-index:1;
   /* The recap slides *under* the bar. A hairline alone made the two look
      printed on the same sheet; a shadow falling onto the page is what says
      one thing is on top of another. */
   box-shadow:0 8px 16px -12px rgba(12,16,20,.55);}
-.readbar b{font-family:var(--display); font-size:1rem;}
+.readbar b{font-family:var(--display); font-size:1.05rem;}
 .readbar span{font-family:var(--mono); font-size:.7rem; color:var(--faint);}
-.back{font-family:var(--mono); font-size:.68rem; letter-spacing:.12em;
-  text-transform:uppercase; color:var(--faint); padding:.4rem .8rem .4rem 0;
-  transition:color .15s;}
-.back::before{content:"\2039"; margin-right:.5rem; font-size:1.1rem;
-  line-height:0;}
-.back:hover{color:var(--grease);}
-#page{flex:1; width:100%; border:0; background:#dde2e5;
+/* The only way out of this screen, so it is drawn as a control and not as a
+   word: a bordered pill, the accent's colour, with a real arrow. It used to
+   be grey mono text at 0.68rem — smaller than the count beside it, and the
+   thing a reader had to find first. */
+.back{display:inline-flex; align-items:center; gap:.5rem; flex:none;
+  font-family:var(--mono); font-size:.7rem; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--grease); padding:.5rem 1rem .5rem .8rem;
+  border:1px solid color-mix(in srgb, var(--grease) 45%, transparent);
+  border-radius:999px; transition:background .15s, color .15s,
+  border-color .15s, transform .15s;}
+.back::before{content:"\2190"; font-size:.95rem; line-height:1;
+  transition:transform .15s;}
+.back:hover{background:var(--grease); color:var(--on-accent);
+  border-color:var(--grease);}
+.back:hover::before{transform:translateX(-2px);}
+.back:active{transform:translateY(1px);}
+#page{flex:1; width:100%; border:0; background:var(--glass);
   border-top:1px solid var(--rule);}
 .empty{color:var(--soft); max-width:40ch;}
 
@@ -392,7 +925,10 @@ h1{font-family:var(--display); font-weight:700;
    what happened; a drawing of the thing that just happened does that for
    them, and costs a second. */
 .fuse{position:fixed; inset:0; z-index:30; display:flex; align-items:center;
-  justify-content:center; background:rgba(233,236,237,.94);
+  /* Derived, not written: as a pale literal it stayed pale under a dark
+     ground and put near-white type on near-white paper for the whole merge. */
+  justify-content:center;
+  background:color-mix(in srgb, var(--glass) 94%, transparent);
   backdrop-filter:blur(6px); animation:fade .2s ease both;}
 .fuse[hidden]{display:none;}
 .fuse-in{text-align:center; color:var(--ink);}
@@ -474,11 +1010,15 @@ h1{font-family:var(--display); font-weight:700;
 /* A choice is a whole row you can hit, not a dot you have to aim at. */
 .opts{display:grid; gap:1px; background:var(--rule); border:1px solid var(--rule);
   border-radius:4px; overflow:hidden;}
+/* `--raise` and not `#fff`: a literal here is a colour no ground can reach,
+   and on a dark one it painted a white row under near-white type — the text
+   was there and simply could not be read. Same reason as every other literal
+   that had to be pulled back into the token set. */
 .opt{display:flex; align-items:flex-start; gap:.8rem; width:100%;
-  text-align:left; background:#fff; padding:.85rem 1rem;
+  text-align:left; background:var(--raise); padding:.85rem 1rem;
   transition:background .15s;}
 .opt:hover{background:var(--glass);}
-.opt.on{background:#fff; box-shadow:inset 3px 0 0 var(--grease);}
+.opt.on{background:var(--raise); box-shadow:inset 3px 0 0 var(--grease);}
 .opt .tick{width:15px; height:15px; margin-top:.2rem; flex:none;
   border:1px solid var(--rule); border-radius:50%; transition:.15s;}
 .opt.on .tick{border-color:var(--grease); border-width:5px;}
@@ -505,12 +1045,12 @@ h1{font-family:var(--display); font-weight:700;
 input[type=text],input[type=number],input[type=password],select{
   -webkit-appearance:none; appearance:none;
   font-family:var(--mono); font-size:.85rem; color:var(--ink); width:100%;
-  background:#fff; border:1px solid var(--rule); border-radius:6px;
+  background:var(--raise); border:1px solid var(--rule); border-radius:6px;
   padding:.55rem .7rem; transition:border-color .18s, box-shadow .18s;}
 input:focus,select:focus{outline:none; border-color:var(--faint);
   /* A halo the colour of the page, not a ring drawn on top of it: it says
      "here" without putting a second rectangle around the first. */
-  box-shadow:0 0 0 3px rgba(206,58,36,.14);}
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--grease) 16%, transparent);}
 .hint{display:block; margin-top:.5rem; font-size:.8rem; color:var(--faint);
   font-family:var(--body); line-height:1.4;}
 
@@ -575,59 +1115,165 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
     <!-- The gaps between the tabs drag too; the buttons are their own event
          targets, so they still click. -->
     <nav class="tabs" data-tauri-drag-region>
-      <button class="tab on" data-go="home">Casa</button>
-      <button class="tab" data-go="archive">Archivio</button>
-      <button class="tab" data-go="settings">Impostazioni</button>
+      <button class="tab on" data-go="home" data-t="nav.home">Home</button>
+      <button class="tab" data-go="archive" data-t="nav.archive">Archive</button>
+      <button class="tab" data-go="settings" data-t="nav.settings">Settings</button>
     </nav>
   </header>
 
   <section class="screen" id="home">
     <div class="home" id="face">
       <span class="dot" id="dot">…</span>
-      <h1 id="headline">Sto guardando</h1>
+      <h1 id="headline"></h1>
+      <!-- The author's own sentence. It says what the app is for — the
+           saved posts, and what comes back — instead of describing the
+           mechanism, which is what the rest of the screen is already for. -->
+      <p class="purpose" data-t-html="home.purpose"></p>
+      <!-- Under the standing description and against the button, because it
+           is the caption of the *action*: «there is nothing left to read,
+           save something and collect it from here» is an instruction, and an
+           instruction two paragraphs above the thing it instructs does not
+           get read. Reported twice in one morning, both times as «it says
+           there is nothing new on Instagram» — which it never said. -->
       <p class="detail" id="detail"></p>
-      <p class="purpose">I post che salvi e non riapri mai. Una volta a
-        settimana <b>winnow</b> li legge, controlla alla fonte i nomi che
-        ci trova, e separa il grano dalla pula.</p>
-      <button class="go" id="act" disabled>attendi</button>
+      <div class="choice">
+        <button class="go" id="act" disabled data-t="home.wait">wait</button>
+        <button class="also" id="also" hidden></button>
+      </div>
+      <!-- What a run looks like from outside. Three things, because three
+           different doubts: a bar that moves says «it is going», a sentence
+           says «at what», and a clock that ticks every second says «it is not
+           stuck» even in the minutes when nothing else changes. -->
+      <div class="work" id="work" hidden>
+        <div class="gauge" id="gauge"><i id="fill"></i></div>
+        <p class="phase"><span id="phase"></span><b id="clock"></b></p>
+      </div>
       <div class="log" id="log" hidden></div>
       <div class="stats" id="stats"></div>
     </div>
   </section>
 
   <section class="screen" id="archive" hidden>
-    <h1 class="title">Il raccolto</h1>
-    <p class="lead-in">Storico di tutti i recap fatti. Clicca una settimana
-      per riaprirla, spuntane due o più per metterle insieme.</p>
+    <h1 class="title" data-t="archive.title">The harvest</h1>
+    <p class="lead-in" data-t-html="archive.lead"></p>
     <nav class="filters" id="filters">
-      <button class="f on" data-only="all">Tutto</button>
-      <button class="f" data-only="week">Recap</button>
-      <button class="f" data-only="merge">Unioni</button>
+      <button class="f on" data-only="all" data-t="archive.all">All</button>
+      <button class="f" data-only="week" data-t="archive.recaps">Recaps</button>
+      <button class="f" data-only="ideas" data-t="archive.ideas">Ideas</button>
+      <button class="f" data-only="merge" data-t="archive.merges">Merges</button>
+      <button class="dream" id="dream"><span data-t="archive.make_idea">Make an idea</span><span class="arrow">&rarr;</span></button>
     </nav>
+    <!-- Where a refused press says why. Empty and out of the layout until
+         there is something to say: an always-visible slot for an occasional
+         sentence is a hole in the page for the rest of the time. -->
+    <p class="refused" id="dream-note" hidden></p>
+    <!-- Two colours in one stack need naming once. Under the filters, in the
+         smallest type on the screen: it is a key, not a sentence. -->
+    <p class="key" id="key">
+      <span><i class="sw merge"></i><b data-t="archive.legend_merged">merged recaps</b></span>
+      <span><i class="sw single"></i><b data-t="archive.legend_single">single recaps</b></span>
+    </p>
+    <!-- Nothing is emptier than a filter that hides everything and says
+         nothing. Each one has its own sentence, because "niente qui" is a
+         different fact depending on which button is pressed. -->
+    <p class="empty" id="archive-empty" hidden></p>
     <div id="archive-body"></div>
     <div class="tray" id="tray" hidden>
+      <!-- No name is asked for here. It used to be, on the argument that a
+           theme needs one — true, but the moment to give it is after seeing
+           the page, not while still choosing what goes into it. A text field
+           in a sticky bar also takes the pointer hostage: it grabs focus and
+           the rows behind it stop being clickable. The pencil on the row does
+           the same job later, and better. -->
       <span class="n" id="tray-n"></span>
-      <input type="text" id="tray-name" maxlength="60"
-             placeholder="chiamala — es. Embedded, Roba da provare">
-      <button class="ghost" id="tray-clear">Annulla</button>
-      <button class="go" id="tray-go">Unisci</button>
+      <button class="ghost" id="tray-clear" data-t="common.cancel">Cancel</button>
+      <button class="go" id="tray-go" data-t="archive.merge">Merge</button>
     </div>
   </section>
 
   <section class="screen reader" id="reader" hidden>
     <div class="readbar" data-tauri-drag-region>
-      <button class="back" id="back">Archivio</button>
+      <button class="back" id="back" data-t="nav.archive">Archive</button>
       <b id="read-week"></b>
       <span id="read-count"></span>
     </div>
-    <iframe id="page" title="Il recap"></iframe>
+    <iframe id="page" data-t-title="reader.frame" title="The recap"></iframe>
   </section>
 
   <section class="screen" id="settings" hidden>
-    <p class="eyebrow">Come lavora</p>
+    <p class="eyebrow" data-t="settings.eyebrow">How it works</p>
     <div id="settings-body"></div>
   </section>
 
+</div>
+
+<!-- A draw is the one thing winnow makes that is not a verdict, and it
+     should not arrive looking like one. Weather on top — the grain going
+     past in the wind, which is what the tool is named after — and one idea
+     at a time underneath, centred, with a lot of white around it: a page of
+     a calendar you tear off, not a row in a table. -->
+<div class="sow" id="sow" hidden>
+  <div class="sow-in" role="dialog" aria-modal="true" aria-label="Idee">
+    <div class="sky" id="sky" aria-hidden="true"></div>
+    <!-- The die is the whole interaction: one idea, and another one is a
+         press away. It sits on the weather because that is what it changes. -->
+    <button class="die" id="sow-die" data-t-title="idea.again" data-t-aria="idea.again"
+            title="Another idea" aria-label="Another idea">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="2.5" y="2.5" width="19" height="19" rx="5"
+              fill="none" stroke="currentColor" stroke-width="1.7"/>
+        <circle cx="8" cy="8" r="1.7"/><circle cx="16" cy="8" r="1.7"/>
+        <circle cx="12" cy="12" r="1.7"/>
+        <circle cx="8" cy="16" r="1.7"/><circle cx="16" cy="16" r="1.7"/>
+      </svg>
+    </button>
+    <button class="x" id="sow-close" data-t-aria="common.close" aria-label="Close">&#10005;</button>
+    <div class="leaf">
+      <div id="sow-run" hidden>
+        <p class="stamp" id="sow-run-stamp"></p>
+        <div class="lines" id="sow-log"></div>
+        <button class="ghost" id="sow-stop" data-t="common.stop">Stop</button>
+      </div>
+      <div id="sow-card" hidden>
+        <p class="stamp" id="sow-stamp"></p>
+        <h3 id="sow-title"></h3>
+        <p class="uses" id="sow-uses"></p>
+        <!-- Three lines and two facts. Everything else is behind «Scopri»,
+             because an idea that has to be read to be understood has already
+             failed at being an idea. -->
+        <p class="gist" id="sow-gist"></p>
+        <div class="meta" id="sow-meta"></div>
+        <button class="more" id="sow-more"></button>
+        <div class="full" id="sow-full" hidden>
+          <p class="say" id="sow-idea"></p>
+          <p class="one" id="sow-step"></p>
+          <p class="but" id="sow-shaky"></p>
+        </div>
+      </div>
+    </div>
+    <div class="flip" id="sow-flip" hidden>
+      <button class="arrowb" id="sow-prev" data-t-aria="common.previous" aria-label="Previous">&#8249;</button>
+      <span class="dots" id="sow-dots"></span>
+      <button class="arrowb" id="sow-next" data-t-aria="common.next" aria-label="Next">&#8250;</button>
+    </div>
+  </div>
+</div>
+
+<!-- Asked in the middle of the window, not in a flap under the row. The row
+     version pushed everything below it down and left the question sharing a
+     line with the thing it was about; a decision that cannot be undone should
+     stop the page, and stopping the page is what a dialog is for. -->
+<div class="ask" id="ask" hidden>
+  <div class="ask-in" role="dialog" aria-modal="true"
+       aria-labelledby="ask-title">
+    <h3 id="ask-title"></h3>
+    <p id="ask-what"></p>
+    <p class="fine" data-t="ask.fine"></p>
+    <div class="ask-do">
+      <button class="ghost" id="ask-no" data-t="common.cancel">Cancel</button>
+      <button class="go small danger" id="ask-yes" data-t="common.delete">Delete</button>
+    </div>
+  </div>
 </div>
 
 <div class="fuse" id="fuse" hidden>
@@ -665,7 +1311,7 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
             stroke="var(--grease)" stroke-width="3.4" stroke-linecap="round"
             stroke-linejoin="round"/>
     </svg>
-    <p class="fuse-say" id="fuse-say">Le metto insieme</p>
+    <p class="fuse-say" id="fuse-say"></p>
   </div>
 </div>
 
@@ -676,14 +1322,449 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
     <div id="sheet-body"></div>
     <div class="acts">
       <p class="saved" id="saved"></p>
-      <button class="ghost" id="sheet-cancel">Annulla</button>
-      <button class="go small" id="sheet-save">Salva</button>
+      <button class="ghost" id="sheet-cancel" data-t="common.cancel">Cancel</button>
+      <button class="go small" id="sheet-save" data-t="common.save">Save</button>
     </div>
   </div>
 </div>
 
 <script>
 const $ = (id) => document.getElementById(id);
+
+// --- what the window says ---------------------------------------------------
+//
+// English is the default and the source: every key is written in English
+// first, and Italian is an override. A missing translation falls back to
+// English rather than to the key, so a gap leaves a sentence somebody can act
+// on instead of a puzzle.
+//
+// The language comes from the `lang` attribute the engine writes into the
+// page — the same place the theme comes from — so the window never renders in
+// one language and repaints in another.
+const T = {
+  "nav.home": ["Home", "Casa"],
+  "nav.archive": ["Archive", "Archivio"],
+  "nav.settings": ["Settings", "Impostazioni"],
+
+  "common.cancel": ["Cancel", "Annulla"],
+  "common.save": ["Save", "Salva"],
+  "common.delete": ["Delete", "Elimina"],
+  "common.stop": ["Stop", "Ferma"],
+  "common.close": ["Close", "Chiudi"],
+  "common.previous": ["Previous", "Precedente"],
+  "common.next": ["Next", "Successiva"],
+  "common.rename": ["Rename", "Rinomina"],
+
+  "home.wait": ["wait", "attendi"],
+  "home.purpose": [
+    "The posts you save on Instagram pile up. <b>winnow</b> sifts them every " +
+    "day and hands back only what serves what you are actually trying to do.",
+    "I post salvati su Instagram si accumulano. <b>winnow</b> li setaccia " +
+    "ogni giorno e ti restituisce solo ciò che serve ai tuoi obiettivi."],
+  "home.queued": ["posts queued", "post in coda"],
+  "home.this_week": ["this week", "questa settimana"],
+  "home.stale": ["the last collection is old", "l'ultima raccolta è vecchia"],
+  "home.collecting": ["Collecting", "Sto raccogliendo"],
+  "home.drawing": ["Drawing", "Sto pescando"],
+  "home.recapping": ["Making the recap", "Sto facendo il recap"],
+  "home.not_started": ["it did not start", "non è partito"],
+  "home.already_running": ["something is already running — wait for it to end",
+                           "c'è già qualcosa in corso — aspetta che finisca"],
+
+  "reader.frame": ["The recap", "Il recap"],
+  "archive.title": ["The harvest", "Il raccolto"],
+  // The reader's own words, in both languages. Not a line spent on what the
+  // screen already shows: «click one to reopen it» is somebody watching
+  // themselves use a list.
+  "archive.lead": [
+    "The story of your recaps. Use it to change your life and let it inspire " +
+    "you with new ideas.",
+    "La storia dei tuoi recap. Usala per cambiare la tua vita e farti " +
+    "ispirare con nuove idee."],
+  "archive.all": ["All", "Tutto"],
+  "archive.recaps": ["Recaps", "Recap"],
+  "archive.ideas": ["Ideas", "Idee"],
+  "archive.merges": ["Merges", "Unioni"],
+  "archive.make_idea": ["Make an idea", "Genera idea"],
+  "archive.merge": ["Merge", "Unisci"],
+  "archive.legend_merged": ["merged recaps", "recap uniti"],
+  "archive.legend_single": ["single recaps", "recap singoli"],
+  "archive.kind_merge": ["Merge", "Unione"],
+  "archive.n_recaps": ["{n} recaps", "{n} recap"],
+  "archive.n_things": ["{n} things", "{n} cose"],
+  "archive.n_ideas": ["{n} ideas", "{n} idee"],
+  "archive.kept_of": ["{kept} kept of {of}", "{kept} tenute su {of}"],
+  "archive.n_posts": ["{n} posts", "{n} post"],
+  "archive.open_to_see": ["open to see", "apri per vedere"],
+  "archive.ideas_of": ["Ideas of {day}", "Idee del {day}"],
+  "archive.merging": ["{n} recaps into one page",
+                      "{n} recap in una pagina"],
+  "archive.n_chosen": ["{n} chosen", "{n} scelte"],
+  "archive.one_chosen": ["1 chosen — two are needed",
+                         "1 scelta — servono almeno due"],
+  "archive.not_merged": ["not merged", "non riuscito"],
+  "archive.not_renamed": ["not renamed", "non rinominato"],
+  "archive.and_all": ["{days} in all", "{days} in tutto"],
+
+  "empty.all": [
+    "Nothing yet. The first recap will show up here, and stay openable for " +
+    "ever — a year from now, with that day's numbers.",
+    "Ancora niente. Il primo recap comparirà qui, e resterà apribile per " +
+    "sempre — anche fra un anno, con i numeri di quel giorno."],
+  "empty.week": ["No recaps yet. From Home, once posts are queued.",
+                 "Nessun recap ancora. Dalla Casa, quando hai post in coda."],
+  "empty.ideas": [
+    "No ideas yet. «Make an idea» draws a handful out of everything winnow " +
+    "has kept and asks what it would change for you.",
+    "Nessuna idea ancora. «Genera idea» ne pesca una manciata da tutto " +
+    "quello che winnow ha tenuto e chiede cosa cambierebbe a te."],
+  "empty.merge": [
+    "No merges. Tick two or more recaps above to read them as one page.",
+    "Nessuna unione. Spunta due o più recap qui sopra per leggerli come " +
+    "una pagina sola."],
+
+  "ask.title": ["Delete?", "Elimino?"],
+  "ask.fine": [
+    "The page and the judgement behind it both go, for good.",
+    "Spariscono la pagina e il giudizio che l'ha prodotta. Non si torna " +
+    "indietro."],
+  "ask.this_merge": ["This merge", "Questa unione"],
+  "ask.this_idea": ["This idea", "Questa idea"],
+  "ask.this_page": ["This page", "Questa pagina"],
+  "ask.the_recap_of": ["The recap of {day}", "Il recap del {day}"],
+  "ask.not_deleted": ["not deleted", "non eliminato"],
+
+  "idea.again": ["Another idea", "Un'altra idea"],
+  "idea.drawing": ["drawing", "sto pescando"],
+  "idea.failed": ["it did not work", "non è andata"],
+  "idea.stopped": ["stopped", "fermata"],
+  "idea.first_step": ["one evening", "una sera"],
+  "idea.not_certain": ["and it may not hold", "e non è detto"],
+  "difficulty.facile": ["easy", "facile"],
+  "difficulty.media": ["medium", "media"],
+  "difficulty.tosta": ["hard", "tosta"],
+  "idea.discover": ["Discover", "Scopri"],
+  "idea.less": ["Less", "Meno"],
+  "idea.one": ["an idea", "un'idea"],
+  "idea.n_of": ["{i} of {n}", "{i} di {n}"],
+  "idea.none_came": ["nothing came of these", "non ne è uscito niente"],
+  "idea.no_ideas": ["No ideas", "Nessuna idea"],
+  "idea.drew_nothing": ["The draw produced nothing.",
+                        "La pescata non ha prodotto niente."],
+  "idea.no_reason": [
+    "It did not work, and the run did not say why. The terminal that opened " +
+    "this window knows.",
+    "Non è andata, e la corsa non ha detto perché. Il terminale che ha " +
+    "aperto questa finestra lo sa."],
+
+  // --- what a run says while it runs
+  "say.folder": ["Folder {name}: {found} posts, {new} to read.",
+                 "Cartella {name}: {found} post, {new} da leggere."],
+  "say.post": ["{i} of {n} — @{account}, {slides} slides.",
+               "{i} di {n} — @{account}, {slides} slide."],
+  // Italian keeps `slide` invariable; English does not, and a one-image post
+  // is the commonest kind there is — «1 slides» was in the log every day.
+  // `progress.py` has always said it properly; this is the window catching up.
+  "say.post_one": ["{i} of {n} — @{account}, 1 slide.",
+                   "{i} di {n} — @{account}, 1 slide."],
+  "say.extracted": ["I read: {names}.", "Ci ho letto: {names}."],
+  "say.no_names": ["no names", "nessun nome"],
+  "say.unchecked": ["{name}: could not be checked.",
+                    "{name}: non ho potuto controllarlo."],
+  "say.absent": ["{name}: the source does not have it.",
+                 "{name}: alla fonte non c'è."],
+  "say.found": ["{name}: found.", "{name}: c'è."],
+  "say.found_stars": ["{name}: found, {stars} stars.",
+                      "{name}: c'è, {stars} stelle."],
+  "say.written": ["Written: {entities} things, {verified} verified.",
+                  "Scritto: {entities} cose, {verified} verificate."],
+  "say.halted": ["Stopped: {reason}.", "Fermo: {reason}."],
+  "say.spend_limit": ["spending limit", "limite di spesa"],
+  "say.sliced": ["Judging {days} of {of} days: {left} things stay for next time.",
+                 "Giudico {days} giorni su {of}: {left} cose restano per la " +
+                 "prossima volta."],
+  "say.bundling": ["Putting {days} days together: {posts} posts, {things} things{chars}.",
+                   "Metto insieme {days} giorni: {posts} post, {things} cose{chars}."],
+  "say.bundling_one": ["Putting 1 day together: {posts} posts, {things} things{chars}.",
+                       "Metto insieme 1 giorno: {posts} post, {things} cose{chars}."],
+  "say.chars": [" ({n} thousand characters)", " ({n} mila caratteri)"],
+  "say.drawing": ["Drawing {drawn} things at random out of the {of} kept.",
+                  "Pesco {drawn} cose a caso fra le {of} che ho tenuto."],
+  "say.asking": ["The model is reading them. It takes a few minutes.",
+                 "Le sto facendo leggere al modello. Ci mette qualche minuto."],
+  "say.retry": ["No answer: trying again, attempt {n} of {of}.",
+                "Non ha risposto: riprovo, tentativo {n} di {of}."],
+  "say.writing": ["Writing the judgement: {n} thousand characters so far.",
+                  "Sta scrivendo il giudizio: {n} mila caratteri finora."],
+  "say.waiting": ["Waiting {n} seconds, then trying again.",
+                  "Aspetto {n} secondi e riprovo."],
+  "say.judged": ["Kept {kept} things of {of}{binned}{sections}.",
+                 "Tenute {kept} cose su {of}{binned}{sections}."],
+  "say.binned": [", {n} thrown out", ", {n} scartate"],
+  "say.sections": [", in {n} sections", ", in {n} sezioni"],
+  "say.dreamt": ["One idea, from {of} things drawn.",
+                 "Un'idea, da {of} cose pescate."],
+  "say.stopped": ["Stopped.", "Fermata."],
+  "say.failed": ["It did not work: {why}", "Non è andata: {why}"],
+  "say.post_skipped": ["Post skipped: {error}.", "Post saltato: {error}."],
+  "say.ready": ["Ready.", "Pronta."],
+  "say.generating": ["Generating the idea, waiting for the model.",
+                     "Generazione idea in corso, attendere il modello."],
+
+  // --- where a run is, in words
+  "phase.starting": ["About to start", "Sto per cominciare"],
+  "phase.folders": ["Looking at what you saved", "Guardo cosa hai salvato"],
+  "phase.posts": ["Opening the saved posts, one at a time",
+                  "Apro i post salvati, uno alla volta"],
+  "phase.reading": ["Reading what the slides say",
+                    "Leggo cosa c'è scritto nelle slide"],
+  "phase.checking": ["Checking the names at the source",
+                     "Controllo alla fonte i nomi che ho trovato"],
+  "phase.collected": ["Finished collecting", "Ho finito di raccogliere"],
+  "phase.bundling": ["Putting together what there is to judge",
+                     "Metto insieme quello che c'è da giudicare"],
+  "phase.drawing": ["Drawing at random from what was kept",
+                    "Pesco a caso fra le cose tenute"],
+  "phase.thinking": ["The model is thinking the idea up",
+                     "Il modello sta pensando l'idea"],
+  "phase.reading_week": ["The model is reading the whole week",
+                         "Il modello sta leggendo tutta la settimana"],
+  "phase.writing": ["The model is writing the judgement",
+                    "Il modello sta scrivendo il giudizio"],
+  "phase.retrying": ["No answer from the model: waiting, then trying again",
+                     "Il modello non ha risposto: aspetto e riprovo"],
+  "phase.page": ["Building the page", "Preparo la pagina"],
+  "phase.stopped": ["Stopped", "Fermata"],
+  "phase.of": ["{phase} — {done} of {of}", "{phase} — {done} di {of}"],
+
+  "settings.eyebrow": ["How it works", "Come lavora"],
+  "settings.no_config": [
+    "No configuration yet. Open a terminal and run <code>winnow init</code>: " +
+    "it is done once.",
+    "Nessuna configurazione ancora. Apri un terminale e lancia " +
+    "<code>winnow init</code>: va fatto una volta sola."],
+  "settings.model": ["Model", "Modello"],
+  "settings.provider": ["Provider", "Fornitore"],
+  "settings.collection": ["Collection", "Raccolta"],
+  "settings.how_many": ["How many posts", "Quanti post"],
+  "settings.folders": ["Folders", "Cartelle"],
+  "settings.spend_cap": ["Spending cap", "Tetto di spesa"],
+  "settings.profile": ["Profile", "Profilo"],
+  "settings.theme": ["Theme", "Tema"],
+  "settings.language": ["Language", "Lingua"],
+  "settings.each_run": ["{n} at each run", "{n} a ogni raccolta"],
+  "settings.a_week": ["{amount} a week", "{amount} a settimana"],
+  "settings.every_day_at": ["every day at {time}", "ogni giorno alle {time}"],
+  "settings.off": ["off", "spenta"],
+  "settings.none": ["none", "nessuna"],
+  "settings.none_on": ["none on", "nessuna attiva"],
+  "settings.key_missing": ["key missing", "manca la chiave"],
+  "settings.key_set": ["key set", "chiave impostata"],
+  "settings.chars": ["{n} characters", "{n} caratteri"],
+  "settings.not_written": ["not written yet", "non ancora scritto"],
+  "settings.edit": ["Edit {what}", "Modifica {what}"],
+  "settings.not_saved": ["not saved", "non salvato"],
+  "settings.key_not_saved": ["key not saved", "chiave non salvata"],
+
+  "sheet.difficulty": ["difficulty", "difficoltà"],
+  "sheet.time": ["time", "tempo"],
+  "sheet.model.title": ["Who reads the slides", "Chi legge le slide"],
+  "sheet.model.lead": [
+    "The model opens every slide and pulls out the names. It is charged per " +
+    "post: at eight posts a day, half a cent each is about a euro a month.",
+    "Il modello apre ogni slide e ne tira fuori i nomi. Costa a post: con " +
+    "una raccolta da otto post al giorno, mezzo centesimo l'uno fa circa un " +
+    "euro al mese."],
+  "sheet.model.open_keys": ["Open the keys page", "Apri la pagina delle chiavi"],
+  "sheet.model.key_hint": [
+    "Make one, put a spending limit on it, and remember that a key with no " +
+    "credit loaded does not work.",
+    "Creane una, mettile un limite di spesa, e ricorda che una chiave senza " +
+    "credito caricato non funziona."],
+  "sheet.model.own": ["yours, on your own machine, or a name you type",
+                      "il tuo, sulla tua macchina, o un nome che scrivi a mano"],
+  "sheet.model.name": ["Model name", "Nome del modello"],
+  "sheet.model.address": ["Address", "Indirizzo"],
+  "state.ready": ["ready", "pronto"],
+  "state.nothing_new": ["nothing new", "niente di nuovo"],
+  "state.busy": ["working", "sta lavorando"],
+  "state.logged_out": ["signed out", "sconnesso"],
+  "state.brake": ["stopped", "fermo"],
+  "sheet.key.set": ["{brand} key set. Nothing else to do.",
+                    "Chiave {brand} impostata. Non serve fare altro."],
+  "sheet.key.replace": ["Replace it", "Sostituiscila"],
+  "sheet.key.replacing": [
+    "<b>The old one is replaced</b> as soon as you save. It cannot be read " +
+    "back from here: it lives in a file only you can open.",
+    "<b>La vecchia viene sostituita</b> appena salvi. Da qui non si " +
+    "rilegge: sta in un file che solo tu puoi aprire."],
+  "sheet.key.needed": [
+    "<b>A {brand} key is needed.</b> Without it, the next collection stops " +
+    "at the first post.",
+    "<b>Serve una chiave {brand}.</b> Senza, la prossima raccolta si ferma " +
+    "al primo post."],
+  "sheet.model.key_of": ["{brand} key", "Chiave {brand}"],
+  "sheet.model.paste": ["paste it here", "incollala qui"],
+  "sheet.folders.none": ["No folders", "Nessuna cartella"],
+  "sheet.folders.look": ["Ask Instagram which ones you have.",
+                         "Chiedi a Instagram quali hai."],
+  "sheet.folders.on": ["on", "accesa"],
+  "sheet.folders.rescan_btn": ["Ask Instagram again", "Richiedi a Instagram"],
+  "sheet.model.local_hint": [
+    "It has to read images and speak the OpenAI API — Ollama, LM Studio. It " +
+    "runs on your machine, so it costs nothing and the slides never leave " +
+    "the house.",
+    "Deve saper leggere immagini e parlare l'API di OpenAI — Ollama, LM " +
+    "Studio. Gira sulla tua macchina, quindi non costa niente e non manda " +
+    "le slide fuori di casa."],
+  "sheet.posts.title": ["How many posts a run", "Quanti post a raccolta"],
+  "sheet.posts.lead": [
+    "How many posts it opens each time it collects. Higher clears a backlog " +
+    "sooner, but the run takes longer and costs more.",
+    "Quanti post apre ogni volta che raccoglie. Più alto smaltisce " +
+    "l'arretrato prima, ma la raccolta dura di più e costa di più."],
+  "sheet.posts.field": ["Posts at each run", "Post a ogni raccolta"],
+  "sheet.posts.note": [
+    "{n} posts a day is about {money} a week. Eight is the rhythm winnow is " +
+    "tuned for; anyone installing it after years of saving has hundreds " +
+    "queued, and raising it for a few days clears the backlog.",
+    "{n} post al giorno sono circa {money} a settimana. Otto è il ritmo per " +
+    "cui winnow è tarato; chi lo installa dopo anni di salvataggi ne ha " +
+    "centinaia in coda, e alzarlo per qualche giorno smaltisce l'arretrato."],
+  "sheet.hour.title": ["When to collect", "Quando raccogliere"],
+  "sheet.hour.lead": [
+    "winnow opens the posts you saved once a day, on its own. Pick an hour " +
+    "when the computer is usually awake: if it sleeps, the run is skipped " +
+    "and nobody tells you.",
+    "winnow apre i post salvati una volta al giorno, da solo. Scegli un'ora " +
+    "in cui il computer è di solito acceso: se dorme, la corsa salta e " +
+    "nessuno te lo dice."],
+  "sheet.hour.other": ["Another hour", "Un'altra ora"],
+  "sheet.hour.at": ["Time", "Ora"],
+  "sheet.hour.never": ["Never", "Mai"],
+  "sheet.hour.manual": ["you start the collection yourself, from Home",
+                        "la raccolta la lanci tu dalla casa"],
+  "sheet.spend.title": ["How much it may spend", "Quanto può spendere"],
+  "sheet.spend.lead": [
+    "Two thresholds. The first warns. The second stops winnow for good, and " +
+    "it does not restart until you say so by hand — that is what stands " +
+    "between a mistake and a bill.",
+    "Due soglie. La prima avvisa. La seconda ferma winnow per sempre, e non " +
+    "riparte finché non lo dici tu a mano — è quello che sta fra un errore " +
+    "e una bolletta."],
+  "sheet.spend.stop": ["Stop everything past", "Ferma tutto oltre"],
+  "sheet.spend.warn": ["Warn me past", "Avvisami oltre"],
+  "sheet.spend.hint": [
+    "In euros, a week. A post costs about half a cent, so the brake never "
+    + "trips in normal use: it trips when something has gone wrong, which is "
+    + "exactly when it is needed.",
+    "In euro, a settimana. Un post costa circa mezzo centesimo, quindi il "
+    + "freno non scatta mai per uso normale: scatta quando qualcosa è andato "
+    + "storto, che è esattamente il momento in cui serve."],
+  "sheet.profile.title": ["Your profile", "Il tuo profilo"],
+  "sheet.profile.lead": [
+    "It is the file the whole judgement rests on: who you are, what you have " +
+    "already decided, what you are after. Without it, winnow filters at " +
+    "random.",
+    "È il file su cui si regge tutto il giudizio: dice chi sei, cosa hai " +
+    "già deciso e cosa stai cercando. Senza, winnow filtra a caso."],
+  "sheet.profile.state": ["State", "Stato"],
+  "sheet.profile.open": ["Open in the editor", "Apri nell'editor"],
+  "sheet.profile.hint": [
+    "Written by hand, once, and corrected when a recap misses the mark. It " +
+    "never goes through this window.",
+    "Si scrive a mano, una volta, e si corregge quando un recap sbaglia " +
+    "bersaglio. Non passa mai da questa finestra."],
+  "sheet.profile.opened": ["Opened. Save the file and close this.",
+                           "Aperto. Salva il file e chiudi qui."],
+  "sheet.folders.title": ["Which folders", "Quali cartelle"],
+  "sheet.folders.lead": [
+    "Your saved folders on Instagram. Tap a row to turn it on or off.",
+    "Le cartelle dei tuoi salvati su Instagram. Tocca una riga per " +
+    "accenderla o spegnerla."],
+  "sheet.folders.rescan": [
+    "It opens Instagram with the saved session and asks which folders you " +
+    "have. Needed after making a new one.",
+    "Apre Instagram con la sessione salvata e chiede quali cartelle hai. " +
+    "Serve per quelle create dopo il setup."],
+  "sheet.folders.found": ["{n} new. Turn on the ones you want, then save.",
+                          "{n} nuove. Accendi quelle che vuoi, poi salva."],
+  "sheet.folders.none_new": ["Nothing new: they are all here already.",
+                             "Nessuna nuova: ci sono già tutte."],
+  "sheet.theme.title": ["Theme", "Tema"],
+  "sheet.theme.lead": [
+    "The ground decides whether the window is light or dark; the accent " +
+    "tints buttons, rows and the sky behind the die. It applies to this " +
+    "computer and touches nothing winnow collects.",
+    "Lo sfondo decide se la finestra è chiara o scura; l'accento tinge " +
+    "bottoni, righe e il cielo del dado. Vale su questo computer e non " +
+    "tocca niente di quello che winnow raccoglie."],
+  "sheet.theme.ground": ["Ground", "Sfondo"],
+  "sheet.theme.accent": ["Accent", "Accento"],
+  "sheet.lang.title": ["Language", "Lingua"],
+  "sheet.lang.lead": [
+    "The language of this window, of the pages winnow builds, and of what " +
+    "the model writes inside them. Your profile can be in any language: it " +
+    "is read, not answered in.",
+    "La lingua di questa finestra, delle pagine che winnow costruisce e di " +
+    "quello che il modello ci scrive dentro. Il tuo profilo può essere in " +
+    "qualunque lingua: viene letto, non è quella in cui ti si risponde."],
+
+  "ground.chiaro": ["Light", "Chiaro"],
+  "ground.chiaro.why": ["The painting in daylight.",
+                        "Il quadro alla luce del giorno."],
+  "ground.penombra": ["Dim", "Penombra"],
+  "ground.penombra.why": ["Grey, not black. The middle one.",
+                          "Grigio, non nero. La via di mezzo."],
+  "ground.scuro": ["Dark", "Scuro"],
+  "ground.scuro.why": ["For a window open at night.",
+                       "Per la finestra aperta di sera."],
+  "accent.terracotta": ["Terracotta", "Terracotta"],
+  "accent.rosso": ["Red", "Rosso"],
+  "accent.arancione": ["Orange", "Arancione"],
+  "accent.giallo": ["Yellow", "Giallo"],
+  "accent.verde": ["Green", "Verde"],
+  "accent.blu": ["Blue", "Blu"],
+  "accent.viola": ["Purple", "Viola"],
+  "accent.rosa": ["Pink", "Rosa"],
+  "accent.grafite": ["Graphite", "Grafite"],
+};
+
+const LANGS = [
+  { id: "en", name: "English", why: "The default." },
+  { id: "it", name: "Italiano", why: "Con le date scritte all'italiana." },
+];
+
+function lang() {
+  const l = document.documentElement.getAttribute("lang");
+  return LANGS.some((x) => x.id === l) ? l : "en";
+}
+
+// One string, filled in. `{name}` in the text, `{name: value}` in the call —
+// the same shape as the Python side, so a key can be moved between them.
+function _(key, vars) {
+  const row = T[key];
+  if (!row) return key;
+  const text = row[lang() === "it" ? 1 : 0] || row[0];
+  return vars
+    ? text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m))
+    : text;
+}
+
+// The markup carries keys; this fills them in. Called once at boot and again
+// whenever the language changes, so nothing has to be rebuilt by hand.
+function applyLang() {
+  document.documentElement.setAttribute("lang", lang());
+  document.querySelectorAll("[data-t]").forEach(
+    (e) => (e.textContent = _(e.dataset.t)));
+  document.querySelectorAll("[data-t-html]").forEach(
+    (e) => (e.innerHTML = _(e.dataset.tHtml)));
+  document.querySelectorAll("[data-t-title]").forEach(
+    (e) => e.setAttribute("title", _(e.dataset.tTitle)));
+  document.querySelectorAll("[data-t-aria]").forEach(
+    (e) => e.setAttribute("aria-label", _(e.dataset.tAria)));
+}
+
 
 // The shell says so in the URL. Sniffing the user agent would be guessing:
 // the same page is served to a browser tab, where there are no traffic lights
@@ -692,6 +1773,24 @@ if (new URLSearchParams(location.search).get("native")) {
   document.documentElement.classList.add("native");
 }
 let job = null, timer = null;
+// The clock beside the phase, and when the run began. Declared here with the
+// rest of the run's state: `startJob` assigned both without either existing,
+// so the very first press threw «ticker is not defined» *before* it started
+// polling — the server did the work, the window sat still saying nothing, and
+// the result turned up minutes later out of the four-second refresh. A run
+// that has begun and a window that never noticed is the worst shape this app
+// can be in, and it is the shape an undeclared variable put it in.
+let ticker = null, started = 0;
+
+// A log can say nothing for three minutes while a model thinks, and a run
+// that has gone quiet looks exactly like a run that has died. The clock is
+// the one thing that keeps moving through the wait.
+function tick() {
+  if (!started) return;
+  const s = Math.round((Date.now() - started) / 1000);
+  $("clock").textContent =
+    `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
 
 // The grains are built here rather than written out in the markup: each one
 // needs its own start, speed and delay, and eight hand-written style
@@ -711,8 +1810,11 @@ let job = null, timer = null;
   }
 })();
 
-async function api(path, method = "GET") {
-  const r = await fetch(path, { method });
+async function api(path, method = "GET", payload) {
+  const r = await fetch(path, payload === undefined ? { method } : {
+    method, headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
   return { code: r.status, body: await r.json().catch(() => ({})) };
 }
 
@@ -727,10 +1829,8 @@ async function post(path, payload) {
 // --- home ------------------------------------------------------------------
 function paintHome(s) {
   $("face").className = "home s-" + s.state;
-  $("dot").textContent = {
-    ready: "pronto", nothing_new: "niente di nuovo", busy: "sta lavorando",
-    logged_out: "sconnesso", brake: "fermo",
-  }[s.state] || s.state;
+  $("dot").textContent = T[`state.${s.state}`] ? _(`state.${s.state}`)
+                                                : s.state;
   $("headline").textContent = s.headline;
   $("detail").textContent = s.detail || "";
 
@@ -739,42 +1839,264 @@ function paintHome(s) {
   act.dataset.action = s.action;
   act.innerHTML = s.button + '<span class="arrow">&rarr;</span>';
 
+  const also = $("also");
+  also.hidden = !s.also;
+  if (s.also) {
+    also.disabled = false;
+    also.textContent = s.also_button || "Raccogli ora";
+    also.dataset.action = s.also;
+  }
+
   const stale = s.stale
-    ? '<span class="stat warn"><b>!</b>l\'ultima raccolta è vecchia</span>' : "";
+    ? `<span class="stat warn"><b>!</b>${_("home.stale")}</span>` : "";
   // No count of days here any more: the line under the headline names them,
   // and repeating the same fact in a unit that does not say what it counts is
   // what made «3 GIORNI» unreadable.
   $("stats").innerHTML =
-    `<span class="stat"><b>${s.pending_posts}</b>post in coda</span>` +
-    `<span class="stat"><b>$${(s.spend_usd || 0).toFixed(2)}</b>questa settimana</span>` +
+    `<span class="stat"><b>${s.pending_posts}</b>${_("home.queued")}</span>` +
+    `<span class="stat"><b>$${(s.spend_usd || 0).toFixed(2)}</b>` +
+    `${_("home.this_week")}</span>` +
     stale;
+}
+
+// One run at a time — the engine refuses a second with a 409, and it is
+// right to. What was missing is the window's half: the other buttons looked
+// as pressable as ever, and pressing one did nothing a reader could see.
+//
+// Dimmed, and still clickable. A disabled button swallows the press, and a
+// press that vanishes reads as an app that is broken rather than one that is
+// busy — so the click goes through and is answered in words.
+let busy = false;
+// The job the engine says is running, which is not always the one this window
+// started: the daily run comes from the scheduler.
+let running = null;
+
+function setBusy(on) {
+  if (busy === on) return;
+  busy = on;
+  // `dream` only. `act` becomes «Ferma» while something runs — the one
+  // control that must still look pressable — and `also` is hidden. The
+  // dimming is for the button on the *other* screen, which otherwise looks
+  // exactly as it does when nothing is happening.
+  $("dream").classList.toggle("busy", on);
+  if (!on) hideRefusal();
+}
+
+function hideRefusal() {
+  $("dream-note").hidden = true;
+}
+
+// Said beside the button that was pressed, never in the log on another
+// screen: «Genera idea» lives on the archive and its log is on the home
+// screen, so that is where the answer used to go — out of sight.
+function refuse(note) {
+  $("dream-note").textContent = note || _("home.already_running");
+  $("dream-note").hidden = false;
 }
 
 async function refresh() {
   const { body } = await api("/api/state");
+  // From the state, not from `job`: the daily run is started by the scheduler
+  // and this window never knew about it, yet it holds the engine just the
+  // same.
+  running = body.running_id || null;
+  setBusy(body.state === "busy" || !!job);
   if (!job) paintHome(body);
 }
 
 // --- a run in flight -------------------------------------------------------
+// Which element is showing this run. A run has one log, and where it is
+// depends on where it was started from — not on which screen is in front.
+let logId = "log";
+
+// What a run says while it runs. `progress.line` writes the same events for
+// the terminal, in English and padded into columns — right there, wrong in a
+// window whose every other word is Italian. Same events, one wording each,
+// and anything not listed falls back to the server's line rather than
+// vanishing: a run that goes quiet is a run that looks hung.
+const SAYS = {
+  // Every event a run can emit needs a line here. Without one the window
+  // falls back to `e.line` — the terminal's wording, a column of padded
+  // English in a window where every other word follows the reader's language.
+  sliced: (d) => _("say.sliced", d),
+  folder: (d) => _("say.folder", d),
+  post: (d) => _(d.slides === 1 ? "say.post_one" : "say.post", d),
+  extracted: (d) => _("say.extracted",
+    { names: (d.names || []).join(", ") || _("say.no_names") }),
+  verified: (d) => (!d.checked ? _("say.unchecked", d)
+    : !d.exists ? _("say.absent", d)
+    : d.stars != null ? _("say.found_stars", d) : _("say.found", d)),
+  written: (d) => _("say.written", d),
+  halted: (d) => _("say.halted", { reason: d.reason || _("say.spend_limit") }),
+  bundling: (d) => _(d.days === 1 ? "say.bundling_one" : "say.bundling", { ...d,
+    chars: d.chars ? _("say.chars", { n: Math.round(d.chars / 1000) }) : "" }),
+  drawing: (d) => _("say.drawing", d),
+  asking: (d) => (d.attempt > 1
+    ? _("say.retry", { n: d.attempt, of: d.of }) : _("say.asking")),
+  // Replaces its own previous line instead of stacking: eighteen «writing» in
+  // a column is a wall, and only the last one is true.
+  writing: (d) => _("say.writing", { n: Math.round(d.chars / 1000) }),
+  waiting: (d) => _("say.waiting", { n: Math.round(d.seconds) }),
+  judged: (d) => _("say.judged", { ...d,
+    binned: d.binned != null ? _("say.binned", { n: d.binned }) : "",
+    sections: d.sections ? _("say.sections", { n: d.sections }) : "" }),
+  dreamt: (d) => _("say.dreamt", d),
+  stopped: () => _("say.stopped"),
+  failed: (d) => (d.why ? _("say.failed", d) : _("say.post_skipped", d)),
+  rendered: () => _("say.ready"),
+};
+
+const SAYS_DRAW = {
+  drawing: () => "",
+  asking: (d) => (d.attempt > 1
+    ? _("say.retry", { n: d.attempt, of: d.of }) : _("say.generating")),
+  dreamt: () => _("say.ready"),
+};
+
+function saying(e, kind) {
+  const say = (kind === "ideas" && SAYS_DRAW[e.kind]) || SAYS[e.kind];
+  try {
+    return say ? say(e.data || {}) : e.line;
+  } catch (err) {
+    return e.line;
+  }
+}
+
+// Which event means the run has moved on to which phase. The events in
+// between — a name read, a name checked at the source — belong to the phase
+// they happen inside and do not get one of their own.
+const PHASES = {
+  folder: "phase.folders",
+  post: "phase.posts", extracted: "phase.reading", verified: "phase.checking",
+  written: "phase.collected",
+  sliced: "phase.bundling", bundling: "phase.bundling",
+  writing: "phase.writing", waiting: "phase.retrying",
+  drawing: "phase.drawing",
+  judged: "phase.page", dreamt: "phase.page", rendered: "phase.page",
+  stopped: "phase.stopped",
+};
+
+// What kind of run is going is a fact; how far along it is belongs to the
+// events themselves. `of` comes only from an event that carries a real total
+// — the post counter — and stays null everywhere else: a recap waiting on a
+// model has no percentage, and inventing one is worse than admitting there
+// is none. That is what the shuttle is for.
+function phaseOf(events, kind) {
+  let phase = _("phase.starting");
+  let done = null, of = 0;
+  (events || []).forEach((e) => {
+    if (e.kind === "post") {
+      done = e.data.i;
+      of = e.data.n;
+    }
+    if (e.kind === "asking") {
+      // One event, two meanings: the model is reading a whole week, or it is
+      // thinking up an idea. Only the run knows which.
+      phase = _(kind === "ideas" ? "phase.thinking" : "phase.reading_week");
+      return;
+    }
+    const key = PHASES[e.kind];
+    if (key) phase = _(key);
+  });
+  return { phase, done, of };
+}
+
 async function follow(id) {
   const { body } = await api("/api/jobs/" + id);
-  const log = $("log");
+  const log = $(logId);
   log.hidden = false;
-  log.innerHTML = body.events
-    .filter((e) => e.line)
-    .map((e) => `<p>${e.line}</p>`).join("");
+  // One line per event, except the ones that count up: those replace the
+  // previous one of their own kind. A column of eighteen «sta scrivendo» is
+  // a wall, and only the last of them is true.
+  const COUNTERS = new Set(["writing"]);
+  const lines = [];
+  body.events.forEach((e) => {
+    const text = saying(e, body.kind);
+    if (!text) return;
+    const last = lines[lines.length - 1];
+    if (COUNTERS.has(e.kind) && last && last.kind === e.kind) {
+      last.text = text;
+      return;
+    }
+    lines.push({ kind: e.kind, text });
+  });
+  // Appended, never rebuilt. Rewriting `innerHTML` on every poll replayed
+  // every line's entrance animation twice a second: the whole panel blinked,
+  // and a blinking panel reads as a program stuck in a loop rather than one
+  // doing its work.
+  const kept = log.children.length;
+  lines.slice(0, kept).forEach((l, i) => {
+    if (log.children[i].textContent !== l.text) {
+      log.children[i].textContent = l.text;      // a counter, in place
+    }
+  });
+  lines.slice(kept).forEach((l) => {
+    const line = document.createElement("p");
+    line.textContent = l.text;
+    log.appendChild(line);
+  });
+  if (lines.length > kept) log.scrollTop = log.scrollHeight;
+
+  const { phase, done, of } = phaseOf(body.events, body.kind);
+  $("work").hidden = false;
+  $("phase").textContent = of && done != null
+    ? _("phase.of", { phase, done, of }) : phase;
+  const known = of && done != null && of > 0;
+  $("gauge").classList.toggle("unknown", !known);
+  $("fill").style.width = known ? `${Math.round((done / of) * 100)}%` : "";
   log.scrollTop = log.scrollHeight;
 
   if (body.done) {
     clearInterval(timer);
+    if (ticker) { clearInterval(ticker); ticker = null; }
     job = null;
-    if (body.error) {
-      log.innerHTML += `<p class="bad">${body.error}</p>`;
-    } else if (body.code === 0 && body.kind === "recap") {
+    setBusy(false);
+    // The bar completes before it goes: a strip that vanishes mid-way leaves
+    // the last thing a person saw as an unfinished job.
+    $("gauge").classList.remove("unknown");
+    $("fill").style.width = "100%";
+    setTimeout(() => { if (!job) $("work").hidden = true; }, 900);
+    $("dream").disabled = false;
+    $("sow-die").classList.remove("rolling");
+    $("sow-die").disabled = false;
+    const halted = body.events.some((e) => e.kind === "stopped");
+    if (halted) {
+      $("sow-run-stamp").textContent = _("idea.stopped");
+      $("sow-stop").hidden = true;
+    } else if (body.error || body.code !== 0) {
+      // A run can end badly without throwing: no key, the spend brake, a reply
+      // that is not JSON. Whatever happened, the panel must stop saying it is
+      // working — a window still promising "sto pescando" over a job that gave
+      // up ninety seconds ago is the worst thing this app can do, and it did
+      // it. The reason travels as a `failed` event; the backstop below asks
+      // whether a *line* was printed, not whether an event exists, because an
+      // older server can emit an event this version has no wording for.
+      $("sow-run-stamp").textContent = _("idea.failed");
+      // Nothing left to stop. Offering it anyway is a button that does not
+      // work, next to a message saying something already did not work.
+      $("sow-stop").hidden = true;
+      if (body.error) {
+        log.innerHTML += `<p class="bad">${body.error}</p>`;
+      } else if (!body.events.some((e) => e.kind === "failed" && e.line)) {
+        log.innerHTML += `<p class="bad">${_("idea.no_reason")}</p>`;
+      }
+    } else if (body.code === 0 && body.kind === "ideas" && !halted) {
+      const page = body.events.find((e) => e.kind === "rendered");
+      // Straight into the window it was already watching: the page on disk
+      // stays reachable from the archive, but nobody should have to go and
+      // find the thing they just paid for.
+      if (page) openDraw(page.data.path.split("/").pop());
+      loadArchive();
+    } else if (body.code === 0 && body.kind === "recap" && !halted) {
       const page = body.events.find((e) => e.kind === "rendered");
       if (page) {
         const file = page.data.path.split("/").pop();
-        openRecap(file, file.replace(".answer.html", ""), "");
+        // The date off the front of the name, not the name with a suffix
+        // stripped: a second recap of a day lands in `…answer-2.html`, where
+        // `.replace(".answer.html", "")` matches nothing and hands `sayDay`
+        // the whole filename — which is how the reader's header came to read
+        // «August NaN».
+        openRecap(file, (file.match(/^\d{4}-\d{2}-\d{2}/) || [""])[0], "");
         document.querySelectorAll(".tab").forEach(
           (t) => t.classList.toggle("on", t.dataset.go === "archive"));
       }
@@ -784,40 +2106,106 @@ async function follow(id) {
   }
 }
 
-$("act").addEventListener("click", async () => {
-  const action = $("act").dataset.action;
-  $("act").disabled = true;
-  if (action === "stop" && job) {
-    await api("/api/jobs/" + job + "/stop", "POST");
-    return;
-  }
+// One place that starts a run. Two buttons on two screens start one, and the
+// busy face is the same for both — a second copy of it is a second thing to
+// forget to update.
+async function startJob(action, headline, where, onRefusal) {
   const { code, body } = await api("/api/" + action, "POST");
-  if (code === 202) {
-    job = body.id;
-    $("log").innerHTML = "";
+  if (code !== 202) {
+    const why = body.error || _("home.not_started");
+    // A 409 means the engine is busy — the state the window is meant to know
+    // about already. Take its word for it rather than waiting for the next
+    // four-second poll to notice, or the dimming arrives after the refusal.
+    if (code === 409) setBusy(true);
+    // Said where the button is. `onRefusal` is passed by whoever pressed
+    // something that is not on the home screen: the log lives on home, and a
+    // sentence written there answers a question asked somewhere else.
+    if (onRefusal) {
+      onRefusal(why);
+    } else {
+      $("log").hidden = false;
+      $("log").innerHTML = `<p class="bad">${esc(why)}</p>`;
+    }
+    return false;
+  }
+  hideRefusal();
+  job = body.id;
+  // Here and not only in `refresh`: the poll is skipped while this window
+  // owns a job (`if (!job) refresh()`), so the dimming would have waited for
+  // the run to finish, which is the one moment it is no longer needed.
+  setBusy(true);
+  started = Date.now();
+  if (ticker) clearInterval(ticker);
+  ticker = setInterval(tick, 1000);
+  tick();
+  logId = where || "log";
+  $(logId).innerHTML = "";
+  if (logId === "log") {
+    $("also").hidden = true;
     $("face").className = "home s-busy";
-    $("dot").textContent = "sta lavorando";
-    $("headline").textContent = action === "recap"
-      ? "Sto facendo il recap" : "Sto raccogliendo";
+    $("dot").textContent = _("state.busy");
+    $("headline").textContent = headline;
+    // Emptied on purpose: it still said «Raccolti fra il 23 e il 27 agosto»
+    // under a headline announcing a run, which reads as a page that did not
+    // notice the button was pressed.
     $("detail").textContent = "";
-    $("act").innerHTML = "Ferma";
+    $("act").innerHTML = _("common.stop");
     $("act").dataset.action = "stop";
     $("act").disabled = false;
-    timer = setInterval(() => follow(job), 700);
   } else {
-    $("act").disabled = false;
-    alert(body.error || "non è partito");
+    // The home screen still says what it is doing — `refresh()` reads the
+    // running job from the server — but nobody is sent there to find out.
+    $("work").hidden = true;
+    openSow(true);
   }
+  timer = setInterval(() => follow(job), 700);
+  return true;
+}
+
+$("act").addEventListener("click", async () => {
+  const action = $("act").dataset.action;
+  // «Ferma» is the one thing that must still work while something runs.
+  if (busy && action !== "stop") {
+    $("log").hidden = false;
+    $("log").innerHTML = `<p class="bad">${_("home.already_running")}</p>`;
+    return;
+  }
+  $("act").disabled = true;
+  // `job || running`: a run this window started, or the one the scheduler
+  // did. With only the first, «Ferma» over the daily run posted to
+  // `/api/stop` — not a route — and nothing happened.
+  const which = job || running;
+  if (action === "stop" && which) {
+    await api("/api/jobs/" + which + "/stop", "POST");
+    return;
+  }
+  const started = await startJob(action, action === "recap"
+    ? _("home.recapping") : _("home.collecting"));
+  if (!started) $("act").disabled = false;
 });
 
 // --- archive ---------------------------------------------------------------
-const MONTHS = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
-  "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
+// Both, and the order goes the other way round in English: a date written
+// by a rule that only knows one language reads as a translation of a date
+// rather than as a date. Written in Italian only, every row of an English
+// window said «28 agosto» under an English heading. Same table and same rule
+// as `harvest.say_day`, which writes the dates onto the pages themselves.
+const MONTHS = {
+  it: ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+       "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"],
+  en: ["January", "February", "March", "April", "May", "June", "July",
+       "August", "September", "October", "November", "December"],
+};
 
 // "2026-08-24" is a serial number; "24 agosto" is a day somebody remembers.
 function sayDay(iso) {
   const [y, m, d] = String(iso).split("-").map(Number);
-  return MONTHS[m - 1] ? `${d} ${MONTHS[m - 1]}` : iso;
+  const months = MONTHS[lang()] || MONTHS.en;
+  // `d` too, and not only the month: fed anything that is not a plain date it
+  // printed «August NaN», which looks like a broken page rather than like a
+  // caller passing the wrong string.
+  if (!months[m - 1] || !Number.isFinite(d)) return iso;
+  return lang() === "it" ? `${d} ${months[m - 1]}` : `${months[m - 1]} ${d}`;
 }
 
 // The first sentence of the week's own comment. It is the only opinion in the
@@ -828,9 +2216,21 @@ function firstSentence(text) {
   return stop > 0 ? flat.slice(0, stop + 1) : flat;
 }
 
+const RENAME = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M11.2 2.6l2.2 2.2L5.6 12.6l-2.9.7.7-2.9z"/></svg>';
+
 const TRASH = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" ' +
   'stroke-width="1.3" stroke-linecap="round"><path d="M3 4h10M6.5 4V2.6h3V4' +
   'M4.2 4l.6 9.2h6.4L11.8 4"/></svg>';
+
+// The two controls on every archive row. A function and not a constant: rows
+// are built by `loadArchive`, and a string evaluated once at load would keep
+// whatever language the window opened in for the rest of the session — while
+// `applyLang` only reaches markup that is already on the page.
+const tools = () =>
+  `<button class="tool pen" title="${esc(_("common.rename"))}" ` +
+  `aria-label="${esc(_("common.rename"))}">${RENAME}</button>` +
+  `<button class="tool bin" title="${esc(_("common.delete"))}" ` +
+  `aria-label="${esc(_("common.delete"))}">${TRASH}</button>`;
 
 let picked = new Set();
 let only = "all";
@@ -839,36 +2239,109 @@ let only = "all";
 // same stack and still be told apart at a glance.
 function weekRow(r) {
   const score = r.kept === null || r.things === null
-    ? '<span class="score">apri per vedere</span>'
-    : `<span class="score"><b>${r.kept}</b> tenute su ${r.things}` +
-      (r.posts ? ` &middot; ${r.posts} post` : "") + "</span>";
-  const cost = r.usd ? `<span class="cost">$${r.usd.toFixed(2)}</span>` : "";
+    ? `<span class="score">${_("archive.open_to_see")}</span>`
+    : `<span class="score">` +
+      _("archive.kept_of", { kept: `<b>${r.kept}</b>`, of: r.things }) +
+      (r.posts ? " &middot; " + _("archive.n_posts", { n: r.posts }) : "") +
+      "</span>";
+  // Outside `.body`, so it is a column of its own: on the title's baseline it
+  // hung from the first line of a row two lines tall, and the prices drifted
+  // apart as the rows changed height.
+  const cost = `<span class="cost">${r.usd ? "$" + r.usd.toFixed(2) : ""}</span>`;
   const said = r.comment
     ? `<p class="said">${esc(firstSentence(r.comment))}</p>` : "";
+  // The date never stops being shown. A name given by hand is what makes a
+  // shelf findable a month later; a name *instead of* the date would make the
+  // same shelf impossible to put in order.
+  const named = r.named
+    ? `<b>${esc(r.named)}</b><span class="when">${sayDay(r.week)}</span>`
+    : `<b>${sayDay(r.week)}</b>`;
   return `<div class="card" data-file="${r.file}" data-week="${r.week}" ` +
-    `data-kind="week" data-score="${r.kept === null ? "" :
-      r.kept + " tenute su " + r.things}">` +
+    `data-kind="week" data-title="${esc(r.named || "")}" ` +
+    `data-score="${r.kept === null ? "" : esc(
+      _("archive.kept_of", { kept: r.kept, of: r.things }))}">` +
     '<span class="box"></span><span class="body">' +
-    `<span class="top"><b>${sayDay(r.week)}</b>${score}${cost}</span>` +
-    said + "</span>" +
-    `<button class="bin" title="Elimina" aria-label="Elimina">${TRASH}</button>` +
-    "</div>";
+    `<span class="top">${named}${score}</span>` +
+    said + "</span>" + cost + tools() + "</div>";
 }
 
 function mergeRow(m) {
   return `<div class="card merge" data-file="${m.file}" data-week="" ` +
-    `data-kind="merge" data-label="${esc(m.label)}" ` +
-    `data-score="${m.things ? m.things + " cose" : ""}">` +
+    `data-kind="merge" data-label="${esc(m.named || m.label)}" ` +
+    `data-title="${esc(m.named || "")}" ` +
+    `data-score="${m.things ? esc(_("archive.n_things", { n: m.things })) : ""}">` +
     '<span class="gap"></span><span class="body"><span class="top">' +
-    `<b>${esc(m.label)}</b>` +
-    (m.things ? `<span class="score"><b>${m.things}</b> cose</span>` : "") +
-    (m.weeks.length
-      ? `<span class="cost">${m.weeks.length} settimane</span>` : "") +
+    `<b>${esc(m.named || m.label)}</b>` +
+    (m.named ? `<span class="when">${esc(m.label)}</span>` : "") +
+    (m.things
+      ? `<span class="score">` +
+        _("archive.n_things", { n: `<b>${m.things}</b>` }) + "</span>" : "") +
     "</span>" +
-    (m.weeks.length ? `<p class="said">${esc(weekList(m.weeks))}</p>` : "") +
+    // The second line of a merge row, which the label had left empty: the
+    // row was the same height as the others and looked misaligned because
+    // there was nothing on it. The tag says what kind of row this is — the
+    // one thing the tint alone was saying, and only to somebody who had
+    // already worked the tint out. The days follow it when the label is a
+    // name rather than the list itself, so the fact is never printed twice.
+    `<p class="said"><span class="kind">${_("archive.kind_merge")}</span>` +
+    (m.weeks.length && !m.lists_days ? esc(weekList(m.weeks)) : "") +
+    "</p>" +
     "</span>" +
-    `<button class="bin" title="Elimina" aria-label="Elimina">${TRASH}</button>` +
-    "</div>";
+    // Not "settimane": the pages merged are recaps, and a recap is a day.
+    `<span class="cost">` +
+    (m.weeks.length ? _("archive.n_recaps", { n: m.weeks.length }) : "") +
+    "</span>" + tools() + "</div>";
+}
+
+// A draw is neither a week nor a merge: nothing was judged and nothing was
+// put together. It carries the note the model opened with, which is the only
+// thing that tells one draw from another before opening it.
+// An idea is called by its name. «Idee del 27 agosto» is a filing date, and
+// filing dates are what makes a shelf unsearchable a month later.
+// An idea is not a week, and the shared row was making it look like one: a
+// title, then two mono words, then a price, all on the same baseline and all
+// shouting the same amount. Here the title is alone on its line, the two
+// facts that decide whether the rest gets read sit under it as chips, and
+// what it cost — a cent, the same on every row — goes as quiet as it is.
+// The three the prompt allows, and the class each one paints with. The value
+// is a key: it stays Italian whatever language the answer came back in, for
+// the same reason a verdict does — it is what the colour hangs off, and a key
+// that moved with the language would repaint every page ever made.
+const HARD = { facile: "easy", media: "mid", tosta: "hard" };
+// A difficulty the model invented has no row in the table, and `_` falls
+// back to the key — so it would print `difficulty.impossibile`. The raw word
+// is the honest answer there, exactly as `say_verdict` does on the page.
+const sayHard = (v) => {
+  if (!v) return "";
+  const said = _("difficulty." + v);
+  return said === "difficulty." + v ? v : said;
+};
+
+function ideasRow(r) {
+  const name = r.title || _("archive.ideas_of", { day: sayDay(r.day) });
+  const chips =
+    (r.difficulty
+      ? `<span class="chip ${HARD[r.difficulty] || ""}">` +
+        `${esc(sayHard(r.difficulty))}</span>` : "") +
+    (r.time ? `<span class="chip time">${esc(r.time)}</span>` : "") +
+    (r.ideas > 1
+      ? `<span class="chip">${_("archive.n_ideas", { n: r.ideas })}</span>` : "") +
+    `<span class="chip day">${sayDay(r.day)}</span>`;
+  return `<div class="card ideas" data-file="${r.file}" data-week="" ` +
+    `data-kind="ideas" data-label="${esc(r.named || name)}" ` +
+    `data-title="${esc(r.named || "")}" ` +
+    `data-score="${esc([sayHard(r.difficulty), r.time]
+      .filter(Boolean).join(" · "))}">` +
+    '<span class="gap"></span><span class="body">' +
+    `<span class="top"><b>${esc(r.named || name)}</b>` +
+    (r.named ? `<span class="when">${esc(name)}</span>` : "") +
+    "</span>" +
+    (r.gist || r.note
+      ? `<p class="said">${esc(firstSentence(r.gist || r.note))}</p>` : "") +
+    `<span class="facts">${chips}</span>` +
+    "</span>" +
+    `<span class="cost">${r.usd ? "$" + r.usd.toFixed(2) : ""}</span>` +
+    tools() + "</div>";
 }
 
 async function loadArchive() {
@@ -877,45 +2350,334 @@ async function loadArchive() {
 
   $("archive-body").innerHTML = body.items.length
     ? '<div class="cards">' + body.items.map(
-        (i) => (i.kind === "merge" ? mergeRow(i) : weekRow(i))).join("") + "</div>"
-    : '<p class="empty">Ancora nessuna settimana giudicata. Il primo recap ' +
-      'comparirà qui, e resterà apribile per sempre — anche fra un anno, ' +
-      'con i numeri di quel giorno.</p>';
+        (i) => (i.kind === "merge" ? mergeRow(i)
+              : i.kind === "ideas" ? ideasRow(i) : weekRow(i))).join("") + "</div>"
+    : "";
 
   document.querySelectorAll(".card").forEach((c) => {
     c.addEventListener("click", (e) => {
-      if (e.target.closest(".bin")) return;
+      // Any control of the row's own, not just the bin: clicking the pencil
+      // used to rename *and* open the page underneath it.
+      if (e.target.closest(".tool")) return;
       if (e.target.closest(".box")) return toggle(c);
+      if (c.dataset.kind === "ideas") return openDraw(c.dataset.file);
       openRecap(c.dataset.file, c.dataset.week, c.dataset.score,
                 c.dataset.label);
     });
     c.querySelector(".bin").addEventListener("click", () => remove(c));
+    c.querySelector(".pen").addEventListener("click", () => rename(c));
   });
   applyFilter();
   paintTray();
 }
 
+// One sentence per filter: «nothing here» is a different fact depending on
+// which button is pressed.
+const NOTHING = { all: "empty.all", week: "empty.week",
+                  ideas: "empty.ideas", merge: "empty.merge" };
+
+// Renamed in place: the row becomes an input where its title is, and nothing
+// else on the screen moves. A dialog for one short string is a dialog nobody
+// bothers to open a second time.
+function rename(card) {
+  const slot = card.querySelector(".top b");
+  if (!slot || card.querySelector(".rename")) return;
+  const was = card.dataset.title || "";
+  const box = document.createElement("input");
+  box.className = "rename";
+  box.type = "text";
+  box.maxLength = 60;
+  box.value = was;
+  box.placeholder = slot.textContent;
+  slot.replaceWith(box);
+  box.focus();
+  box.select();
+
+  let done = false;
+  const finish = async (save) => {
+    if (done) return;
+    done = true;
+    const title = save ? box.value.trim() : was;
+    if (save && title !== was) {
+      const { code, body } = await api("/api/name/" + card.dataset.file,
+                                       "PATCH", { title });
+      if (code !== 200) box.placeholder = body.error || _("archive.not_renamed");
+    }
+    loadArchive();
+  };
+  box.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") finish(true);
+    if (e.key === "Escape") finish(false);
+  });
+  box.addEventListener("blur", () => finish(true));
+  box.addEventListener("click", (e) => e.stopPropagation());
+}
+
 function applyFilter() {
-  document.querySelectorAll(".card").forEach(
-    (c) => { c.hidden = only !== "all" && c.dataset.kind !== only; });
+  // «Tutto» is the recap history. An idea is not a recap of anything — it was
+  // drawn out of them — and mixed into that stack it reads as one more week
+  // that happened. It has a section, and it stays in it.
+  document.querySelectorAll(".card").forEach((c) => {
+    c.hidden = only === "all"
+      ? c.dataset.kind === "ideas"
+      : c.dataset.kind !== only;
+  });
   document.querySelectorAll(".f").forEach(
     (f) => f.classList.toggle("on", f.dataset.only === only));
+  // A filter that hides every row used to leave a blank half-screen, which
+  // reads as a page that failed rather than as a shelf with nothing on it.
+  const shown = [...document.querySelectorAll(".card")].filter((c) => !c.hidden);
+  $("key").hidden = only === "ideas";
+  const empty = $("archive-empty");
+  empty.hidden = shown.length > 0;
+  empty.textContent = _(NOTHING[only] || NOTHING.all);
+  const cards = document.querySelector(".cards");
+  if (cards) cards.hidden = shown.length === 0;
 }
 
 document.querySelectorAll(".f").forEach((f) =>
   f.addEventListener("click", () => {
     only = f.dataset.only;
     // Filtering away a chosen week would leave it chosen and invisible, and
-    // the merge would then take in something the reader cannot see.
-    if (only === "merge") $("tray-clear").click();
+    // the merge would then take in something the reader cannot see. Any
+    // filter that hides the weeks does it, not just the one that used to.
+    if (only !== "all" && only !== "week") $("tray-clear").click();
     applyFilter();
+    // Back to the top. Scrolled down nine ideas and then asked for the one
+    // merge, the list got shorter than the scroll position and the view
+    // lurched — a page jumping under the pointer at the moment of a click.
+    // A different filter is a different list, and a list starts at its start.
+    $("archive").scrollTop = 0;
   }));
 
+$("dream").addEventListener("click", async () => {
+  if (busy) { refuse(); return; }
+  hideRefusal();
+  $("dream").disabled = true;
+  if (!await startJob("ideas", _("home.drawing"), "sow-log", refuse)) {
+    $("dream").disabled = false;
+  }
+});
+
+$("also").addEventListener("click", async () => {
+  if (busy) {
+    $("log").hidden = false;
+    $("log").innerHTML = `<p class="bad">${_("home.already_running")}</p>`;
+    return;
+  }
+  $("also").disabled = true;
+  $("act").disabled = true;
+  if (!await startJob($("also").dataset.action, _("home.collecting"))) {
+    $("also").disabled = false;
+    $("act").disabled = false;
+  }
+});
+
+$("sow-stop").addEventListener("click", async () => {
+  if (job) await api("/api/jobs/" + job + "/stop", "POST");
+});
+
+// --- the draw's window -----------------------------------------------------
+// The grain going past. Built once per opening and thrown away with it: a
+// dozen elements animating behind a closed window is a laptop fan for nothing.
+function weather() {
+  const sky = $("sky");
+  sky.innerHTML = "";
+  for (let i = 0; i < 16; i++) {
+    const seed = document.createElement("span");
+    seed.className = "seed";
+    // Slower ones sit lower and smaller: the same trick as parallax, and it
+    // is what stops sixteen identical dots from reading as a progress bar.
+    const far = Math.random();
+    seed.style.top = `${6 + Math.random() * 78}%`;
+    seed.style.animationDuration = `${5 + far * 9}s`;
+    seed.style.animationDelay = `${-Math.random() * 12}s`;
+    // Depth: the near ones are bigger, brighter and faster. All sixteen at
+    // one size read as a row of dots, which is a progress bar nobody asked for.
+    const size = 0.7 + (1 - far) * 1.5;
+    seed.style.width = `${3 * size}px`;
+    seed.style.height = `${7 * size}px`;
+    seed.style.opacity = 0.3 + (1 - far) * 0.55;
+    sky.appendChild(seed);
+  }
+}
+
+let leaves = [], leaf = 0;
+
+function openSow(running) {
+  $("sow").hidden = false;
+  weather();
+  $("sow-run").hidden = !running;
+  $("sow-card").hidden = !!running;
+  if (running) {
+    $("sow-run-stamp").textContent = _("idea.drawing");
+    $("sow-stop").hidden = false;
+  }
+  $("sow-flip").hidden = true;
+  if (running) $("sow-log").innerHTML = "";
+}
+
+function closeSow() {
+  $("sow").hidden = true;
+  $("sky").innerHTML = "";          // stop the animation behind a closed door
+}
+
+// One idea per page, and the leftovers as the last one — they are part of the
+// answer, not a footnote to it: they say what the draw could not use.
+async function openDraw(file) {
+  const { code, body } = await api("/api/draw/" + file);
+  if (code !== 200) {
+    // The page on disk still opens; only this reading of it is missing.
+    openRecap(file, "", "", "Idee");
+    return;
+  }
+  const many = (body.ideas_list || []).length > 1;
+  leaves = (body.ideas_list || []).map((idea, i) => ({
+    // One idea needs no counter. A page of them, from before the ask
+    // changed, still does.
+    stamp: many ? _("idea.n_of", { i: String(i + 1).padStart(2, "0"),
+                                   n: body.ideas_list.length })
+                : _("idea.one"),
+    title: idea.title || "", uses: idea.uses || [], gist: idea.gist || "",
+    difficulty: idea.difficulty || "", time: idea.time || "",
+    say: idea.idea || "", step: idea.first_step || "", but: idea.shaky || "",
+  }));
+  if ((body.left || []).length) {
+    leaves.push({
+      stamp: _("idea.none_came"), title: "", uses: [], step: "", but: "",
+      gone: body.left,
+    });
+  }
+  if (!leaves.length) {
+    leaves = [{ stamp: "", title: _("idea.no_ideas"), uses: [], step: "",
+                but: "", say: body.note || _("idea.drew_nothing") }];
+  }
+  leaf = 0;
+  openSow(false);
+  paintLeaf();
+}
+
+function paintLeaf() {
+  const l = leaves[leaf];
+  $("sow-run").hidden = true;
+  $("sow-card").hidden = false;
+  $("sow-stamp").textContent = l.stamp;
+  $("sow-title").textContent = l.title;
+  $("sow-title").hidden = !l.title;
+  $("sow-uses").innerHTML = (l.uses || []).map((u) => `<b>${esc(u)}</b>`).join("");
+  $("sow-uses").hidden = !(l.uses || []).length;
+  $("sow-gist").textContent = l.gist || "";
+  $("sow-gist").hidden = !l.gist;
+  $("sow-gist").classList.toggle("long", (l.gist || "").length > 175);
+  // The difficulty is one of three keys, printed in the reader's language;
+  // the time is the model's own words and is printed as it came.
+  const meta = [[_("sheet.difficulty"), sayHard(l.difficulty)],
+                [_("sheet.time"), l.time]]
+    .filter(([, v]) => v);
+  $("sow-meta").innerHTML = meta.map(([k, v]) =>
+    `<span class="m${v === sayHard("tosta") ? " hard" : ""}"><i>${esc(k)}</i>` +
+    `<b>${esc(v)}</b></span>`).join("");
+  $("sow-meta").hidden = !meta.length;
+  $("sow-idea").innerHTML = l.gone
+    ? '<ul class="gone">' + l.gone.map((g) =>
+        `<li><b>${esc(g.name || "")}</b>${esc(g.why || "")}</li>`).join("") + "</ul>"
+    : esc(l.say || "");
+  $("sow-step").innerHTML = l.step
+    ? `<b>${esc(_("idea.first_step"))}</b>${esc(l.step)}` : "";
+  $("sow-step").hidden = !l.step;
+  $("sow-shaky").innerHTML = l.but
+    ? `<b>${esc(_("idea.not_certain"))}</b>${esc(l.but)}` : "";
+  $("sow-shaky").hidden = !l.but;
+  // Folded shut on every leaf: an idea opened on the previous card would make
+  // the next one arrive already read.
+  const foldable = !!l.gist && !l.gone;
+  $("sow-more").hidden = !foldable;
+  $("sow-more").textContent = _("idea.discover");
+  $("sow-full").hidden = foldable;
+  $("sow-flip").hidden = leaves.length < 2;
+  $("sow-prev").disabled = leaf === 0;
+  $("sow-next").disabled = leaf === leaves.length - 1;
+  $("sow-dots").innerHTML = leaves.map(
+    (_, i) => `<i class="${i === leaf ? "on" : ""}"></i>`).join("");
+  $("sow-card").animate
+    ? $("sow-card").animate([{ opacity: 0, transform: "translateY(6px)" },
+                             { opacity: 1, transform: "none" }],
+                            { duration: 220, easing: "ease-out" })
+    : null;
+}
+
+function flip(by) {
+  const next = leaf + by;
+  if (next < 0 || next >= leaves.length) return;
+  leaf = next;
+  paintLeaf();
+}
+
+$("sow-more").addEventListener("click", () => {
+  const full = $("sow-full");
+  const opening = full.hidden;
+  full.hidden = false;
+  $("sow-more").textContent = opening ? _("idea.less") : _("idea.discover");
+  if (opening) {
+    if (full.animate) {
+      full.animate([{ opacity: 0, transform: "translateY(8px)" },
+                    { opacity: 1, transform: "none" }],
+                   { duration: 260, easing: "ease-out" });
+    }
+    // The thing just revealed is below the fold on a short window.
+    full.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  } else {
+    full.hidden = true;
+  }
+});
+
+// Another one. One press, one idea, about a cent.
+$("sow-die").addEventListener("click", async () => {
+  // `if (job) return` was a silent refusal, and it only knew about runs this
+  // window had started. The draw window has a line of its own for saying
+  // what is happening — this is one of the things it is for.
+  if (busy) {
+    $("sow-run-stamp").textContent = _("home.already_running");
+    return;
+  }
+  $("sow-die").classList.add("rolling");
+  $("sow-die").disabled = true;
+  $("dream").disabled = true;
+  if (!await startJob("ideas", _("home.drawing"), "sow-log",
+                      (why) => { $("sow-run-stamp").textContent = why; })) {
+    $("sow-die").classList.remove("rolling");
+    $("sow-die").disabled = false;
+    $("dream").disabled = false;
+  }
+});
+
+$("sow-prev").addEventListener("click", () => flip(-1));
+$("sow-next").addEventListener("click", () => flip(1));
+$("sow-close").addEventListener("click", closeSow);
+$("sow").addEventListener("click", (e) => {
+  if (e.target === $("sow")) closeSow();
+});
+document.addEventListener("keydown", (e) => {
+  if (!$("ask").hidden) {
+    if (e.key === "Escape") closeAsk();
+    if (e.key === "Enter") $("ask-yes").click();
+    return;
+  }
+  if ($("sow").hidden) return;
+  if (e.key === "Escape") closeSow();
+  if (e.key === "ArrowLeft") flip(-1);
+  if (e.key === "ArrowRight") flip(1);
+});
+
+// Keyed on the page, not on its date. A day can hold two recaps — a first
+// attempt that ran out of tokens and the real one — and keying on the date
+// made the second tick *untick* the first: one row stayed lit while the set
+// went back to empty, so the tray never appeared and nothing could be merged.
 function toggle(card) {
-  const w = card.dataset.week;
-  if (!w) return;                       // a merge is not a week to merge again
-  picked.has(w) ? picked.delete(w) : picked.add(w);
-  card.classList.toggle("picked", picked.has(w));
+  if (card.dataset.kind !== "week") return;   // a merge is not merged again
+  const f = card.dataset.file;
+  picked.has(f) ? picked.delete(f) : picked.add(f);
+  card.classList.toggle("picked", picked.has(f));
   paintTray();
 }
 
@@ -924,14 +2686,12 @@ function paintTray() {
   if (cards) cards.classList.toggle("choosing", picked.size > 0);
   $("tray").hidden = picked.size === 0;
   $("tray-n").textContent = picked.size === 1
-    ? "1 scelta — servono almeno due"
-    : `${picked.size} scelte`;
+    ? _("archive.one_chosen") : _("archive.n_chosen", { n: picked.size });
   $("tray-go").disabled = picked.size < 2;
 }
 
 $("tray-clear").addEventListener("click", () => {
   picked.clear();
-  $("tray-name").value = "";
   document.querySelectorAll(".card").forEach(
     (c) => c.classList.remove("picked"));
   paintTray();
@@ -946,52 +2706,83 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 $("tray-go").addEventListener("click", async () => {
   $("tray-go").disabled = true;
-  const weeks = [...picked].sort();
-  const name = $("tray-name").value.trim();
+  const files = [...picked].sort();
+  const weeks = files.map((f) => f.slice(0, 10));
   // Six chips fit across; more become a crowd that says nothing.
   const chips = weeks.length <= 6 ? weeks.map(sayDay)
     : [sayDay(weeks[0]), `+${weeks.length - 2}`, sayDay(weeks[weeks.length - 1])];
   $("fuse-chips").innerHTML = chips.map((c) => `<span>${esc(c)}</span>`).join("");
-  $("fuse-say").textContent = name
-    ? `${weeks.length} settimane in «${name}»`
-    : `${weeks.length} settimane in una pagina`;
+  $("fuse-say").textContent = _("archive.merging", { n: files.length });
   $("fuse").hidden = false;
 
   const [{ code, body }] = await Promise.all([
-    post("/api/merge", { weeks, name }),
+    // Pages, not dates: two recaps of one day are two different things.
+    post("/api/merge", { files }),
     wait(FUSE_MS),
   ]);
 
   $("fuse").hidden = true;
   $("tray-go").disabled = false;
   if (code !== 200) {
-    $("tray-n").textContent = body.error || "non riuscito";
+    $("tray-n").textContent = body.error || _("archive.not_merged");
     return;
   }
-  $("tray-name").value = "";
+  // The filter that let two weeks be ticked is «tutto» or «recap», and
+  // «recap» hides merges: the page was made, opened, and then invisible on
+  // the way back. Whatever was on, show the thing that was just made.
+  if (only === "week") only = "all";
   await loadArchive();
-  openRecap(body.file, "", `${body.things} cose`, body.label);
+  openRecap(body.file, "", _("archive.n_things", { n: body.things }),
+            body.label);
 });
 
-async function remove(card) {
-  const what = card.dataset.kind === "merge"
-    ? `l'unione «${card.dataset.label}»`
-    : "il recap del " + sayDay(card.dataset.week);
-  // Said in full before it happens: the page and the judgement behind it go
-  // together, and nothing here can bring either one back.
-  if (!confirm(`Elimino ${what}? Sparisce la pagina e il giudizio che l'ha ` +
-               "prodotta, per sempre.")) return;
-  await fetch("/api/recaps/" + encodeURIComponent(card.dataset.file),
-              { method: "DELETE" });
-  loadArchive();
+// Asked in a dialog of winnow's own, never with `confirm()`. A native dialog
+// is the one piece of this window that belongs to the browser: it looks like
+// a web page from 2004, and in a webview it can be refused outright — which
+// is what it was doing here. Nothing was ever deleted and nothing said so.
+let asking = null;
+
+function remove(card) {
+  asking = card;
+  $("ask-title").textContent = _("ask.title");
+  $("ask-what").textContent = card.dataset.title
+    || (card.dataset.kind === "week"
+        ? _("ask.the_recap_of", { day: sayDay(card.dataset.week) })
+        : card.dataset.label || _("ask.this_page"));
+  $("ask-yes").disabled = false;
+  $("ask").hidden = false;
+  $("ask-no").focus();
 }
+
+function closeAsk() {
+  $("ask").hidden = true;
+  asking = null;
+}
+
+$("ask-no").addEventListener("click", closeAsk);
+$("ask").addEventListener("click", (e) => {
+  if (e.target === $("ask")) closeAsk();
+});
+$("ask-yes").addEventListener("click", async () => {
+  if (!asking) return;
+  $("ask-yes").disabled = true;
+  const { code, body } = await api(
+    "/api/recaps/" + encodeURIComponent(asking.dataset.file), "DELETE");
+  if (code !== 200) {
+    $("ask-what").textContent = body.error || _("ask.not_deleted");
+    $("ask-yes").disabled = false;
+    return;
+  }
+  closeAsk();
+  loadArchive();
+});
 
 // Six dates read; twenty do not. Past that, the ends and the count.
 function weekList(weeks) {
   const days = weeks.map(sayDay);
   if (days.length <= 6) return days.join(" · ");
   return `${days[0]} · ${days[1]} · ${days[2]} … ${days[days.length - 1]}` +
-    ` — ${days.length} in tutto`;
+    " — " + _("archive.and_all", { days: days.length });
 }
 
 function openRecap(file, week, score, label) {
@@ -1000,6 +2791,33 @@ function openRecap(file, week, score, label) {
   $("read-count").textContent = score || "";
   show("reader");
 }
+
+// «open» and «the post» inside a recap did nothing at all. They are ordinary
+// `target="_blank"` links, which is right — the page is an artifact that gets
+// mailed and has to work as a plain file — but a webview opens no popups and
+// says nothing about it: the reader clicks and the window sits there.
+//
+// Handled here rather than in the page, so every recap ever written is fixed
+// at once and none of them has to know it is being read inside an app. The
+// frame is served by the engine, so it is same-origin and its document can be
+// reached; the guard is there for the day it is not.
+$("page").addEventListener("load", () => {
+  let doc;
+  try {
+    doc = $("page").contentDocument;
+  } catch (e) {
+    return;                      // cross-origin: leave the page to itself
+  }
+  if (!doc) return;
+  doc.addEventListener("click", (e) => {
+    const a = e.target.closest && e.target.closest("a[href]");
+    if (!a) return;
+    const href = a.href || "";
+    if (!/^https?:/i.test(href)) return;   // an anchor inside the page
+    e.preventDefault();
+    api("/api/open", "POST", { url: href });
+  });
+});
 
 $("back").addEventListener("click", () => {
   // Emptied on the way out: an iframe left loaded keeps a whole second page
@@ -1029,8 +2847,7 @@ async function loadSettings() {
   const { code, body } = await api("/api/config");
   if (code !== 200) {
     $("settings-body").innerHTML =
-      '<p class="empty">Nessuna configurazione ancora. Apri un terminale e ' +
-      'lancia <code>winnow init</code>: va fatto una volta sola.</p>';
+      `<p class="empty">${_("settings.no_config")}</p>`;
     return;
   }
   config = body;
@@ -1038,45 +2855,56 @@ async function loadSettings() {
   const known = models.find((m) => m.model === body.model);
   const folders = (body.folders || []).map((f) =>
     `<span class="pill${f.active ? " on" : ""}">${esc(f.name)}</span>`).join("")
-    || '<span class="pill">nessuna</span>';
+    || `<span class="pill">${_("settings.none")}</span>`;
   const on = (body.folders || []).filter((f) => f.active).length;
 
   const row = (key, value, which) =>
     `<div class="row"><span class="k">${key}</span>` +
     `<span class="v">${value}</span>` +
     (which ? `<button class="edit" data-edit="${which}" ` +
-             `title="Modifica ${key.toLowerCase()}" ` +
-             `aria-label="Modifica ${key.toLowerCase()}">${PENCIL}</button>` : "") +
+             `title="${esc(_("settings.edit", { what: key.toLowerCase() }))}" ` +
+             `aria-label="${esc(_("settings.edit", { what: key.toLowerCase() }))}">` +
+             `${PENCIL}</button>` : "") +
     "</div>";
 
   const [sched, prof, k] = await Promise.all([
     api("/api/schedule"), api("/api/profile"), api("/api/keys")]);
   schedule = sched.body; profile = prof.body; keys = k.body.keys || {};
   const when = sched.body.active
-    ? `ogni giorno alle ${sched.body.when}` : "spenta";
+    ? _("settings.every_day_at", { time: sched.body.when })
+    : _("settings.off");
   // Not `profile`: that name is taken by the module-level copy assigned two
   // lines up, and a `const` of the same name in this block shadows it — the
   // assignment then reads a variable declared later and throws.
+  // The path, not the size. From outside the sheet the useful fact is
+  // *which file* to open — a character count is bookkeeping, and it told a
+  // reader nothing they could act on.
   const profileLabel = prof.body.exists
-    ? `${prof.body.chars.toLocaleString("it")} caratteri`
-    : "non ancora scritto";
+    ? (prof.body.short || prof.body.path || "")
+    : _("settings.not_written");
 
   // A model whose key is missing is a run that dies at the first post, and
   // the row that changed it is the only place a reader can act on that.
   const modelValue = esc(known ? known.label : body.model) +
-    (body.key_ready ? "" : ' <span class="pill bad">manca la chiave</span>');
+    (body.key_ready ? ""
+     : ` <span class="pill bad">${_("settings.key_missing")}</span>`);
 
   $("settings-body").innerHTML = '<div class="rows">' +
-    row("Modello", modelValue, "model") +
-    row("Fornitore", esc(brand(body.provider)) +
+    row(_("settings.model"), modelValue, "model") +
+    row(_("settings.provider"), esc(brand(body.provider)) +
         (body.key_ready && CONSOLES[body.provider]
-          ? ' <span class="pill on">chiave impostata</span>' : ""), null) +
-    row("Raccolta", esc(when), "hour") +
-    row("Quanti post", `${body.posts_per_run} a ogni raccolta`, "posts") +
-    row("Cartelle", folders + (on ? "" :
-        ' <span class="pill">nessuna attiva</span>'), "folders") +
-    row("Tetto di spesa", `${eur(body.halt_eur_week)} a settimana`, "spend") +
-    row("Profilo", esc(profileLabel), "profile") +
+          ? ` <span class="pill on">${_("settings.key_set")}</span>` : ""),
+        null) +
+    row(_("settings.collection"), esc(when), "hour") +
+    row(_("settings.how_many"),
+        _("settings.each_run", { n: body.posts_per_run }), "posts") +
+    row(_("settings.folders"), folders + (on ? "" :
+        ` <span class="pill">${_("settings.none_on")}</span>`), "folders") +
+    row(_("settings.spend_cap"),
+        _("settings.a_week", { amount: eur(body.halt_eur_week) }), "spend") +
+    row(_("settings.profile"), esc(profileLabel), "profile") +
+    row(_("settings.theme"), themeLabel(), "theme") +
+    row(_("settings.language"), esc(langLabel()), "lang") +
     "</div>";
 
   $("settings-body").querySelectorAll("[data-edit]").forEach((b) =>
@@ -1085,6 +2913,17 @@ async function loadSettings() {
 
 // --- the sheet -------------------------------------------------------------
 function closeSheet() {
+  // «Cancel» has to really cancel: a preview that survives it is a change
+  // made behind a button that said it would not make one.
+  if (lookBefore !== null) {
+    applyLook(lookBefore);
+    lookBefore = null;
+  }
+  if (langBefore !== null) {
+    document.documentElement.setAttribute("lang", langBefore);
+    applyLang();
+    langBefore = null;
+  }
   $("sheet").hidden = true;
   draft = null;
   $("saved").textContent = "";
@@ -1097,51 +2936,150 @@ function say(text, bad) {
   note.textContent = text;
 }
 
+// --- the ground and the accent ---------------------------------------------
+// Two axes rather than a list of finished themes: three grounds times nine
+// accents is twenty-seven looks that all work, out of twelve lines of CSS,
+// and none of them is a combination nobody checked.
+//
+// Held in the browser, not in `config.toml`: it is nothing the collector or
+// the judge ever reads, and putting it there would mean a scheduled run
+// parsing a colour. `localStorage` can throw outright — a private window, a
+// browser told to block site data — so every read and write is guarded and
+// the page renders correctly having found nothing.
+// The id is the colour's name in the stylesheet and in `look.json`; what a
+// reader sees comes from the phrase table, like every other word here. Held
+// as a literal, «Scuro» and «Viola» stayed Italian on an English window —
+// the two rows a reader had just changed were the two that did not follow
+// the language they had just chosen.
+const GROUNDS = [
+  { id: "chiaro", bg: "#e9eced", fg: "#10141a" },
+  { id: "penombra", bg: "#2b3036", fg: "#eceff2" },
+  { id: "scuro", bg: "#111417", fg: "#f0f3f6" },
+];
+const groundName = (id) => _("ground." + id);
+
+const ACCENTS = [
+  { id: "terracotta", hex: "#ce3a24" },
+  { id: "rosso", hex: "#d2382f" },
+  { id: "arancione", hex: "#e07b26" },
+  { id: "giallo", hex: "#d9a412" },
+  { id: "verde", hex: "#2f8f57" },
+  { id: "blu", hex: "#2f6fd0" },
+  { id: "viola", hex: "#8455c4" },
+  { id: "rosa", hex: "#cf4d8e" },
+  { id: "grafite", hex: "#6b7683" },
+];
+const accentName = (id) => _("accent." + id);
+
+// The row on the settings screen: two words, because two things were chosen.
+function themeLabel() {
+  const look = readLook();
+  const g = groundName(
+    (GROUNDS.find((x) => x.id === look.ground) || GROUNDS[0]).id);
+  const a = accentName(
+    (ACCENTS.find((x) => x.id === look.accent) || ACCENTS[0]).id);
+  return `${esc(g)} <span class="pill">${esc(a)}</span>`;
+}
+
+// The page arrives from the engine already wearing its colours — the two
+// attributes are written into the served HTML — so this reads the document
+// rather than a store. `localStorage` cannot be the answer here: the engine
+// binds port 0, so every launch is a different origin and the browser hands
+// back an empty store. It stays as the fallback for a page opened some other
+// way, where there may be no engine behind it.
+function readLook() {
+  const root = document.documentElement;
+  let ground = root.getAttribute("data-ground");
+  let accent = root.getAttribute("data-accent");
+  try {
+    if (!ground) ground = localStorage.getItem("winnow.ground");
+    if (!accent) accent = localStorage.getItem("winnow.accent");
+  } catch (err) { /* site data off: the defaults are a whole look */ }
+  return {
+    ground: GROUNDS.some((x) => x.id === ground) ? ground : "chiaro",
+    accent: ACCENTS.some((x) => x.id === accent) ? accent : "terracotta",
+  };
+}
+
+function applyLook(look) {
+  const root = document.documentElement;
+  // The default carries no attribute on either axis: `:root` already is
+  // chiaro/terracotta, and an attribute naming the default is a second place
+  // the same thing can go wrong.
+  // Both attributes are always written, defaults included: the server sets
+  // them on every page it serves, and removing one here would leave the next
+  // `readLook` falling through to a store that may say something else.
+  const set = (attr, value, dflt) => root.setAttribute(attr, value || dflt);
+  set("data-ground", look.ground, "chiaro");
+  set("data-accent", look.accent, "terracotta");
+  try {
+    localStorage.setItem("winnow.ground", look.ground || "chiaro");
+    localStorage.setItem("winnow.accent", look.accent || "terracotta");
+  } catch (err) { /* it still looks right for as long as the window is open */ }
+  // Written through on the press, not on save: the sheet applies as you
+  // choose, and a window closed without pressing Salva must still come back
+  // wearing what is on screen. `closeSheet` reverts by applying the old look,
+  // which writes through in the same way.
+  fetch("/api/look", {
+    method: "PATCH", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ground: look.ground, accent: look.accent }),
+  }).catch(() => { /* no engine behind this page: the browser remembers */ });
+}
+
+applyLook(readLook());
+applyLang();
+
+// Titles and leads are *functions*, not strings: this object is built once at
+// load and the language can change while the app is open — captured as values
+// they would be the ones the window opened in.
 const SHEETS = {
   model: {
-    title: "Chi legge le slide",
-    lead: "Il modello apre ogni slide e ne tira fuori i nomi. Costa a post: " +
-      "con una raccolta da otto post al giorno, mezzo centesimo l'uno fa " +
-      "circa un euro al mese.",
+    title: () => _("sheet.model.title"),
+    lead: () => _("sheet.model.lead"),
     draw: drawModel,
     patch: () => ({ provider: draft.provider, model: draft.model,
                     base_url: draft.base_url || null }),
   },
   posts: {
-    title: "Quanti post a raccolta",
-    lead: "Quanti post apre ogni volta che raccoglie. Più alto smaltisce " +
-      "l'arretrato prima, ma la raccolta dura di più e costa di più.",
+    title: () => _("sheet.posts.title"),
+    lead: () => _("sheet.posts.lead"),
     draw: drawPosts,
     patch: () => ({ posts_per_run: Number(draft.posts_per_run) }),
   },
   hour: {
-    title: "Quando raccogliere",
-    lead: "winnow apre i post salvati una volta al giorno, da solo. " +
-      "Scegli un'ora in cui il computer è di solito acceso: se dorme, la " +
-      "corsa salta e nessuno te lo dice.",
+    title: () => _("sheet.hour.title"),
+    lead: () => _("sheet.hour.lead"),
     draw: drawHour,
     patch: null,          // it installs a system job, not a line of config
   },
   spend: {
-    title: "Quanto può spendere",
-    lead: "Due soglie. La prima avvisa. La seconda ferma winnow per sempre, " +
-      "e non riparte finché non lo dici tu a mano — è quello che sta fra un " +
-      "errore e una bolletta.",
+    title: () => _("sheet.spend.title"),
+    lead: () => _("sheet.spend.lead"),
     draw: drawSpend,
     patch: () => ({ warn_eur_week: Number(draft.warn_eur_week),
                     halt_eur_week: Number(draft.halt_eur_week) }),
   },
+  lang: {
+    title: () => _("sheet.lang.title"),
+    lead: () => _("sheet.lang.lead"),
+    draw: drawLang,
+    patch: null,          // a preference of this installation, not config
+  },
+  theme: {
+    title: () => _("sheet.theme.title"),
+    lead: () => _("sheet.theme.lead"),
+    draw: drawTheme,
+    patch: null,          // it is a preference of this browser, not config
+  },
   profile: {
-    title: "Il tuo profilo",
-    lead: "È il file su cui si regge tutto il giudizio: dice chi sei, cosa " +
-      "hai già deciso e cosa stai cercando. Senza, winnow filtra a caso.",
+    title: () => _("sheet.profile.title"),
+    lead: () => _("sheet.profile.lead"),
     draw: drawProfile,
     patch: null,
   },
   folders: {
-    title: "Quali cartelle guardare",
-    lead: "Le cartelle dei tuoi salvati su Instagram. Tocca una riga per " +
-      "accenderla o spegnerla: winnow legge solo quelle accese.",
+    title: () => _("sheet.folders.title"),
+    lead: () => _("sheet.folders.lead"),
     draw: drawFolders,
     patch: () => ({ folders: draft.folders }),
   },
@@ -1159,8 +3097,20 @@ function openSheet(which) {
     folders: (config.folders || []).map((f) => ({ ...f })),
     schedule: schedule, profile: profile,
   }));
-  $("sheet-title").textContent = sheet.title;
-  $("sheet-lead").textContent = sheet.lead;
+  // Enabled here, not by whoever disabled it. The save handler switches it
+  // off while it works and every branch was supposed to switch it back on —
+  // the two that return early (the theme and the profile, neither of which
+  // writes to config.toml) did not, so the button stayed dead for the rest of
+  // the session and a second change was impossible. A sheet that opens has a
+  // working save button, whatever the last one did.
+  $("sheet-save").disabled = false;
+  // Looked up now, not when SHEETS was built: the language can change while
+  // the app is open, and a title captured at load would be the old one.
+  $("sheet-title").textContent =
+    typeof sheet.title === "function" ? sheet.title() : sheet.title;
+  $("sheet-lead").textContent =
+    typeof sheet.lead === "function" ? sheet.lead() : sheet.lead;
+  if (which === "lang") langBefore = lang();
   $("sheet").hidden = false;
   $("sheet-save").dataset.which = which;
   sheet.draw();
@@ -1193,9 +3143,9 @@ function drawKey() {
     // qui" is an instruction, and it read as one — somebody with a working
     // setup went looking for their key to type it again. Nothing to fill in
     // means nothing to do, which is the true answer.
-    box.innerHTML = '<p class="done"><span class="ok"></span>Chiave ' +
-      esc(brand(provider)) + " impostata. Non serve fare altro.</p>" +
-      '<button class="ghost" id="key-replace">Sostituiscila</button>';
+    box.innerHTML = '<p class="done"><span class="ok"></span>' +
+      esc(_("sheet.key.set", { brand: brand(provider) })) + "</p>" +
+      `<button class="ghost" id="key-replace">${_("sheet.key.replace")}</button>`;
     $("key-replace").addEventListener("click", () => {
       draft.replacing = true;
       drawKey();
@@ -1205,10 +3155,8 @@ function drawKey() {
   }
 
   box.innerHTML = '<span class="hint">' + (keys[provider]
-    ? "<b>La vecchia viene sostituita</b> appena salvi. Da qui non si " +
-      "rilegge: sta in un file che solo tu puoi aprire."
-    : "<b>Serve una chiave " + esc(brand(provider)) + ".</b> Senza, la " +
-      "prossima raccolta si ferma al primo post.") +
+    ? _("sheet.key.replacing")
+    : _("sheet.key.needed", { brand: esc(brand(provider)) })) +
     "</span>" + keyField(provider);
 
   const field = $("key-input");
@@ -1218,14 +3166,14 @@ function drawKey() {
 }
 
 function keyField(provider) {
-  return '<label class="field"><span>Chiave ' + esc(brand(provider)) + "</span>" +
+  return '<label class="field"><span>' +
+    esc(_("sheet.model.key_of", { brand: brand(provider) })) + "</span>" +
     '<input type="password" id="key-input" autocomplete="off" ' +
-    'placeholder="incollala qui"></label>' +
+    `placeholder="${esc(_("sheet.model.paste"))}"></label>` +
     '<div class="acts" style="border:0;padding:0;margin-top:.9rem">' +
-      '<button class="ghost edged" id="key-open">Apri la pagina delle chiavi' +
-      "</button><span class=\"hint\" style=\"margin:0\">Creane una, mettile " +
-      "un limite di spesa, e ricorda che una chiave senza credito caricato " +
-      "non funziona.</span></div>";
+      `<button class="ghost edged" id="key-open">${_("sheet.model.open_keys")}` +
+      `</button><span class="hint" style="margin:0">` +
+      `${_("sheet.model.key_hint")}</span></div>`;
 }
 
 function drawModel() {
@@ -1243,15 +3191,13 @@ function drawModel() {
 
   $("sheet-body").innerHTML = `<div class="opts">${rows.join("")}</div>` +
     `<div id="custom"${known ? " hidden" : ""}>` +
-      '<label class="field"><span>Nome del modello</span>' +
+      `<label class="field"><span>${_("sheet.model.name")}</span>` +
       `<input type="text" id="m-name" value="${esc(known ? "" : draft.model)}" ` +
       'placeholder="qwen2.5vl"></label>' +
-      '<label class="field"><span>Indirizzo</span>' +
+      `<label class="field"><span>${_("sheet.model.address")}</span>` +
       `<input type="text" id="m-url" value="${esc(draft.base_url || "")}" ` +
       'placeholder="http://localhost:11434/v1"></label>' +
-      '<span class="hint">Deve saper leggere immagini e parlare l\'API di ' +
-      'OpenAI — Ollama, LM Studio. Gira sulla tua macchina, quindi non costa ' +
-      'niente e non manda le slide fuori di casa.</span>' +
+      `<span class="hint">${_("sheet.model.local_hint")}</span>` +
     "</div>" +
     '<div id="key"></div>';
 
@@ -1285,6 +3231,80 @@ function drawModel() {
   $("m-url").addEventListener("input", sync);
 }
 
+// What was on when the sheet opened, so «Annulla» really cancels. A colour
+// judged by looking at it has to be applied on the press — but a preview that
+// survives a cancel is not a preview, it is a change made behind a button
+// that said it would not make one.
+// What the language row says. The name of a language is written in that
+// language — «Italiano», not «Italian» — because it is read by somebody
+// looking for their own.
+function langLabel() {
+  return (LANGS.find((l) => l.id === lang()) || LANGS[0]).name;
+}
+
+function drawLang() {
+  const now = lang();
+  $("sheet-body").innerHTML = '<div class="grounds langs">' + LANGS.map((l) =>
+    `<button class="ground${l.id === now ? " on" : ""}" ` +
+    `data-lang-id="${l.id}"><b>${esc(l.name)}</b>` +
+    `<span>${esc(l.why)}</span></button>`).join("") + "</div>";
+  $("sheet-body").querySelectorAll("[data-lang-id]").forEach((b) =>
+    b.addEventListener("click", () => {
+      // Applied on the press, like the theme: a language is judged by seeing
+      // the window in it, and the sheet itself is part of the window.
+      document.documentElement.setAttribute("lang", b.dataset.langId);
+      applyLang();
+      const sheet = SHEETS.lang;
+      $("sheet-title").textContent = _("sheet.lang.title");
+      $("sheet-lead").textContent = _("sheet.lang.lead");
+      drawLang();
+    }));
+}
+
+let lookBefore = null, langBefore = null;
+
+function drawTheme() {
+  const now = readLook();
+  lookBefore = now;
+  $("sheet-body").innerHTML =
+    `<p class="hint">${_("sheet.theme.ground")}</p><div class="grounds">` +
+    GROUNDS.map((g) =>
+      `<button class="ground${g.id === now.ground ? " on" : ""}" ` +
+      `data-ground-id="${g.id}">` +
+      `<span class="prev" style="background:${g.bg}; color:${g.fg}">Aa</span>` +
+      `<b>${esc(groundName(g.id))}</b>` +
+      `<span>${esc(_("ground." + g.id + ".why"))}</span></button>`).join("") +
+    `</div><p class="hint">${_("sheet.theme.accent")}</p>` +
+    '<div class="swatches">' + ACCENTS.map((a) =>
+      `<button class="swatch${a.id === now.accent ? " on" : ""}" ` +
+      `data-accent-id="${a.id}" style="--c:${a.hex}" ` +
+      `title="${esc(accentName(a.id))}" ` +
+      `aria-label="${esc(accentName(a.id))}"></button>`).join("") +
+    '</div><p class="hint" id="accent-name"></p>';
+
+  const paint = (look) => {
+    // Applied on the press, never on save: a colour is judged by looking at
+    // it, and a preview you have to confirm is a preview nobody trusts.
+    applyLook(look);
+    $("sheet-body").querySelectorAll(".ground").forEach(
+      (b) => b.classList.toggle("on", b.dataset.groundId === look.ground));
+    $("sheet-body").querySelectorAll(".swatch").forEach(
+      (b) => b.classList.toggle("on", b.dataset.accentId === look.accent));
+    // Apple names the colour under the row rather than beside every dot,
+    // and it is right: nine labels is a list, one label is an answer.
+    const picked = ACCENTS.find((a) => a.id === look.accent);
+    $("accent-name").textContent = picked ? accentName(picked.id) : "";
+  };
+  paint(now);
+
+  $("sheet-body").querySelectorAll("[data-ground-id]").forEach((b) =>
+    b.addEventListener("click", () =>
+      paint({ ...readLook(), ground: b.dataset.groundId })));
+  $("sheet-body").querySelectorAll("[data-accent-id]").forEach((b) =>
+    b.addEventListener("click", () =>
+      paint({ ...readLook(), accent: b.dataset.accentId })));
+}
+
 function drawPosts() {
   $("sheet-body").innerHTML =
     '<label class="field"><span>Post a ogni raccolta</span>' +
@@ -1295,10 +3315,7 @@ function drawPosts() {
     // Said in money and in days, because that is what the number decides.
     // ~$0.005 a post is what a year of runs has actually cost.
     $("ppr-note").textContent =
-      `${n} post al giorno sono circa ${eur(n * 0.005 * 7 * 0.92)} a ` +
-      `settimana. Otto è il ritmo per cui winnow è tarato; chi lo installa ` +
-      `dopo anni di salvataggi ne ha centinaia in coda, e alzarlo per qualche ` +
-      `giorno smaltisce l'arretrato.`;
+      _("sheet.posts.note", { n, money: eur(n * 0.005 * 7 * 0.92) });
   };
   note();
   $("ppr").addEventListener("input", (e) => {
@@ -1317,17 +3334,21 @@ function drawHour() {
     `<b>${h}</b></span></button>`);
   const custom = now.active && !HOURS.includes(now.when);
   rows.push(`<button class="opt${custom ? " on" : ""}" data-hour="">` +
-    '<span class="tick"></span><span class="txt"><b>Un\'altra ora</b>' +
-    "</span></button>");
+    `<span class="tick"></span><span class="txt">` +
+    `<b>${_("sheet.hour.other")}</b></span></button>`);
   rows.push(`<button class="opt${now.active ? "" : " on"}" data-hour="off">` +
-    '<span class="tick"></span><span class="txt"><b>Mai</b>' +
-    "<span>la raccolta la lanci tu dalla casa</span></span></button>");
+    `<span class="tick"></span><span class="txt">` +
+    `<b>${_("sheet.hour.never")}</b>` +
+    `<span>${_("sheet.hour.manual")}</span></span></button>`);
 
   $("sheet-body").innerHTML = `<div class="opts">${rows.join("")}</div>` +
     `<div id="at"${custom ? "" : " hidden"}><label class="field">` +
-    `<span>Ora</span><input type="text" id="hh" value="${esc(now.when || "")}" ` +
-    'placeholder="13:00"></label></div>' +
-    (now.how ? `<span class="hint">Installata con ${esc(now.how)}.</span>` : "");
+    `<span>${_("sheet.hour.at")}</span>` +
+    `<input type="text" id="hh" value="${esc(now.when || "")}" ` +
+    'placeholder="13:00"></label></div>';
+  // Which scheduler installed it — launchd, systemd, cron — is winnow's own
+  // plumbing. A reader picking an hour cannot act on it, and a name they do
+  // not recognise reads as a warning about something they broke.
 
   $("sheet-body").querySelectorAll("[data-hour]").forEach((b) =>
     b.addEventListener("click", () => {
@@ -1345,12 +3366,9 @@ function drawSpend() {
   $("sheet-body").innerHTML =
     '<label class="field"><span>Avvisa oltre</span>' +
     `<input type="text" id="warn" value="${draft.warn_eur_week}"></label>` +
-    '<label class="field"><span>Ferma tutto oltre</span>' +
+    `<label class="field"><span>${_("sheet.spend.stop")}</span>` +
     `<input type="text" id="halt" value="${draft.halt_eur_week}"></label>` +
-    '<span class="hint">In euro, a settimana. Un post costa circa mezzo ' +
-    "centesimo, quindi il freno non scatta mai per uso normale: scatta " +
-    "quando qualcosa è andato storto, che è esattamente il momento in cui " +
-    "serve.</span>";
+    `<span class="hint">${_("sheet.spend.hint")}</span>`;
   $("warn").addEventListener("input",
     (e) => { draft.warn_eur_week = e.target.value.replace(",", "."); });
   $("halt").addEventListener("input",
@@ -1361,19 +3379,20 @@ function drawProfile() {
   const p = draft.profile || {};
   $("sheet-body").innerHTML =
     '<div class="rows" style="margin:0">' +
-    `<div class="row"><span class="k">Stato</span><span class="v">${
-      p.exists ? esc(p.chars.toLocaleString("it")) + " caratteri"
-               : "non ancora scritto"}</span></div>` +
+    `<div class="row"><span class="k">${_("sheet.profile.state")}</span>` +
+    `<span class="v">${
+      p.exists ? _("settings.chars", { n: p.chars.toLocaleString(lang()) })
+               : _("settings.not_written")}</span></div>` +
     `<div class="row"><span class="k">File</span><span class="v">${
-      esc(p.path || "")}</span></div></div>` +
+      esc(p.short || p.path || "")}</span></div></div>` +
     '<div class="acts" style="border:0;padding:0;margin-top:1.2rem">' +
-      '<button class="ghost edged" id="openprof">Apri nell\'editor</button>' +
-      '<span class="hint" id="prof-note" style="margin:0">Si scrive a mano, ' +
-      "una volta, e si corregge quando un recap sbaglia bersaglio. " +
-      "Non passa mai da questa finestra.</span></div>";
+      `<button class="ghost edged" id="openprof">${_("sheet.profile.open")}` +
+      "</button>" +
+      '<span class="hint" id="prof-note" style="margin:0">' +
+      `${_("sheet.profile.hint")}</span></div>`;
   $("openprof").addEventListener("click", async () => {
     await api("/api/profile/open", "POST");
-    $("prof-note").textContent = "Aperto. Salva il file e chiudi qui.";
+    $("prof-note").textContent = _("sheet.profile.opened");
   });
 }
 
@@ -1386,17 +3405,18 @@ function drawFolders() {
     // name said exactly what "accesa" says on the right; two labels for one
     // fact make a reader look for the difference between them.
     `<span class="tick"></span><span class="txt"><b>${esc(f.name)}</b></span>` +
-    `<span class="state">${f.active ? "accesa" : "spenta"}</span>` +
+    `<span class="state">${_(f.active ? "sheet.folders.on"
+                                           : "settings.off")}</span>` +
     "</button>").join("");
 
   $("sheet-body").innerHTML = `<div class="opts">${rows ||
-    '<div class="opt"><span class="txt"><b>Nessuna cartella</b>' +
-    "<span>cercale sul tuo account qui sotto</span></span></div>"}</div>` +
+    `<div class="opt"><span class="txt"><b>${_("sheet.folders.none")}</b>` +
+    `<span>${_("sheet.folders.look")}</span></span></div>`}</div>` +
     '<div class="acts" style="border:0;padding:0;margin-top:1.1rem">' +
-      '<button class="ghost edged" id="scan">Cerca sul tuo account</button>' +
-      '<span class="hint" id="scan-note" style="margin:0">Apre Instagram con ' +
-      'la sessione salvata e chiede quali cartelle hai. Serve per ' +
-      'aggiungerne una: il suo indirizzo non si può indovinare.</span>' +
+      `<button class="ghost edged" id="scan">` +
+      `${_("sheet.folders.rescan_btn")}</button>` +
+      `<span class="hint" id="scan-note" style="margin:0">` +
+      `${_("sheet.folders.rescan")}</span>` +
     "</div>";
 
   wireFolders();
@@ -1410,7 +3430,8 @@ function wireFolders() {
       f.active = !f.active;
       b.setAttribute("aria-pressed", f.active);
       b.classList.toggle("on", f.active);
-      b.querySelector(".state").textContent = f.active ? "accesa" : "spenta";
+      b.querySelector(".state").textContent =
+        _(f.active ? "sheet.folders.on" : "settings.off");
     }));
 }
 
@@ -1421,7 +3442,7 @@ async function scanFolders() {
   const { code, body } = await api("/api/folders/scan", "POST");
   if (code !== 202) {
     button.disabled = false;
-    note.textContent = body.error || "non riuscito";
+    note.textContent = body.error || _("archive.not_merged");
     return;
   }
   // Polled like any other run: it drives a real browser and can take a while.
@@ -1431,7 +3452,7 @@ async function scanFolders() {
     clearInterval(tick);
     button.disabled = false;
     if (j.error || !j.result) {
-      note.textContent = j.error || "non riuscito";
+      note.textContent = j.error || _("archive.not_merged");
       return;
     }
     const have = new Set(draft.folders.map((f) => f.name));
@@ -1442,8 +3463,8 @@ async function scanFolders() {
       { name: f.name, url: f.url, active: false }));
     drawFolders();
     $("scan-note").textContent = added.length
-      ? `${added.length} nuove. Accendi quelle che vuoi, poi salva.`
-      : "Nessuna nuova: ci sono già tutte.";
+      ? _("sheet.folders.found", { n: added.length })
+      : _("sheet.folders.none_new");
   }, 900);
 }
 
@@ -1468,7 +3489,30 @@ $("sheet-save").addEventListener("click", async (e) => {
   // Not everything on this screen is a line of config.toml. The hour installs
   // a system job; the profile is a file somebody edits themselves. Sending
   // those to /api/config would be a 400 about a key that does not exist.
+  // Neither of these is a line of config.toml: the profile is a file
+  // somebody edits themselves, and the theme is already applied and already
+  // remembered by the browser.
   if (which === "profile") { closeSheet(); return; }
+  if (which === "theme") {
+    lookBefore = null;                  // keep what is on screen
+    closeSheet();
+    loadSettings();
+    return;
+  }
+  if (which === "lang") {
+    langBefore = null;
+    await fetch("/api/look", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lang: lang() }),
+    }).catch(() => { /* no engine: it holds until the window closes */ });
+    closeSheet();
+    // Everything already drawn was drawn in the old language.
+    applyLang();
+    loadSettings();
+    loadArchive();
+    refresh();
+    return;
+  }
   // The key goes first and on its own route: a provider written without one
   // is a configuration that looks saved and dies at the next run — which is
   // the whole reason this exists. If it fails, nothing else is written.
@@ -1480,7 +3524,7 @@ $("sheet-save").addEventListener("click", async (e) => {
     const kb = await r.json().catch(() => ({}));
     if (r.status !== 200) {
       button.disabled = false;
-      say(kb.error || "chiave non salvata", true);
+      say(kb.error || _("settings.key_not_saved"), true);
       return;
     }
     keys = kb.keys || keys;
@@ -1508,7 +3552,7 @@ $("sheet-save").addEventListener("click", async (e) => {
   // The engine's own sentence, shown where the change was made. The sheet
   // stays open with what was typed still in it: closing it would throw the
   // work away at the exact moment the reader has to correct it.
-  say(body.error || "non salvato", true);
+  say(body.error || _("settings.not_saved"), true);
 });
 
 // --- tabs ------------------------------------------------------------------
