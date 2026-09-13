@@ -1140,6 +1140,14 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
         <button class="go" id="act" disabled data-t="home.wait">wait</button>
         <button class="also" id="also" hidden></button>
       </div>
+      <!-- A real button, not a quiet link: the first version read as static
+           text under the numbers, decentred and easy to miss — reported as
+           "non si capiva neanche fosse cliccabile". Right under the choice,
+           not down by the stats, so its own output (the log right below it)
+           lands next to the thing that was pressed instead of appearing to
+           come from nowhere. -->
+      <button class="ghost edged" id="check-folders"
+              style="margin-top:.9rem" data-t="home.check_folders"></button>
       <!-- What a run looks like from outside. Three things, because three
            different doubts: a bar that moves says «it is going», a sentence
            says «at what», and a clock that ticks every second says «it is not
@@ -1150,12 +1158,6 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
       </div>
       <div class="log" id="log" hidden></div>
       <div class="stats" id="stats"></div>
-      <!-- A third action, not a second `also`: it inspects, it does not do
-           the thing the button already offers. Always here, never inside
-           the choice of what to press next — asked for after «Raccogli
-           ora» pressed more than once left no way to tell what was left. -->
-      <button class="also" id="check-folders" style="margin-top:.6rem"
-              data-t="home.check_folders"></button>
     </div>
   </section>
 
@@ -1375,7 +1377,7 @@ const T = {
   "home.recapping": ["Making the recap", "Sto facendo il recap"],
   "home.checking_folders": ["Checking your folders",
                             "Sto controllando le cartelle"],
-  "home.check_folders": ["What's missing?", "Cosa manca?"],
+  "home.check_folders": ["Posts left", "Post rimasti"],
   "home.not_started": ["it did not start", "non è partito"],
   "home.already_running": ["something is already running — wait for it to end",
                            "c'è già qualcosa in corso — aspetta che finisca"],
