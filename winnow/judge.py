@@ -104,7 +104,13 @@ def ask(bundle: str, provider: str, model: str, base_url: str | None,
             return call(provider=provider, model=model, base_url=base_url,
                         system="", text=bundle, images=[],
                         max_tokens=max_tokens, temperature=0.0,
-                        on_progress=progress)
+                        on_progress=progress, should_stop=stop_asked)
+        except providers.Interrupted:
+            # Reached from inside the stream, where the checkpoints above
+            # cannot see: the model was still writing when «Ferma» was
+            # pressed. Nothing to retry — the person asked, same as the two
+            # checkpoints outside this call.
+            raise Stopped("fermata mentre il modello scriveva")
         except providers.Truncated:
             # Not retryable (more tokens will not fix a fixed max_tokens),
             # but wrapping it in Fatal would strip the `.partial` text it

@@ -24,6 +24,15 @@ class Truncated(RuntimeError):
     """The model ran out of output budget mid-answer."""
 
 
+class Interrupted(RuntimeError):
+    """«Ferma» was pressed while the model was still writing.
+
+    Only the streamed Anthropic path can honour this: text arrives piece by
+    piece, so a checkpoint can sit in that loop. A plain OpenAI-compatible
+    call is one blocking HTTP request with nothing in between to check.
+    """
+
+
 ANTHROPIC, OPENAI, LOCAL = "anthropic", "openai", "local"
 
 KEY_ENV = {ANTHROPIC: "ANTHROPIC_API_KEY", OPENAI: "OPENAI_API_KEY"}
@@ -114,7 +123,7 @@ def accepts_temperature(create) -> bool:
 
 def _anthropic(model: str, system: str, text: str, images: list[Path],
                max_tokens: int, temperature: float,
-               on_progress=None) -> tuple[str, int, int]:
+               on_progress=None, should_stop=None) -> tuple[str, int, int]:
     """One call, streamed.
 
     Streaming is not a nicety here, it is the only way the call is allowed to
@@ -123,6 +132,11 @@ def _anthropic(model: str, system: str, text: str, images: list[Path],
     longer than 10 minutes» — and a weekly recap of a backlog is exactly that
     request. It also turns three silent minutes into something a person can
     watch, which is what `on_progress` is for.
+
+    That same stream is what makes «Ferma» reachable while the model is
+    writing — the one phase `judge.ask` cannot checkpoint from outside,
+    because it is a single call. Checked once per piece, not once per
+    character: the same cadence `on_progress` already uses.
     """
     import anthropic
 
@@ -146,6 +160,8 @@ def _anthropic(model: str, system: str, text: str, images: list[Path],
                 # Characters, not tokens: it is what has actually arrived, and
                 # the caller decides how often to say anything about it.
                 on_progress(sum(len(c) for c in chunks))
+            if should_stop and should_stop():
+                raise Interrupted("fermata mentre il modello scriveva")
         r = stream.get_final_message()
 
     reply = "".join(chunks) or next(
@@ -251,12 +267,16 @@ def load_key(provider: str) -> None:
 def complete(provider: str, model: str, base_url: str | None, system: str,
              text: str, images: list[Path], max_tokens: int = 8000,
              temperature: float = 0.0,
-             on_progress=None) -> tuple[str, int, int]:
-    """One call, one reply, and the tokens it took. Same contract everywhere."""
+             on_progress=None, should_stop=None) -> tuple[str, int, int]:
+    """One call, one reply, and the tokens it took. Same contract everywhere.
+
+    `should_stop` only does anything on the Anthropic path: the others are
+    one blocking request with no piece-by-piece loop to check it from.
+    """
     load_key(provider)
     if provider == ANTHROPIC:
         return _anthropic(model, system, text, images, max_tokens, temperature,
-                          on_progress)
+                          on_progress, should_stop)
     if provider == OPENAI:
         return _openai_compatible("https://api.openai.com/v1",
                                   os.environ.get(KEY_ENV[OPENAI]), model,

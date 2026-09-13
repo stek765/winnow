@@ -1,6 +1,6 @@
 import os
 
-
+import pytest
 
 # --- the SDK moved under us -------------------------------------------------
 #
@@ -68,3 +68,47 @@ def test_a_local_model_has_no_key_to_look_for(tmp_path, monkeypatch):
     from winnow import paths, providers
     monkeypatch.setattr(paths, "env_file", lambda: tmp_path / "nothing")
     providers.load_key("local")          # must not raise
+
+
+def test_stop_asked_cuts_the_stream_instead_of_waiting_it_out(monkeypatch):
+    """The streamed reply used to be uninterruptible: `judge.ask` only checks
+    `should_stop` before a call and inside a backoff, never while the model
+    itself is writing — which is where a recap spends most of its time.
+    `_anthropic` must stop pulling from `text_stream` as soon as it is asked,
+    not read every piece and decide afterwards."""
+    import sys
+    import types
+
+    from winnow import providers
+
+    class FakeStream:
+        def __init__(self, pieces):
+            self.text_stream = iter(pieces)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def get_final_message(self):
+            raise AssertionError("must stop before the reply is complete")
+
+    class FakeMessages:
+        def stream(self, **kw):
+            return FakeStream(["uno", "due", "tre", "quattro"])
+
+    class FakeAnthropic:
+        def __init__(self):
+            self.messages = FakeMessages()
+
+    fake_module = types.ModuleType("anthropic")
+    fake_module.Anthropic = FakeAnthropic
+    monkeypatch.setitem(sys.modules, "anthropic", fake_module)
+
+    seen = []                             # cumulative characters, per piece
+    with pytest.raises(providers.Interrupted):
+        providers._anthropic("m", "", "hi", [], 100, 0.0,
+                             on_progress=seen.append,
+                             should_stop=lambda: len(seen) >= 2)
+    assert seen == [3, 6]                 # "uno", then "unodue" — never "tre"

@@ -148,6 +148,21 @@ def test_a_stop_during_the_backoff_does_not_wait_out_the_backoff():
     assert sum(slept) <= 1                 # not the whole five seconds
 
 
+def test_a_stop_while_the_model_is_writing_is_not_a_failure():
+    """«Ferma» used to do nothing during the longest phase of a recap — the
+    model can spend minutes writing before the next checkpoint. The streamed
+    call now raises `providers.Interrupted` from inside that wait; `ask` must
+    turn it into the same `Stopped` the other two checkpoints raise."""
+    from winnow import providers
+    from winnow.judge import Stopped, ask
+
+    def writing_when_stopped(**kw):
+        raise providers.Interrupted("fermata mentre il modello scriveva")
+
+    with pytest.raises(Stopped):
+        ask("p", "anthropic", "m", None, complete=writing_when_stopped)
+
+
 def test_the_call_reports_what_has_arrived_so_far():
     """A recap of a backlog is minutes of one call. Without this the window
     said «le sto facendo leggere al modello» and then nothing at all, which is
