@@ -44,6 +44,12 @@ STRINGS: dict[str, dict[str, str]] = {
                               "it": "1 giorno non ancora giudicato"},
     "home.days_pending": {"en": "{n} days not judged yet",
                           "it": "{n} giorni non ancora giudicati"},
+    "home.last_collect_one": {
+        "en": "Last collected {day} at {time} — 1 post",
+        "it": "Ultima raccolta il {day} alle {time} — 1 post"},
+    "home.last_collect": {
+        "en": "Last collected {day} at {time} — {n} posts",
+        "it": "Ultima raccolta il {day} alle {time} — {n} post"},
     "home.busy.collect": {"en": "Collecting", "it": "Sto raccogliendo"},
     "home.busy.recap": {"en": "Making the recap", "it": "Sto facendo il recap"},
     "home.busy.ideas": {"en": "Drawing an idea", "it": "Sto pescando un'idea"},

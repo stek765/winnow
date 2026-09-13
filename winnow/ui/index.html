@@ -1849,6 +1849,11 @@ function paintHome(s) {
 
   const stale = s.stale
     ? `<span class="stat warn"><b>!</b>${_("home.stale")}</span>` : "";
+  // Pressing «Raccogli ora» more than once while looking at something else
+  // left no way to tell which run brought in what — this line answers that,
+  // already worded server-side same as the headline and detail above it.
+  const lastCollect = s.last_collect_line
+    ? `<span class="stat">${esc(s.last_collect_line)}</span>` : "";
   // No count of days here any more: the line under the headline names them,
   // and repeating the same fact in a unit that does not say what it counts is
   // what made «3 GIORNI» unreadable.
@@ -1856,7 +1861,7 @@ function paintHome(s) {
     `<span class="stat"><b>${s.pending_posts}</b>${_("home.queued")}</span>` +
     `<span class="stat"><b>$${(s.spend_usd || 0).toFixed(2)}</b>` +
     `${_("home.this_week")}</span>` +
-    stale;
+    lastCollect + stale;
 }
 
 // One run at a time — the engine refuses a second with a 409, and it is

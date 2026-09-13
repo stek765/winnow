@@ -115,6 +115,32 @@ def test_facts_are_read_from_disk_without_a_browser(tmp_path):
     assert facts["logged_in"] is False      # no browser profile on disk
 
 
+def test_the_last_collection_says_when_and_how_many(tmp_path):
+    """Pressing «Raccogli ora» more than once while looking at something else
+    used to leave no trace of which run did what — only the day, never the
+    time or the count."""
+    from winnow.appstate import home, read_facts
+    findings = tmp_path / "findings"
+    findings.mkdir()
+    (findings / "2026-08-25.json").write_text(json.dumps(
+        {"posts": [{"shortcode": "A"}, {"shortcode": "B"}]}), encoding="utf-8")
+
+    facts = read_facts(state_dir=tmp_path, findings_dir=findings,
+                       judged=tmp_path / "j.json",
+                       browser_profile=tmp_path / "nope",
+                       now=datetime(2026, 8, 26, 10, 0))
+    assert facts["last_collect_posts"] == 2
+
+    s = home(facts, lang="it")
+    assert "2 post" in s["last_collect_line"]
+
+
+def test_no_findings_yet_means_no_last_collection_to_report(tmp_path):
+    from winnow.appstate import home
+
+    assert home({"logged_in": True})["last_collect_line"] is None
+
+
 def test_reading_a_corrupt_findings_file_does_not_crash(tmp_path):
     from winnow.appstate import read_facts
     findings = tmp_path / "findings"

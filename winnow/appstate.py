@@ -76,6 +76,20 @@ def _span(facts: dict, lang: str) -> str:
     return t("home.collected_between", lang, a=a, b=b)
 
 
+def _last_collect_line(facts: dict, lang: str) -> str | None:
+    """When the last collection actually landed, and how much it brought in —
+    asked for after pressing «Raccogli ora» more than once while looking at
+    something else, with no way to tell which run did what."""
+    from winnow.harvest import say_day
+
+    when, n = facts.get("last_collect"), facts.get("last_collect_posts")
+    if not when or n is None:
+        return None
+    day, _, time = when.partition("T")
+    key = "home.last_collect_one" if n == 1 else "home.last_collect"
+    return t(key, lang, day=say_day(day, lang), time=time[:5], n=n)
+
+
 def home(facts: dict, now: datetime | None = None, lang: str = DEFAULT) -> dict:
     """One face, one sentence, one button. Never an empty screen."""
     now = now or datetime.now()
@@ -83,6 +97,7 @@ def home(facts: dict, now: datetime | None = None, lang: str = DEFAULT) -> dict:
         "spend_usd": round(facts.get("spend_usd", 0.0), 4),
         "stale": _stale(facts.get("last_collect"), now),
         "last_collect": facts.get("last_collect"),
+        "last_collect_line": _last_collect_line(facts, lang),
         "pending_posts": facts.get("pending_posts", 0),
         "pending_days": facts.get("pending_days", 0),
         "pending_from": facts.get("pending_from"),
@@ -166,10 +181,16 @@ def read_facts(state_dir: Path, findings_dir: Path, judged: Path,
         posts += len(day.get("posts", []))
 
     everything = sorted(findings_dir.glob("*.json")) if findings_dir.is_dir() else []
-    last_collect = None
+    last_collect = last_collect_posts = None
     if everything:
+        latest = everything[-1]
         last_collect = datetime.fromtimestamp(
-            everything[-1].stat().st_mtime).isoformat(timespec="seconds")
+            latest.stat().st_mtime).isoformat(timespec="seconds")
+        try:
+            last_collect_posts = len(json.loads(
+                latest.read_text(encoding="utf-8")).get("posts", []))
+        except (OSError, json.JSONDecodeError):
+            pass                          # same tolerance as the loop above
 
     return {
         "halted": is_halted(state_dir),
@@ -181,5 +202,6 @@ def read_facts(state_dir: Path, findings_dir: Path, judged: Path,
         "pending_from": days[0] if days else None,
         "pending_to": days[-1] if days else None,
         "last_collect": last_collect,
+        "last_collect_posts": last_collect_posts,
         "spend_usd": weekly_spend(state_dir / "spend.json", now),
     }
