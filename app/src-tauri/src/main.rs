@@ -104,6 +104,19 @@ fn start_engine() -> Result<(Child, u16), String> {
     Ok((child, port))
 }
 
+/// Kill the engine once, from wherever the app is actually exiting.
+///
+/// `.take()` is what makes calling this from two different events safe: the
+/// second call finds `None` and does nothing, rather than trying to kill an
+/// already-dead `Child` a second time.
+fn kill_engine(app_handle: &tauri::AppHandle) {
+    if let Some(engine) = app_handle.try_state::<Engine>() {
+        if let Some(mut child) = engine.0.lock().unwrap().take() {
+            let _ = child.kill();
+        }
+    }
+}
+
 fn main() {
     let (child, port) = match start_engine() {
         Ok(pair) => pair,
@@ -138,15 +151,26 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            // Covers a window closed on its own — the red button, with other
+            // windows left open — which `RunEvent::Exit` below never sees,
+            // because the app has not quit.
             if let tauri::WindowEvent::Destroyed = event {
-                // The engine dies with the window it was started for.
-                if let Some(engine) = window.app_handle().try_state::<Engine>() {
-                    if let Some(mut child) = engine.0.lock().unwrap().take() {
-                        let _ = child.kill();
-                    }
-                }
+                kill_engine(window.app_handle());
             }
         })
-        .run(tauri::generate_context!())
-        .expect("winnow failed to start");
+        .build(tauri::generate_context!())
+        .expect("winnow failed to start")
+        .run(|app_handle, event| {
+            // `Destroyed` alone left `winnow serve` running after every quit
+            // measured: Cmd+Q, the Dock, and `osascript ... quit` all tear the
+            // app down through `applicationShouldTerminate`, which can reach
+            // process exit without ever firing a per-window event on this
+            // window. `RunEvent::Exit` is the one event guaranteed to run
+            // once, right before the process actually exits, whichever way
+            // that was asked for — so the kill belongs here too, not only
+            // above.
+            if let tauri::RunEvent::Exit = event {
+                kill_engine(app_handle);
+            }
+        });
 }
