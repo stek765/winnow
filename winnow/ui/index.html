@@ -1145,9 +1145,24 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
            "non si capiva neanche fosse cliccabile". Right under the choice,
            not down by the stats, so its own output (the log right below it)
            lands next to the thing that was pressed instead of appearing to
-           come from nowhere. -->
-      <button class="ghost edged" id="check-folders"
-              style="margin-top:.9rem" data-t="home.check_folders"></button>
+           come from nowhere.
+           `.home` is a flex column, which stretches a bare child to the
+           full width by default — the second version looked like a pill
+           spanning the whole card. `align-self:flex-start` undoes that, and
+           `background:var(--glass)` lifts the border off the painting
+           behind it, where the plain `.ghost.edged` border read as barely
+           there — that combination only shows up over this photograph, not
+           in the opaque sheets the class was written for. -->
+      <div id="check-folders-row" style="display:flex; align-items:center;
+           gap:.7rem; flex-wrap:wrap; margin-top:.9rem">
+        <button class="ghost edged" id="check-folders"
+                style="align-self:flex-start; background:var(--glass)"
+                data-t="home.check_folders"></button>
+        <!-- What it costs, said before anyone has to ask: no model call, no
+             GitHub lookup — the only price is the minutes of scrolling. -->
+        <span class="hint" id="check-folders-hint" style="display:inline;
+              margin:0" data-t="home.check_folders_hint"></span>
+      </div>
       <!-- What a run looks like from outside. Three things, because three
            different doubts: a bar that moves says «it is going», a sentence
            says «at what», and a clock that ticks every second says «it is not
@@ -1378,6 +1393,9 @@ const T = {
   "home.checking_folders": ["Checking your folders",
                             "Sto controllando le cartelle"],
   "home.check_folders": ["Posts left", "Post rimasti"],
+  "home.check_folders_hint": [
+    "Free — just takes a few minutes.",
+    "Gratis — ci mette solo un po' di tempo."],
   "home.not_started": ["it did not start", "non è partito"],
   "home.already_running": ["something is already running — wait for it to end",
                            "c'è già qualcosa in corso — aspetta che finisca"],
@@ -1899,7 +1917,7 @@ function setBusy(on) {
   $("dream").classList.toggle("busy", on);
   // Same reasoning as `also`: a third thing to press while something is
   // already running is not "the choice of what to do next" any more.
-  $("check-folders").hidden = on;
+  $("check-folders-row").hidden = on;
   if (!on) hideRefusal();
 }
 
