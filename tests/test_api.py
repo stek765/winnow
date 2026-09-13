@@ -245,6 +245,22 @@ def test_a_scan_is_refused_while_something_else_runs():
     assert code == 409
 
 
+def test_checking_the_backlog_starts_a_job_like_any_other():
+    """A full scroll of every folder is minutes, not a request that blocks
+    until it is done — same reason `/api/folders/scan` is a job."""
+    jobs = Jobs()
+    code, body = route("POST", "/api/backlog", {}, jobs,
+                       spawn=lambda kind, jid, jobs: None)
+    assert code == 202 and jobs.get(body["id"])["kind"] == "backlog"
+
+
+def test_a_backlog_check_is_refused_while_something_else_runs():
+    jobs = Jobs()
+    route("POST", "/api/collect", {}, jobs, spawn=lambda *a: None)
+    code, _ = route("POST", "/api/backlog", {}, jobs, spawn=lambda *a: None)
+    assert code == 409
+
+
 def test_a_job_can_carry_a_result_and_not_only_a_line_of_text():
     """The folders it found are data the window has to render as checkboxes.
     A progress line cannot be turned back into a list."""

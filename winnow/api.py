@@ -755,7 +755,7 @@ def route(method: str, path: str, payload: dict, jobs: Jobs,
         return 200, {"removed": removed}
 
     if path in ("/api/collect", "/api/recap", "/api/ideas",
-                "/api/folders/scan"):
+                "/api/folders/scan", "/api/backlog"):
         if method != "POST":
             return 405, {"error": "POST only"}
         busy = jobs.current()
@@ -816,6 +816,18 @@ def _run_job(kind: str, jid: str, jobs: Jobs) -> None:
         elif kind == "folders":
             jobs.finish(jid, 0, result={"folders": scan_folders()})
             return
+        elif kind == "backlog":
+            from winnow.browser import Stopped as BrowserStopped
+            try:
+                counts = run_backlog(on_event=say, should_stop=stop_asked)
+            except BrowserStopped:
+                # Not a failure: nobody broke anything, they changed their
+                # mind — same as «Ferma» on a collection mid-scroll.
+                say("stopped", why="fermata mentre leggeva le cartelle")
+                jobs.finish(jid, 0)
+                return
+            jobs.finish(jid, 0, result={"counts": counts})
+            return
         else:
             # Through the CLI on purpose — the session, the http client and
             # the error wording live there — but with the window's two hooks,
@@ -846,6 +858,25 @@ def scan_folders() -> list[dict]:
     with open_session(cfg.browser_profile) as page:
         found = list_saved_folders(page, cfg.username)
     return [{"name": name, "url": url} for name, url in found]
+
+
+def run_backlog(on_event=None, should_stop=None) -> dict[str, int]:
+    """How many un-collected posts sit in each active folder, right now.
+
+    Same trade `winnow backlog` makes on the command line: nothing here caps
+    a folder's scroll, so it costs what `collect`'s `enough=` exists to
+    avoid — asked for by hand, not measured on every run.
+    """
+    from winnow.browser import open_session
+    from winnow.config import load_config
+    from winnow.run import backlog
+    from winnow.state import load_seen
+
+    cfg = load_config(paths.config_file())
+    seen = load_seen(paths.state_dir() / "seen.json")
+    with open_session(cfg.browser_profile) as page:
+        return backlog(cfg, seen, page, on_event=on_event,
+                       should_stop=should_stop)
 
 
 def spawn(kind: str, jid: str, jobs: Jobs) -> None:
