@@ -1150,6 +1150,12 @@ input:focus,select:focus{outline:none; border-color:var(--faint);
       </div>
       <div class="log" id="log" hidden></div>
       <div class="stats" id="stats"></div>
+      <!-- A third action, not a second `also`: it inspects, it does not do
+           the thing the button already offers. Always here, never inside
+           the choice of what to press next — asked for after «Raccogli
+           ora» pressed more than once left no way to tell what was left. -->
+      <button class="also" id="check-folders" style="margin-top:.6rem"
+              data-t="home.check_folders"></button>
     </div>
   </section>
 
@@ -1367,6 +1373,9 @@ const T = {
   "home.collecting": ["Collecting", "Sto raccogliendo"],
   "home.drawing": ["Drawing", "Sto pescando"],
   "home.recapping": ["Making the recap", "Sto facendo il recap"],
+  "home.checking_folders": ["Checking your folders",
+                            "Sto controllando le cartelle"],
+  "home.check_folders": ["What's missing?", "Cosa manca?"],
   "home.not_started": ["it did not start", "non è partito"],
   "home.already_running": ["something is already running — wait for it to end",
                            "c'è già qualcosa in corso — aspetta che finisca"],
@@ -1460,6 +1469,8 @@ const T = {
   // --- what a run says while it runs
   "say.folder": ["Folder {name}: {found} posts, {new} to read.",
                  "Cartella {name}: {found} post, {new} da leggere."],
+  "say.counted": ["{total} still to collect, across {folders} folder(s).",
+                  "{total} ancora da raccogliere, in {folders} cartelle."],
   "say.post": ["{i} of {n} — @{account}, {slides} slides.",
                "{i} di {n} — @{account}, {slides} slide."],
   // Italian keeps `slide` invariable; English does not, and a one-image post
@@ -1610,17 +1621,6 @@ const T = {
                          "Chiedi a Instagram quali hai."],
   "sheet.folders.on": ["on", "accesa"],
   "sheet.folders.rescan_btn": ["Ask Instagram again", "Richiedi a Instagram"],
-  "sheet.folders.check_btn": ["Check what's missing", "Controlla quanti mancano"],
-  "sheet.folders.check_hint": [
-    "Scrolls every folder — can take a few minutes.",
-    "Scorre ogni cartella — puo' metterci qualche minuto."],
-  "sheet.folders.checking": ["Checking your folders…",
-                             "Sto controllando le cartelle…"],
-  "sheet.folders.checked": ["{n} still to collect.", "{n} ancora da raccogliere."],
-  "sheet.folders.check_stopped": ["Stopped.", "Fermata."],
-  "sheet.folders.backlog_one": ["1 still to collect",
-                                "1 ancora da raccogliere"],
-  "sheet.folders.backlog": ["{n} still to collect", "{n} ancora da raccogliere"],
   "sheet.model.local_hint": [
     "It has to read images and speak the OpenAI API — Ollama, LM Studio. It " +
     "runs on your machine, so it costs nothing and the slides never leave " +
@@ -1895,6 +1895,9 @@ function setBusy(on) {
   // dimming is for the button on the *other* screen, which otherwise looks
   // exactly as it does when nothing is happening.
   $("dream").classList.toggle("busy", on);
+  // Same reasoning as `also`: a third thing to press while something is
+  // already running is not "the choice of what to do next" any more.
+  $("check-folders").hidden = on;
   if (!on) hideRefusal();
 }
 
@@ -1936,6 +1939,7 @@ const SAYS = {
   // English in a window where every other word follows the reader's language.
   sliced: (d) => _("say.sliced", d),
   folder: (d) => _("say.folder", d),
+  counted: (d) => _("say.counted", d),
   post: (d) => _(d.slides === 1 ? "say.post_one" : "say.post", d),
   extracted: (d) => _("say.extracted",
     { names: (d.names || []).join(", ") || _("say.no_names") }),
@@ -2485,6 +2489,20 @@ $("also").addEventListener("click", async () => {
   $("act").disabled = true;
   if (!await startJob($("also").dataset.action, _("home.collecting"))) {
     $("also").disabled = false;
+    $("act").disabled = false;
+  }
+});
+
+$("check-folders").addEventListener("click", async () => {
+  if (busy) {
+    $("log").hidden = false;
+    $("log").innerHTML = `<p class="bad">${_("home.already_running")}</p>`;
+    return;
+  }
+  $("check-folders").disabled = true;
+  $("act").disabled = true;
+  if (!await startJob("backlog", _("home.checking_folders"))) {
+    $("check-folders").disabled = false;
     $("act").disabled = false;
   }
 });
@@ -3412,28 +3430,18 @@ function drawProfile() {
   });
 }
 
-// Filled in by `checkBacklog()`, read here: a count is only ever known after
-// a scroll of the whole folder, which is why it starts empty and not at 0 —
-// 0 asserts "nothing left", `undefined` says "never checked".
-let folderCounts = {};
-
 function drawFolders() {
   // The whole row is the switch again: there is nothing else on it to hit.
-  const rows = draft.folders.map((f, i) => {
-    const n = folderCounts[f.name];
-    // Under the name, same slot `sheet.folders.look` uses for its own
-    // subtext — one fact per row, not a second label competing with «accesa».
-    const sub = n == null ? "" : `<span>${n === 1
-      ? _("sheet.folders.backlog_one") : _("sheet.folders.backlog", { n })
-    }</span>`;
-    return `<button class="opt${f.active ? " on" : ""}" data-i="${i}" ` +
-      `aria-pressed="${f.active}">` +
-      `<span class="tick"></span><span class="txt"><b>${esc(f.name)}</b>` +
-      `${sub}</span>` +
-      `<span class="state">${_(f.active ? "sheet.folders.on"
-                                             : "settings.off")}</span>` +
-      "</button>";
-  }).join("");
+  const rows = draft.folders.map((f, i) =>
+    `<button class="opt${f.active ? " on" : ""}" data-i="${i}" ` +
+    `aria-pressed="${f.active}">` +
+    // The name and the state, and nothing else. "winnow la legge" under the
+    // name said exactly what "accesa" says on the right; two labels for one
+    // fact make a reader look for the difference between them.
+    `<span class="tick"></span><span class="txt"><b>${esc(f.name)}</b></span>` +
+    `<span class="state">${_(f.active ? "sheet.folders.on"
+                                           : "settings.off")}</span>` +
+    "</button>").join("");
 
   $("sheet-body").innerHTML = `<div class="opts">${rows ||
     `<div class="opt"><span class="txt"><b>${_("sheet.folders.none")}</b>` +
@@ -3443,58 +3451,10 @@ function drawFolders() {
       `${_("sheet.folders.rescan_btn")}</button>` +
       `<span class="hint" id="scan-note" style="margin:0">` +
       `${_("sheet.folders.rescan")}</span>` +
-    "</div>" +
-    '<div class="acts" style="border:0;padding:0;margin-top:.6rem">' +
-      `<button class="ghost edged" id="check-backlog">` +
-      `${_("sheet.folders.check_btn")}</button>` +
-      `<span class="hint" id="backlog-note" style="margin:0">` +
-      `${_("sheet.folders.check_hint")}</span>` +
     "</div>";
 
   wireFolders();
   $("scan").addEventListener("click", scanFolders);
-  $("check-backlog").addEventListener("click", checkBacklog);
-}
-
-async function checkBacklog() {
-  const note = $("backlog-note"), button = $("check-backlog");
-  button.disabled = true;
-  $("scan").disabled = true;
-  note.textContent = _("sheet.folders.checking");
-  const { code, body } = await api("/api/backlog", "POST");
-  if (code !== 202) {
-    button.disabled = false;
-    $("scan").disabled = false;
-    note.textContent = body.error || _("archive.not_merged");
-    return;
-  }
-  // Polled like the folder scan above: it drives a real browser, and a full
-  // scroll of every folder is minutes, not seconds.
-  const tick = setInterval(async () => {
-    const { body: j } = await api("/api/jobs/" + body.id);
-    if (!j.done) return;
-    clearInterval(tick);
-    button.disabled = false;
-    $("scan").disabled = false;
-    if (j.error) {
-      note.textContent = j.error;
-      return;
-    }
-    // «Ferma» on the home screen reaches this job too — any job, by design
-    // — so a count of zero here must not be read as "nothing left" when it
-    // really means "stopped before finishing".
-    if (j.events.some((e) => e.kind === "stopped")) {
-      note.textContent = _("sheet.folders.check_stopped");
-      return;
-    }
-    folderCounts = (j.result && j.result.counts) || {};
-    // `drawFolders()` rebuilds `sheet-body` from scratch, which detaches
-    // `note` from the document — writing to it here would land on an
-    // element nobody can see. Read it fresh, after the rebuild.
-    drawFolders();
-    $("backlog-note").textContent = _("sheet.folders.checked",
-      { n: Object.values(folderCounts).reduce((a, b) => a + b, 0) });
-  }, 900);
 }
 
 function wireFolders() {

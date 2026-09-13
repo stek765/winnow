@@ -163,6 +163,9 @@ def backlog(cfg: Config, seen: dict[str, dict], page,
         codes = list_shortcodes(page, folder.url, should_stop=should_stop)
         out[folder.name] = len(filter_new(seen, codes))
         say("folder", name=folder.name, found=len(codes), new=out[folder.name])
+    # A closing number, same as `collect`'s "written": the log otherwise ends
+    # on the last folder's line, and nothing says the count is now complete.
+    say("counted", total=sum(out.values()), folders=len(out))
     return out
 
 

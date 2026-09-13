@@ -31,6 +31,10 @@ def line(event: str, data: dict) -> str:
         return (f"  folder     {data['name']} · {data['found']} posts, "
                 f"{data['new']} new")
 
+    if event == "counted":
+        return (f"\n  counted    {data.get('total', 0)} still to collect, "
+                f"across {data.get('folders', 0)} folder(s)")
+
     if event == "post":
         n = data["slides"]
         return (f"\n  {data['i']}/{data['n']}  @{data['account']} · "

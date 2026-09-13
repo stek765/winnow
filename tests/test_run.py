@@ -319,7 +319,12 @@ def test_backlog_counts_what_collect_never_scrolls_far_enough_to_see(monkeypatch
         return pages[url]
 
     monkeypatch.setattr(run, "list_shortcodes", fake_list)
-    assert run.backlog(cfg, seen, page=None) == {"github": 2, "ai": 1}
+    said = []
+    assert run.backlog(cfg, seen, page=None,
+                       on_event=lambda e, d: said.append((e, d))
+                       ) == {"github": 2, "ai": 1}
+    # The window's log ends on a total, not on whichever folder came last.
+    assert said[-1] == ("counted", {"total": 3, "folders": 2})
 
 
 # --- a broken key must not eat the backlog ---------------------------------

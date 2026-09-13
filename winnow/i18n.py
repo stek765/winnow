@@ -55,6 +55,8 @@ STRINGS: dict[str, dict[str, str]] = {
     "home.busy.ideas": {"en": "Drawing an idea", "it": "Sto pescando un'idea"},
     "home.busy.folders": {"en": "Reading your folders",
                           "it": "Sto guardando le tue cartelle"},
+    "home.busy.backlog": {"en": "Checking your folders",
+                          "it": "Sto controllando le cartelle"},
     "home.busy.other": {"en": "Working", "it": "Sto lavorando"},
     "home.busy.spent": {"en": "${usd} so far", "it": "${usd} finora"},
     "home.stop": {"en": "Stop", "it": "Ferma"},

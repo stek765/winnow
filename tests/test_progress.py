@@ -6,6 +6,11 @@ def test_a_folder_says_how_many_are_new_not_just_how_many_exist():
     assert "Salvati" in out and "24" in out and "8" in out
 
 
+def test_counted_closes_a_backlog_check_with_a_total():
+    out = line("counted", {"total": 12, "folders": 3})
+    assert "12" in out and "3" in out
+
+
 def test_a_post_is_numbered_so_you_know_how_far_it_has_got():
     out = line("post", {"i": 3, "n": 8, "account": "pycode.dev", "slides": 7})
     assert "3/8" in out and "pycode.dev" in out and "7" in out
