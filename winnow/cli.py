@@ -28,6 +28,8 @@ them to your profile to be filtered.
   winnow init          set everything up: model, browser, login, saved
                        folders, profile, daily run
   winnow collect       one pass now, instead of waiting for the next
+  winnow backlog       how many un-collected posts sit in each folder —
+                       costs a full scroll, so it is asked for, not free
   winnow status        is it alive? what did it find? what has it cost?
   winnow recap         judge the days not judged yet, and open the page
   winnow ideas         draw at random from everything kept, and ask what it
@@ -59,9 +61,9 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--config", default=None, type=Path, help=argparse.SUPPRESS)
     p.add_argument(
         "command", nargs="?",
-        choices=["init", "login", "collect", "status", "recap", "ideas", "render",
-                 "config", "schedule", "update", "reset-halt", "where",
-                 "app", "serve"],
+        choices=["init", "login", "collect", "backlog", "status", "recap",
+                 "ideas", "render", "config", "schedule", "update",
+                 "reset-halt", "where", "app", "serve"],
         metavar="COMMAND",
     )
     p.add_argument("--version", action="version",
@@ -381,6 +383,39 @@ def _cmd_collect(args) -> int:
     return 0
 
 
+def _cmd_backlog(args) -> int:
+    """How many un-collected posts sit in each folder, without collecting any
+    of them. `collect` never has to know this — it stops each folder's
+    scroll the moment it has enough for its share — so answering it costs a
+    full scroll of every folder instead: minutes, not seconds, on a big one.
+    """
+    from winnow.browser import SessionExpired, Stopped as BrowserStopped
+    from winnow.browser import open_session
+    from winnow.run import backlog
+
+    cfg = load_config(args.config)
+    seen = load_seen(args.state_dir / "seen.json")
+
+    def show(event: str, data: dict) -> None:
+        if event == "folder":
+            print(f"  {data['name']:<24} {data['new']:>4} new "
+                  f"(of {data['found']} saved)", flush=True)
+
+    stop = getattr(args, "should_stop", None)
+    try:
+        with open_session(cfg.browser_profile) as page:
+            counts = backlog(cfg, seen, page, on_event=show, should_stop=stop)
+    except BrowserStopped as e:
+        print(f"  {e}")
+        return 0
+    except SessionExpired as e:
+        print(f"SESSION: {e}", file=sys.stderr)
+        return 3
+
+    print(f"\n  {sum(counts.values())} new across {len(counts)} folder(s)")
+    return 0
+
+
 def _cmd_login(args) -> int:
     """Sign in by hand, once. winnow never types your password."""
     from winnow.setup import run_login
@@ -434,6 +469,7 @@ def _dispatch(args) -> int:
         "status": _cmd_status,
         "reset-halt": _cmd_reset_halt,
         "collect": _cmd_collect,
+        "backlog": _cmd_backlog,
         "recap": _cmd_recap,
         "ideas": _cmd_ideas,
         "render": _cmd_render,

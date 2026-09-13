@@ -296,6 +296,32 @@ def test_the_tally_is_read_from_the_posts_already_seen():
     assert tally_by_folder(seen) == {"github": 2, "ai": 1}
 
 
+def test_backlog_counts_what_collect_never_scrolls_far_enough_to_see(monkeypatch):
+    """`collect`'s `enough=` stops a folder's scroll early on purpose. Asked
+    by hand, `backlog` must read the whole folder instead — no cap passed to
+    `list_shortcodes` — and report only what is not already in `seen.json`.
+    """
+    import winnow.run as run
+    from winnow.config import Config, Folder, Limits
+
+    cfg = Config(
+        username="tizio", browser_profile=None,
+        folders=[Folder("github", "/tizio/saved/github/111/", True),
+                Folder("ai", "/tizio/saved/ai/222/", True)],
+        limits=Limits(3.0, 10.0, 5, 15, 0.92), model="claude-haiku-4-5",
+    )
+    pages = {"/tizio/saved/github/111/": ["AAA", "BBB", "CCC"],
+            "/tizio/saved/ai/222/": ["DDD"]}
+    seen = {"AAA": {"date": "2026-08-23", "folder": "github"}}
+
+    def fake_list(page, url, **kw):
+        assert kw.get("enough") is None, "must not cap the scroll"
+        return pages[url]
+
+    monkeypatch.setattr(run, "list_shortcodes", fake_list)
+    assert run.backlog(cfg, seen, page=None) == {"github": 2, "ai": 1}
+
+
 # --- a broken key must not eat the backlog ---------------------------------
 
 def test_a_key_without_credit_stops_the_run_and_marks_nothing(tmp_path, monkeypatch):

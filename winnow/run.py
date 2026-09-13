@@ -140,6 +140,32 @@ def tally_by_folder(seen: dict[str, dict]) -> dict[str, int]:
     return out
 
 
+def backlog(cfg: Config, seen: dict[str, dict], page,
+           on_event: Callable[[str, dict], None] | None = None,
+           should_stop: Callable[[], bool] | None = None) -> dict[str, int]:
+    """How many un-collected posts sit in each active folder, right now.
+
+    `collect`'s `enough=` stops each folder's scroll the moment it has
+    *enough* new posts for its share of the run — deliberately, so a run
+    costs a screenful and not the whole folder. That is exactly the number
+    this answers: nothing caps the scroll here, so it costs what `collect`
+    is built to avoid, which is why it is asked for by hand instead of
+    measured on every run.
+    """
+    def say(event: str, **data) -> None:
+        if on_event:
+            on_event(event, data)
+
+    out: dict[str, int] = {}
+    for folder in active_folders(cfg):
+        if should_stop and should_stop():
+            break
+        codes = list_shortcodes(page, folder.url, should_stop=should_stop)
+        out[folder.name] = len(filter_new(seen, codes))
+        say("folder", name=folder.name, found=len(codes), new=out[folder.name])
+    return out
+
+
 def deal(pools: list[tuple[str, list[str]]], want: int,
          tally: dict[str, int] | None = None) -> list[tuple[str, str]]:
     """Share a run between the folders instead of queueing them.
